@@ -1,0 +1,26 @@
+//@version=5
+indicator("XI KE Agent Feed", overlay=true)
+// ===== XI KE AGENT FEED =====
+// Gửi số liệu chỉ báo (giá, EMA34/80, MACD, volume, 5 nến gần nhất) tới app Nhật Ký XAUUSD qua ntfy.sh.
+// Cách A: dán NGUYÊN file thành chỉ báo mới, sửa 2 dòng xk_buy / xk_sell.
+// Cách B: dán từ dòng "BẮT ĐẦU" xuống CUỐI chỉ báo của bạn (không dán dòng indicator ở trên).
+// Alert: Điều kiện = "XI KE Agent Feed" -> "Any alert() function call". Webhook URL = https://ntfy.sh/<topic của bạn>
+// ===== BẮT ĐẦU =====
+xk_secret = input.string("doi-chuoi-nay", "Agent secret (giống trong app)")
+xk_e34 = ta.ema(close, 34)
+xk_e80 = ta.ema(close, 80)
+[xk_macd, xk_sig, xk_hist] = ta.macd(close, 12, 26, 9)
+xk_vma = ta.sma(volume, 20)
+// >>> SỬA 2 DÒNG NÀY = điều kiện BUY / SELL trong chỉ báo của bạn <<<
+xk_buy = false
+xk_sell = false
+xk_side = xk_buy ? "BUY" : xk_sell ? "SELL" : ""
+xk_n(x) => na(x) ? "null" : str.tostring(x, "#.#####")
+xk_bar(i) => "[" + xk_n(open[i]) + "," + xk_n(high[i]) + "," + xk_n(low[i]) + "," + xk_n(close[i]) + "," + xk_n(volume[i]) + "," + xk_n(xk_macd[i]) + "]"
+xk_bars = "[" + xk_bar(4) + "," + xk_bar(3) + "," + xk_bar(2) + "," + xk_bar(1) + "," + xk_bar(0) + "]"
+xk_tc = na(time_close) ? "0" : str.tostring(time_close, "#")
+xk_id = syminfo.ticker + "-" + timeframe.period + "-" + str.tostring(time, "#") + "-" + xk_side
+xk_msg = '{"v":1,"secret":"' + xk_secret + '","id":"' + xk_id + '","symbol":"' + syminfo.ticker + '","tf":"' + timeframe.period + '","side":"' + xk_side + '","bar_time":' + xk_tc + ',"close":' + xk_n(close) + ',"ema34":' + xk_n(xk_e34) + ',"ema80":' + xk_n(xk_e80) + ',"macd":' + xk_n(xk_macd) + ',"macd_signal":' + xk_n(xk_sig) + ',"vol":' + xk_n(volume) + ',"vol_ma":' + xk_n(xk_vma) + ',"bars":' + xk_bars + ',"note":"' + syminfo.tickerid + '"}'
+if barstate.isconfirmed and xk_side != ""
+    alert(xk_msg, alert.freq_once_per_bar_close)
+plotshape(xk_side != "", "XK gửi agent", shape.circle, location.bottom, color.yellow, size=size.tiny)
