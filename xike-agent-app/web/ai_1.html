@@ -288,21 +288,30 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .acct-sub { margin: 6px 0 0; font: 600 13px/1.2 var(--f-ui); color: var(--text); }
 .acct-pos { display: grid; gap: 4px; max-height: 18vh; overflow-y: auto; }
 .acct-pos-row { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font: 500 12px/1.4 var(--f-num); overflow-wrap: anywhere; }
-/* Đặt lệnh: tắt sẵn, phải bật và bấm xác nhận lần hai mới gửi */
-.login { display: grid; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
-.login h4 { margin: 0; font: 600 13px/1.2 var(--f-ui); color: var(--text); }
-.login-msg.ok { color: var(--up); }
-.login-msg.err { color: var(--down); }
-.ord { display: grid; gap: 8px; margin-top: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
-.ord-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.ord-chk { flex-direction: row !important; align-items: center; gap: 8px !important; color: var(--text) !important; font-size: 13px !important; }
-.ord-chk input { width: auto !important; margin: 0; }
-.ord-side { display: flex; gap: 8px; }
-.ord-side button { flex: 1 1 0; padding: 12px 6px; font: 700 15px/1 var(--f-ui); }
+/* Khung đặt lệnh ngay dưới biểu đồ: tắt sẵn, phải bật và bấm xác nhận lần hai mới gửi */
+#trade { display: grid; gap: 8px; padding: 8px 10px 10px; background: var(--panel); border-top: 1px solid var(--line); max-height: 46vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+#trade input { font: 500 14px/1 var(--f-num); color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; width: 100%; min-width: 0; }
+.tr-row { display: flex; gap: 8px; align-items: center; }
+.tr-sym { flex: 1 1 0; text-transform: uppercase; }
+.tr-lot { flex: 1.3 1 0; display: flex; min-width: 0; }
+.tr-lot input { text-align: center; border-radius: 0 !important; border-left: 0 !important; border-right: 0 !important; }
+.tr-lot button { flex: none; width: 38px; padding: 0; font: 600 18px/1 var(--f-ui); }
+.tr-lot button:first-child { border-radius: 8px 0 0 8px; }
+.tr-lot button:last-child { border-radius: 0 8px 8px 0; }
+.tr-on { flex: none; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text); }
+.tr-on input { width: 18px !important; height: 18px; margin: 0; padding: 0 !important; }
+.tr-f { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--muted); }
+.tr-side { display: flex; gap: 8px; }
+.tr-side button { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; }
+.tr-side b { font: 700 16px/1 var(--f-ui); }
+.tr-side small { font: 500 11px/1 var(--f-num); opacity: .85; }
 #ordBuy { color: var(--up); border-color: rgba(43, 179, 154, .55); }
 #ordSell { color: var(--down); border-color: rgba(239, 100, 113, .55); }
 #ordBuy.arm { background: var(--up); color: #04140f; }
 #ordSell.arm { background: var(--down); color: #1d0508; }
+.tr-more summary { cursor: pointer; font-size: 12px; color: var(--muted); padding: 2px 0; }
+.tr-more[open] summary { margin-bottom: 8px; }
+.tr-more .note { margin-top: 8px; }
 .ord-msg.ok { color: var(--up); }
 .ord-msg.err { color: var(--down); }
 .acct-pos-row .ord-close { float: right; margin: -3px -4px 0 8px; padding: 4px 8px; font-size: 11px; }
@@ -375,11 +384,41 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
     &lt;button type=&quot;button&quot; id=&quot;bBlock&quot; class=&quot;on&quot; aria-pressed=&quot;true&quot;&gt;Giờ cấm&lt;/button&gt;
     &lt;button type=&quot;button&quot; id=&quot;bFile&quot;&gt;Nạp file&lt;/button&gt;
     &lt;button type=&quot;button&quot; id=&quot;bDemo&quot;&gt;Demo&lt;/button&gt;
+    &lt;button type=&quot;button&quot; id=&quot;bOrd&quot; aria-pressed=&quot;false&quot;&gt;Đặt lệnh&lt;/button&gt;
     &lt;button type=&quot;button&quot; id=&quot;bSet&quot; aria-pressed=&quot;false&quot;&gt;Cài đặt&lt;/button&gt;
   &lt;/div&gt;
   &lt;div id=&quot;wrap&quot;&gt;
     &lt;canvas id=&quot;cv&quot; role=&quot;img&quot; aria-label=&quot;Biểu đồ nến XAUUSD&quot;&gt;&lt;/canvas&gt;
     &lt;div id=&quot;legend&quot;&gt;&lt;/div&gt;
+  &lt;/div&gt;
+  &lt;div id=&quot;trade&quot; hidden&gt;
+    &lt;div class=&quot;tr-row&quot;&gt;
+      &lt;input id=&quot;ordSym&quot; class=&quot;tr-sym&quot; type=&quot;text&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;characters&quot; spellcheck=&quot;false&quot; value=&quot;XAUUSD&quot; aria-label=&quot;Mã&quot;&gt;
+      &lt;div class=&quot;tr-lot&quot; role=&quot;group&quot; aria-label=&quot;Khối lượng&quot;&gt;
+        &lt;button type=&quot;button&quot; id=&quot;ordLotDn&quot; aria-label=&quot;Giảm lot&quot;&gt;−&lt;/button&gt;
+        &lt;input id=&quot;ordVol&quot; type=&quot;text&quot; inputmode=&quot;decimal&quot; value=&quot;0.01&quot; aria-label=&quot;Khối lượng (lot)&quot;&gt;
+        &lt;button type=&quot;button&quot; id=&quot;ordLotUp&quot; aria-label=&quot;Tăng lot&quot;&gt;+&lt;/button&gt;
+      &lt;/div&gt;
+      &lt;label class=&quot;tr-on&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;ordEnable&quot;&gt; Bật&lt;/label&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;tr-row&quot;&gt;
+      &lt;label class=&quot;tr-f&quot;&gt;SL&lt;input id=&quot;ordSl&quot; type=&quot;text&quot; inputmode=&quot;decimal&quot; placeholder=&quot;bắt buộc&quot;&gt;&lt;/label&gt;
+      &lt;label class=&quot;tr-f&quot;&gt;TP&lt;input id=&quot;ordTp&quot; type=&quot;text&quot; inputmode=&quot;decimal&quot; placeholder=&quot;có thể trống&quot;&gt;&lt;/label&gt;
+    &lt;/div&gt;
+    &lt;div class=&quot;tr-side&quot;&gt;
+      &lt;button type=&quot;button&quot; id=&quot;ordSell&quot; disabled&gt;&lt;b&gt;SELL&lt;/b&gt;&lt;small id=&quot;ordSellPx&quot;&gt;—&lt;/small&gt;&lt;/button&gt;
+      &lt;button type=&quot;button&quot; id=&quot;ordBuy&quot; disabled&gt;&lt;b&gt;BUY&lt;/b&gt;&lt;small id=&quot;ordBuyPx&quot;&gt;—&lt;/small&gt;&lt;/button&gt;
+    &lt;/div&gt;
+    &lt;p class=&quot;note ord-msg&quot; id=&quot;ordMsg&quot;&gt;Đặt lệnh đang tắt.&lt;/p&gt;
+    &lt;div class=&quot;acct-pos&quot; id=&quot;tradePos&quot;&gt;&lt;/div&gt;
+    &lt;details class=&quot;tr-more&quot;&gt;
+      &lt;summary&gt;Tuỳ chọn&lt;/summary&gt;
+      &lt;div class=&quot;tr-row&quot;&gt;
+        &lt;label class=&quot;tr-f&quot;&gt;Lot tối đa&lt;input id=&quot;ordMax&quot; type=&quot;text&quot; inputmode=&quot;decimal&quot; value=&quot;0.10&quot;&gt;&lt;/label&gt;
+        &lt;label class=&quot;tr-f&quot;&gt;Ghi chú&lt;input id=&quot;ordNote&quot; type=&quot;text&quot; autocomplete=&quot;off&quot; maxlength=&quot;20&quot; placeholder=&quot;XIKE&quot;&gt;&lt;/label&gt;
+      &lt;/div&gt;
+      &lt;p class=&quot;note&quot;&gt;Lệnh thị trường qua VPS trong Cài đặt. Bấm BUY/SELL một lần để xem lại, bấm lần nữa trong 6 giây mới gửi. Giá trên nút là giá đóng nến mới nhất của biểu đồ, giá khớp thật do MT5 quyết định.&lt;/p&gt;
+    &lt;/details&gt;
   &lt;/div&gt;
   &lt;div id=&quot;settings&quot; hidden&gt;
     &lt;label&gt;Lệch giờ hiển thị (so với UTC)&lt;input id=&quot;iTz&quot; type=&quot;number&quot; inputmode=&quot;numeric&quot; min=&quot;-12&quot; max=&quot;14&quot; value=&quot;7&quot;&gt;&lt;/label&gt;
@@ -417,24 +456,6 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
       &lt;h4 class=&quot;acct-sub&quot;&gt;Lệnh đã đóng (7 ngày gần nhất)&lt;/h4&gt;
       &lt;p class=&quot;note&quot; id=&quot;acctHistSum&quot;&gt;&lt;/p&gt;
       &lt;div class=&quot;acct-pos&quot; id=&quot;acctHist&quot;&gt;&lt;/div&gt;
-      &lt;div class=&quot;ord&quot; id=&quot;ord&quot;&gt;
-        &lt;h3 class=&quot;acct-title&quot;&gt;Đặt lệnh MT5&lt;/h3&gt;
-        &lt;p class=&quot;note&quot;&gt;Lệnh thị trường, gửi qua VPS ở trên (cần VPS có cổng POST /order). Bấm BUY/SELL một lần để xem lại, bấm lần nữa trong 6 giây mới gửi.&lt;/p&gt;
-        &lt;label class=&quot;ord-chk&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;ordEnable&quot;&gt; Bật đặt lệnh trên máy này&lt;/label&gt;
-        &lt;div class=&quot;ord-grid&quot;&gt;
-          &lt;label&gt;Mã&lt;input id=&quot;ordSym&quot; type=&quot;text&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;characters&quot; spellcheck=&quot;false&quot; value=&quot;XAUUSD&quot;&gt;&lt;/label&gt;
-          &lt;label&gt;Khối lượng (lot)&lt;input id=&quot;ordVol&quot; type=&quot;number&quot; inputmode=&quot;decimal&quot; min=&quot;0.01&quot; step=&quot;0.01&quot; value=&quot;0.01&quot;&gt;&lt;/label&gt;
-          &lt;label&gt;SL (giá, bắt buộc)&lt;input id=&quot;ordSl&quot; type=&quot;number&quot; inputmode=&quot;decimal&quot; step=&quot;0.01&quot; placeholder=&quot;vd 2380.50&quot;&gt;&lt;/label&gt;
-          &lt;label&gt;TP (giá, có thể trống)&lt;input id=&quot;ordTp&quot; type=&quot;number&quot; inputmode=&quot;decimal&quot; step=&quot;0.01&quot; placeholder=&quot;vd 2410.00&quot;&gt;&lt;/label&gt;
-          &lt;label&gt;Lot tối đa mỗi lệnh&lt;input id=&quot;ordMax&quot; type=&quot;number&quot; inputmode=&quot;decimal&quot; min=&quot;0.01&quot; step=&quot;0.01&quot; value=&quot;0.10&quot;&gt;&lt;/label&gt;
-          &lt;label&gt;Ghi chú&lt;input id=&quot;ordNote&quot; type=&quot;text&quot; autocomplete=&quot;off&quot; maxlength=&quot;20&quot; placeholder=&quot;XIKE&quot;&gt;&lt;/label&gt;
-        &lt;/div&gt;
-        &lt;div class=&quot;ord-side&quot;&gt;
-          &lt;button type=&quot;button&quot; id=&quot;ordBuy&quot; disabled&gt;BUY&lt;/button&gt;
-          &lt;button type=&quot;button&quot; id=&quot;ordSell&quot; disabled&gt;SELL&lt;/button&gt;
-        &lt;/div&gt;
-        &lt;p class=&quot;note ord-msg&quot; id=&quot;ordMsg&quot;&gt;Đặt lệnh đang tắt.&lt;/p&gt;
-      &lt;/div&gt;
     &lt;/div&gt;
   &lt;/div&gt;
   &lt;div class=&quot;statusline&quot; id=&quot;status&quot; role=&quot;status&quot;&gt;&lt;/div&gt;
@@ -2878,8 +2899,19 @@ function bindUI() {
     panel.hidden = !panel.hidden;
     setOn(&#x27;bSet&#x27;, !panel.hidden);
     resize();
-    acctPanelChanged(!panel.hidden);
+    acctPanelChanged(acctWanted());
   });
+  $(&#x27;bOrd&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; {
+    const panel = $(&#x27;trade&#x27;);
+    panel.hidden = !panel.hidden;
+    setOn(&#x27;bOrd&#x27;, !panel.hidden);
+    resize();
+    ordPrices();
+    acctPanelChanged(acctWanted());
+    if (!panel.hidden &amp;&amp; !mtVps()) ordSay(&#x27;Chưa kết nối VPS: vào Cài đặt, nhập địa chỉ VPS, token và đăng nhập MT5.&#x27;, &#x27;err&#x27;);
+  });
+  $(&#x27;ordLotDn&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; ordStep(-1));
+  $(&#x27;ordLotUp&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; ordStep(1));
   $(&#x27;iTz&#x27;).addEventListener(&#x27;change&#x27;, applyTz);
   $(&#x27;acctSave&#x27;).addEventListener(&#x27;click&#x27;, acctSaveClick);
   $(&#x27;acctRefresh&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; acctRefresh());
@@ -3016,7 +3048,10 @@ function acctRenderGrid(acc, nLenh, c) {
   grid.appendChild(acctTile(&#x27;Số lệnh mở&#x27;, nLenh === null ? &#x27;—&#x27; : String(nLenh)));
 }
 function acctRenderPos(list, c) {
-  const box = $(&#x27;acctPos&#x27;);
+  acctRenderPosInto($(&#x27;acctPos&#x27;), list, c);
+  acctRenderPosInto($(&#x27;tradePos&#x27;), list, c);
+}
+function acctRenderPosInto(box, list, c) {
   box.textContent = &#x27;&#x27;;
   if (!list) return;
   if (!list.length) { acctEmpty(box, &#x27;Không có lệnh đang mở.&#x27;); return; }
@@ -3089,6 +3124,8 @@ async function acctRefresh() {
   if (!hong.length) acctMsg(&#x27;Đã kết nối · cập nhật &#x27; + acctClock());
   else acctMsg(kq[hong[0]].msg + &#x27; (&#x27; + hong.length + &#x27; cầu nối lỗi)&#x27;);
 }
+// Làm mới tài khoản khi Cài đặt hoặc khung Đặt lệnh đang mở
+function acctWanted() { return !$(&#x27;settings&#x27;).hidden || !$(&#x27;trade&#x27;).hidden; }
 function acctPanelChanged(open) {
   clearInterval(acctTimer);
   acctTimer = 0;
@@ -3190,6 +3227,21 @@ function ordLoad() {
   $(&#x27;ordEnable&#x27;).checked = false;
   ordSync();
 }
+function ordStep(dir) {
+  const v = ordNum(&#x27;ordVol&#x27;);
+  const cur = Number.isFinite(v) &amp;&amp; v &gt; 0 ? v : 0.01;
+  const nx = Math.max(0.01, Math.round((cur + dir * 0.01) * 100) / 100);
+  $(&#x27;ordVol&#x27;).value = nx.toFixed(2);
+  $(&#x27;ordVol&#x27;).dispatchEvent(new Event(&#x27;input&#x27;));
+  ordStore();
+}
+// Giá tham khảo trên nút BUY/SELL (giá đóng nến mới nhất của biểu đồ live)
+function ordPrices() {
+  const px = ordChartPrice();
+  const t = px === null ? &#x27;chưa có giá live&#x27; : String(px);
+  $(&#x27;ordBuyPx&#x27;).textContent = t;
+  $(&#x27;ordSellPx&#x27;).textContent = t;
+}
 function ordStore() {
   const v = { sym: $(&#x27;ordSym&#x27;).value.trim(), vol: $(&#x27;ordVol&#x27;).value, max: $(&#x27;ordMax&#x27;).value, note: $(&#x27;ordNote&#x27;).value.trim() };
   try { localStorage.setItem(ORD_KEY, JSON.stringify(v)); } catch (err) { /* không lưu được: vẫn dùng trong phiên */ }
@@ -3205,8 +3257,8 @@ function ordDisarm() {
   ordArm = null;
   $(&#x27;ordBuy&#x27;).classList.remove(&#x27;arm&#x27;);
   $(&#x27;ordSell&#x27;).classList.remove(&#x27;arm&#x27;);
-  $(&#x27;ordBuy&#x27;).textContent = &#x27;BUY&#x27;;
-  $(&#x27;ordSell&#x27;).textContent = &#x27;SELL&#x27;;
+  $(&#x27;ordBuy&#x27;).querySelector(&#x27;b&#x27;).textContent = &#x27;BUY&#x27;;
+  $(&#x27;ordSell&#x27;).querySelector(&#x27;b&#x27;).textContent = &#x27;SELL&#x27;;
 }
 function ordSync() {
   const on = $(&#x27;ordEnable&#x27;).checked &amp;&amp; !ordBusy;
@@ -3220,7 +3272,7 @@ function ordSync() {
 function ordChartPrice() {
   if (!hasData || !BASE.length || !/^Live/.test(baseName)) return null;
   const c = Number(BASE[BASE.length - 1].c);
-  return Number.isFinite(c) ? c : null;
+  return Number.isFinite(c) ? Math.round(c * 100) / 100 : null;
 }
 function ordNum(id) {
   const raw = String($(id).value || &#x27;&#x27;).trim().replace(&#x27;,&#x27;, &#x27;.&#x27;);
@@ -3298,7 +3350,7 @@ async function ordClick(side) {
     ordArm = { side, sig, id: ordId() };
     const bt = $(side === &#x27;BUY&#x27; ? &#x27;ordBuy&#x27; : &#x27;ordSell&#x27;);
     bt.classList.add(&#x27;arm&#x27;);
-    bt.textContent = &#x27;Xác nhận &#x27; + side;
+    bt.querySelector(&#x27;b&#x27;).textContent = &#x27;Xác nhận &#x27; + side;
     const dist = r.px !== null ? &#x27; · SL cách &#x27; + Math.round(Math.abs(r.px - o.sl) * 10) + &#x27; pip&#x27; : &#x27;&#x27;;
     ordSay(&#x27;Bấm lần nữa để gửi: &#x27; + side + &#x27; &#x27; + o.volume.toFixed(2) + &#x27; lot &#x27; + o.symbol + &#x27; · SL &#x27; + o.sl + &#x27; · TP &#x27; + (o.tp || &#x27;—&#x27;) + dist, &#x27;&#x27;);
     ordArmTimer = setTimeout(() =&gt; { ordDisarm(); ordSay(&#x27;Đã huỷ xác nhận (quá 6 giây).&#x27;); }, ORD_ARM_MS);
@@ -3459,6 +3511,7 @@ function xkUpsertBar(o) {
   if (first) fitView();
   else { if (follow) S.anchor = BASE.length - 1 + margin; clampAnchor(); }
   xkSaveBars();
+  if (!$(&#x27;trade&#x27;).hidden) ordPrices();
   updateTFButtons();
   updateInfo();
   say(&#x27;Live · &#x27; + BASE.length + &#x27; nến · nến mới nhất &#x27; + fmtTs(b.t, &#x27;dhm&#x27;));

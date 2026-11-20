@@ -2,7 +2,7 @@
 
 > Code đầy đủ của cầu nối (đăng nhập, xem, đặt lệnh) nằm ở `../vps/server.py`, hướng dẫn cài ở `../vps/HUONG_DAN_VPS.md`.
 
-Trang `ai_1.html` (tab Biểu đồ → Cài đặt → **Đặt lệnh MT5**) gửi lệnh tới cùng VPS
+Trang `ai_1.html` (tab Biểu đồ → nút **Đặt lệnh**, khung ngay dưới biểu đồ) gửi lệnh tới cùng VPS
 đang dùng cho `/health`, `/account`, `/positions`, `/history`, cùng header `X-Token`.
 VPS hiện tại chỉ có các cổng đọc, nên cần thêm 2 cổng dưới đây. Chưa có thì app báo
 "VPS chưa có cổng /order".
