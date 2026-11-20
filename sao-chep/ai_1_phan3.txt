@@ -1,3 +1,31 @@
+/* ===== Gắn sự kiện và khởi động ===== */
+function bindUI() {
+  $(&#x27;bFile&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; $(&#x27;picker&#x27;).click());
+  $(&#x27;picker&#x27;).addEventListener(&#x27;change&#x27;, () =&gt; {
+    const f = $(&#x27;picker&#x27;).files &amp;&amp; $(&#x27;picker&#x27;).files[0];
+    if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () =&gt; {
+      try { setBase(parseCSV(String(rd.result)), f.name); }
+      catch (err) { say(&#x27;Lỗi đọc file: &#x27; + err.message); }
+      $(&#x27;picker&#x27;).value = &#x27;&#x27;;
+    };
+    rd.onerror = () =&gt; say(&#x27;Không đọc được file này.&#x27;);
+    rd.readAsText(f);
+  });
+  $(&#x27;bDemo&#x27;).addEventListener(&#x27;click&#x27;, loadDemo);
+  $(&#x27;bFull&#x27;).addEventListener(&#x27;click&#x27;, toggleFull);
+  $(&#x27;bFan&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; setMode(S.mode === &#x27;fan&#x27; ? &#x27;pan&#x27; : &#x27;fan&#x27;));
+  $(&#x27;bHl&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; setMode(S.mode === &#x27;hline&#x27; ? &#x27;pan&#x27; : &#x27;hline&#x27;));
+  $(&#x27;bDraw&#x27;).addEventListener(&#x27;click&#x27;, drawSheetOpen);
+  bindDraw();
+  $(&#x27;bClr&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; {
+    if (S.drawings.length) { lastDel = { items: S.drawings.map((d, idx) =&gt; ({ d, idx })) }; showUndo(&#x27;Đã xóa toàn bộ hình vẽ.&#x27;); }
+    selDraw = null;
+    S.drawings = [];
+    S.pendingFan = null;
+    S.pendingDraw = [];
+    saveDrawings();
     say(&#x27;Đã xóa toàn bộ hình vẽ.&#x27;);
     schedule();
   });

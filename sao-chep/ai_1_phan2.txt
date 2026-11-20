@@ -1,24 +1,3 @@
-      return { lines: [{ name: &#x27;MOM&#x27;, v: out, color: PAL.orange }] };
-    }
-  },
-  {
-    id: &#x27;atr&#x27;, name: &#x27;ATR (biên độ thực trung bình)&#x27;, code: &#x27;ATR&#x27;, group: &#x27;osc&#x27;, pane: true, color: PAL.gold, dec: 2,
-    desc: &#x27;Biên độ dao động thực trung bình của n nến.&#x27;,
-    keys: &#x27;atr average true range bien do thuc trung binh&#x27;,
-    params: [{ k: &#x27;n&#x27;, label: &#x27;Chu kỳ&#x27;, def: 14, min: 1, max: 500 }],
-    label: p =&gt; &#x27;ATR &#x27; + p.n,
-    range: null, zero: true, levels: [],
-    calc: (bars, p) =&gt; {
-      const N = bars.length, tr = NAN_ARR(N);
-      for (let i = 0; i &lt; N; i++) {
-        const b = bars[i];
-        tr[i] = i === 0 ? b.h - b.l : Math.max(b.h - b.l, Math.abs(b.h - bars[i - 1].c), Math.abs(b.l - bars[i - 1].c));
-      }
-      return { lines: [{ name: &#x27;ATR&#x27;, v: rma(tr, p.n), color: PAL.gold }] };
-    }
-  }
-];
-
 // Thư viện chỉ hiện các chỉ báo trong IND_ON, theo đúng thứ tự này. Mã của mọi chỉ báo vẫn nằm trong IND_ALL.
 // Muốn hiện lại một chỉ báo, thêm id của nó vào IND_ON.
 const IND_ON = [&#x27;ema_zone&#x27;, &#x27;trix&#x27;, &#x27;macd&#x27;, &#x27;gann_fan&#x27;];
@@ -1630,31 +1609,3 @@ function resize() {
   schedule();
 }
 
-/* ===== Gắn sự kiện và khởi động ===== */
-function bindUI() {
-  $(&#x27;bFile&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; $(&#x27;picker&#x27;).click());
-  $(&#x27;picker&#x27;).addEventListener(&#x27;change&#x27;, () =&gt; {
-    const f = $(&#x27;picker&#x27;).files &amp;&amp; $(&#x27;picker&#x27;).files[0];
-    if (!f) return;
-    const rd = new FileReader();
-    rd.onload = () =&gt; {
-      try { setBase(parseCSV(String(rd.result)), f.name); }
-      catch (err) { say(&#x27;Lỗi đọc file: &#x27; + err.message); }
-      $(&#x27;picker&#x27;).value = &#x27;&#x27;;
-    };
-    rd.onerror = () =&gt; say(&#x27;Không đọc được file này.&#x27;);
-    rd.readAsText(f);
-  });
-  $(&#x27;bDemo&#x27;).addEventListener(&#x27;click&#x27;, loadDemo);
-  $(&#x27;bFull&#x27;).addEventListener(&#x27;click&#x27;, toggleFull);
-  $(&#x27;bFan&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; setMode(S.mode === &#x27;fan&#x27; ? &#x27;pan&#x27; : &#x27;fan&#x27;));
-  $(&#x27;bHl&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; setMode(S.mode === &#x27;hline&#x27; ? &#x27;pan&#x27; : &#x27;hline&#x27;));
-  $(&#x27;bDraw&#x27;).addEventListener(&#x27;click&#x27;, drawSheetOpen);
-  bindDraw();
-  $(&#x27;bClr&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; {
-    if (S.drawings.length) { lastDel = { items: S.drawings.map((d, idx) =&gt; ({ d, idx })) }; showUndo(&#x27;Đã xóa toàn bộ hình vẽ.&#x27;); }
-    selDraw = null;
-    S.drawings = [];
-    S.pendingFan = null;
-    S.pendingDraw = [];
-    saveDrawings();

@@ -1225,3 +1225,24 @@ const IND_ALL = [
     calc: (bars, p) =&gt; {
       const c = closesOf(bars), N = c.length, out = NAN_ARR(N);
       for (let i = p.n; i &lt; N; i++) out[i] = c[i] - c[i - p.n];
+      return { lines: [{ name: &#x27;MOM&#x27;, v: out, color: PAL.orange }] };
+    }
+  },
+  {
+    id: &#x27;atr&#x27;, name: &#x27;ATR (biên độ thực trung bình)&#x27;, code: &#x27;ATR&#x27;, group: &#x27;osc&#x27;, pane: true, color: PAL.gold, dec: 2,
+    desc: &#x27;Biên độ dao động thực trung bình của n nến.&#x27;,
+    keys: &#x27;atr average true range bien do thuc trung binh&#x27;,
+    params: [{ k: &#x27;n&#x27;, label: &#x27;Chu kỳ&#x27;, def: 14, min: 1, max: 500 }],
+    label: p =&gt; &#x27;ATR &#x27; + p.n,
+    range: null, zero: true, levels: [],
+    calc: (bars, p) =&gt; {
+      const N = bars.length, tr = NAN_ARR(N);
+      for (let i = 0; i &lt; N; i++) {
+        const b = bars[i];
+        tr[i] = i === 0 ? b.h - b.l : Math.max(b.h - b.l, Math.abs(b.h - bars[i - 1].c), Math.abs(b.l - bars[i - 1].c));
+      }
+      return { lines: [{ name: &#x27;ATR&#x27;, v: rma(tr, p.n), color: PAL.gold }] };
+    }
+  }
+];
+
