@@ -426,8 +426,8 @@ function ordRead(side) {
   const cfg = acctStored();
   const base = acctBase(cfg.url), token = String(cfg.token || &#x27;&#x27;);
   if (!base || !token) return { error: &#x27;Chưa kết nối VPS. Nhập địa chỉ và token ở trên trước.&#x27; };
-  const symbol = $(&#x27;ordSym&#x27;).value.trim().toUpperCase();
-  if (!/^[A-Z0-9._#-]{3,20}$/.test(symbol)) return { error: &#x27;Mã không hợp lệ.&#x27; };
+  const symbol = $(&#x27;ordSym&#x27;).value.trim();   // giữ hoa/thường: Exness Standard dùng XAUUSDm
+  if (!/^[A-Za-z0-9._#-]{3,20}$/.test(symbol)) return { error: &#x27;Mã không hợp lệ.&#x27; };
   const vol = ordNum(&#x27;ordVol&#x27;), max = ordNum(&#x27;ordMax&#x27;), sl = ordNum(&#x27;ordSl&#x27;), tp = ordNum(&#x27;ordTp&#x27;);
   if (!(vol &gt; 0)) return { error: &#x27;Khối lượng phải lớn hơn 0.&#x27; };
   if (Math.abs(vol * 100 - Math.round(vol * 100)) &gt; 1e-6) return { error: &#x27;Khối lượng chỉ lấy 2 số lẻ (bước 0.01).&#x27; };

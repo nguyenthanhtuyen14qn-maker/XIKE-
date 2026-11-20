@@ -27,7 +27,9 @@ MT5_PATH = os.environ.get("MT5_PATH", "").strip()            # đường dẫn t
 PORT = int(os.environ.get("XIKE_PORT", "8787"))
 HOST = os.environ.get("XIKE_HOST", "127.0.0.1")               # 127.0.0.1 khi dùng Cloudflare Tunnel / Caddy
 MAX_LOT = float(os.environ.get("XIKE_MAX_LOT", "0.10"))
-ALLOWED = {s.strip().upper() for s in os.environ.get("XIKE_SYMBOLS", "XAUUSD").split(",") if s.strip()}
+# Giữ đúng chữ hoa/thường như trong MT5 (Exness Standard: XAUUSDm). So khớp không phân biệt hoa/thường.
+ALLOWED = {s.strip() for s in os.environ.get("XIKE_SYMBOLS", "XAUUSD").split(",") if s.strip()}
+ALLOWED_BY_KEY = {s.lower(): s for s in ALLOWED}
 MAGIC = 14014
 HIST_LIMIT = 50
 
@@ -251,7 +253,8 @@ def order():
     cid = str(b.get("client_id", ""))[:40]
     if cid and cid in SEEN:
         return ok(SEEN[cid])
-    sym = str(b.get("symbol", "")).strip().upper()
+    asked = str(b.get("symbol", "")).strip()
+    sym = ALLOWED_BY_KEY.get(asked.lower(), "")
     side = b.get("side")
     try:
         vol = round(float(b.get("volume", 0)), 2)
@@ -259,8 +262,8 @@ def order():
         tp = float(b.get("tp", 0) or 0)
     except (TypeError, ValueError):
         return err("Số liệu lệnh không hợp lệ")
-    if sym not in ALLOWED:
-        return err("Mã " + sym + " không được phép trên VPS (XIKE_SYMBOLS)")
+    if not sym:
+        return err("Mã " + asked + " không được phép trên VPS (XIKE_SYMBOLS: " + ", ".join(sorted(ALLOWED)) + ")")
     if side not in ("BUY", "SELL"):
         return err("Hướng lệnh phải là BUY hoặc SELL")
     if not (0 < vol <= MAX_LOT):

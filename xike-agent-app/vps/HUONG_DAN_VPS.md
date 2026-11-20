@@ -43,6 +43,17 @@ Tab **Biểu đồ → Cài đặt**:
 App chỉ nhớ số tài khoản và server, **không lưu mật khẩu**; mật khẩu gửi một lần qua https tới VPS. MT5 trên VPS tự nhớ đăng nhập nếu bạn tích "Lưu mật khẩu" trong MT5.
 Dùng **mật khẩu chỉ xem (investor)** nếu chỉ muốn xem; muốn đặt lệnh thì cần mật khẩu giao dịch (master).
 
+## Dùng với Exness
+- Tải MT5 từ trang cá nhân Exness (Personal Area), cài lên VPS, đăng nhập một lần và bật Algo Trading.
+- **Server**: tên ghi trong email mở tài khoản hoặc trong Personal Area → tài khoản → Thông tin tài khoản, dạng `Exness-MT5Real...` (thật) hoặc `Exness-MT5Trial...` (demo). Phải gõ đúng y hệt.
+- **Mật khẩu**: mật khẩu giao dịch của tài khoản MT5 (không phải mật khẩu đăng nhập web Exness). Đổi/đặt lại được trong Personal Area.
+- **Tên mã vàng** theo loại tài khoản:
+  - Standard: `XAUUSDm` · Standard Cent: `XAUUSDc`
+  - Pro, Raw Spread, Zero: `XAUUSD`
+  
+  Xem đúng tên trong Market Watch của MT5, rồi điền vào `XIKE_SYMBOLS` trong `chay.bat` **và** ô Mã trong khung Đặt lệnh của app.
+- Lot tối thiểu 0.01 (tài khoản Cent tính theo cent: 0.01 lot cent nhỏ hơn 100 lần).
+
 ## Lỗi thường gặp
 | App báo | Cách sửa |
 |---|---|

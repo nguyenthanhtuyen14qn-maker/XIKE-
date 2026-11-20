@@ -292,7 +292,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #trade { display: grid; gap: 8px; padding: 8px 10px 10px; background: var(--panel); border-top: 1px solid var(--line); max-height: 46vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 #trade input { font: 500 14px/1 var(--f-num); color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; width: 100%; min-width: 0; }
 .tr-row { display: flex; gap: 8px; align-items: center; }
-.tr-sym { flex: 1 1 0; text-transform: uppercase; }
+.tr-sym { flex: 1 1 0; }
 .tr-lot { flex: 1.3 1 0; display: flex; min-width: 0; }
 .tr-lot input { text-align: center; border-radius: 0 !important; border-left: 0 !important; border-right: 0 !important; }
 .tr-lot button { flex: none; width: 38px; padding: 0; font: 600 18px/1 var(--f-ui); }
@@ -393,7 +393,7 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
   &lt;/div&gt;
   &lt;div id=&quot;trade&quot; hidden&gt;
     &lt;div class=&quot;tr-row&quot;&gt;
-      &lt;input id=&quot;ordSym&quot; class=&quot;tr-sym&quot; type=&quot;text&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;characters&quot; spellcheck=&quot;false&quot; value=&quot;XAUUSD&quot; aria-label=&quot;Mã&quot;&gt;
+      &lt;input id=&quot;ordSym&quot; class=&quot;tr-sym&quot; type=&quot;text&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; value=&quot;XAUUSD&quot; aria-label=&quot;Mã (Exness Standard: XAUUSDm)&quot; placeholder=&quot;XAUUSD hoặc XAUUSDm&quot;&gt;
       &lt;div class=&quot;tr-lot&quot; role=&quot;group&quot; aria-label=&quot;Khối lượng&quot;&gt;
         &lt;button type=&quot;button&quot; id=&quot;ordLotDn&quot; aria-label=&quot;Giảm lot&quot;&gt;−&lt;/button&gt;
         &lt;input id=&quot;ordVol&quot; type=&quot;text&quot; inputmode=&quot;decimal&quot; value=&quot;0.01&quot; aria-label=&quot;Khối lượng (lot)&quot;&gt;
