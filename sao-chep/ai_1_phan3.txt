@@ -553,7 +553,7 @@ const ANALYZE_PROMPT = [
   '{"bias":"SELL","now":3527.95,"resistance":[3550],"support":[3500],"entry":3537,"sl":3556,"tp":[3510,3500,3475],"note":"Xu hướng giảm vẫn chủ đạo do giá nằm dưới đường EMA. Giá đang giằng co nhẹ tại 3,527.95 nhưng có khả năng kiểm tra lại vùng hỗ trợ 3,500 nếu không vượt qua được 3,550.","axis":[{"price":3600,"y":209},{"price":3450,"y":463}],"last_x":465,"callouts":[{"text":"Kháng cự động (EMA/MA)","x":330,"y":275,"tx":520,"ty":228},{"text":"MACD yếu, lực mua không mạnh (Weak momentum)","x":420,"y":540,"tx":650,"ty":510}]}',
   "VE>>>",
   "bias: BUY, SELL hoặc SIDEWAY. now: giá hiện tại. resistance, support: tối đa 2 mức chính mỗi loại. entry, sl để null và tp để [] nếu ĐỨNG NGOÀI.",
-  "note: nhận định 25-45 chữ, giọng như mẫu.",
+  "note: nhận định ngắn, dưới 20 chữ.",
   "Toạ độ tính trên ảnh gốc theo thang 0-1000 (x: 0 mép trái, 1000 mép phải; y: 0 mép trên, 1000 mép dưới).",
   "axis: 2 mức giá in trên trục giá của ảnh, một mức gần trên, một mức gần dưới vùng nến, y là vị trí dọc của chữ số đó.",
   "last_x: vị trí ngang của nến cuối cùng.",
@@ -911,7 +911,7 @@ async function annotateChart(src, d) {
   cv.height = H;
   const cx = cv.getContext("2d");
   cx.drawImage(img, 0, 0);
-  const u = Math.max(11, Math.round(Math.min(W, H * 0.75) / 30));   // cỡ chữ gốc theo kích thước ảnh
+  const u = Math.max(9, Math.round(Math.min(W, H * 0.75) / 40));   // cỡ chữ gốc theo kích thước ảnh
   const FONT = 'system-ui, Roboto, "Segoe UI", sans-serif';
   const fx = (v, def) => { const n = Number(v); return (Number.isFinite(n) && n >= 0 && n <= 1000 ? n : def) / 1000 * W; };
   const fy = (v, def) => { const n = Number(v); return (Number.isFinite(n) && n >= 0 && n <= 1000 ? n : def) / 1000 * H; };
@@ -979,13 +979,15 @@ async function annotateChart(src, d) {
   const tagW = cx.measureText("0,000.00").width + u * 0.9, tagH = u * 1.4;
   const notShown = [];
   // Khung nhận định góc trên phải: tính chỗ trước để các chữ khác tránh ra
-  const boxW = Math.min(W * 0.54, u * 16.5);
+  let boxW = Math.min(W * 0.54, u * 16.5);
   const noteSz = u * 0.86, noteLh = noteSz * 1.25, notePad = u * 0.45;
   const biasText = bias === "BUY" ? "Xu hướng tăng (Bullish)" : bias === "SELL" ? "Xu hướng giảm (Bearish)" : bias ? "Đi ngang (Sideways)" : "";
   cx.font = "700 " + Math.round(noteSz) + "px " + FONT;
-  const noteLines = wrapText(cx, "NHẬN ĐỊNH: " + (biasText ? biasText + ". " : "") + String(d.note || ""), boxW - notePad * 2).slice(0, 7);
+  // Khung nhận định chỉ ghi xu hướng
+  const noteLines = ["NHẬN ĐỊNH: " + (biasText || "—")];
+  boxW = Math.min(boxW, cx.measureText(noteLines[0]).width + notePad * 2 + u * 0.2);
   const box = { x: W - boxW - u * 0.3, y: fy(d.note_y, 100), w: boxW, h: 0 };
-  box.h = notePad * 2 + noteLh * noteLines.length + u * 0.75 + (yOf ? 0 : noteSz * 1.15 * 3);   // chiều cao dự kiến
+  box.h = notePad * 2 + noteLh * noteLines.length + u * 0.8 + (yOf ? 0 : noteSz * 1.15 * 3);   // chiều cao dự kiến, gồm dòng chữ nhỏ bên dưới
   const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
   const hits = (r) => overlap(r, box);
   const taken = [];   // vùng đã có chữ, để chú thích tránh ra
@@ -1036,6 +1038,8 @@ async function annotateChart(src, d) {
       let lx = onRight ? rightX : leftX;
       cx.font = "700 " + Math.round(sz) + "px " + FONT;
       let lw = Math.max(...txt.map((t) => cx.measureText(t).width));
+      const fitX = (x, w) => Math.max(w / 2 + u * 0.3, Math.min(W - tagW - u * 0.5 - w / 2, x));   // không lấn cột giá
+      lx = fitX(lx, lw);
       let out = txt;
       if (hits({ x: lx - lw / 2, y, w: lw, h: hh })) {
         // Chật: thử nhãn 1 dòng sát đường, không được thì đổi bên
@@ -1046,6 +1050,7 @@ async function annotateChart(src, d) {
         else lx = onRight ? leftX : rightX;
       }
       lw = Math.max(...out.map((t) => cx.measureText(t).width));
+      lx = fitX(lx, lw);
       taken.push({ x: lx - lw / 2, y, w: lw, h: out.length * sz * 1.22 });
       srDraw.push(() => lines(out, lx, y, L.up ? "#f87171" : "#4ade80", sz, "center"));
     }
@@ -1118,7 +1123,12 @@ async function annotateChart(src, d) {
   cx.font = "600 " + Math.round(noteSz * 0.9) + "px " + FONT;
   const extraLines = extra.length ? wrapText(cx, (yOf ? "Ngoài khung: " : "") + extra.join(" · "), boxW - notePad * 2).slice(0, 3) : [];
   const stamp = "AI XIKE · chỉ để tham khảo" + (yOf ? "" : " · không đọc được trục giá");
-  box.h = notePad * 2 + noteLh * noteLines.length + noteSz * 1.15 * extraLines.length + u * 0.75;
+  if (extraLines.length) {
+    boxW = Math.max(boxW, Math.min(W * 0.54, u * 16.5));
+    box.w = boxW;
+    box.x = W - boxW - u * 0.3;
+  }
+  box.h = notePad * 2 + noteLh * noteLines.length + noteSz * 1.15 * extraLines.length;
   cx.fillStyle = "rgba(14,19,29,.9)";
   roundRect(cx, box.x, box.y, box.w, box.h, u * 0.3);
   cx.fill();
@@ -1130,14 +1140,17 @@ async function annotateChart(src, d) {
   cx.font = "700 " + Math.round(noteSz) + "px " + FONT;
   cx.fillStyle = "#ffffff";
   let yy = box.y + notePad;
-  for (const t of noteLines) { cx.fillText(t, box.x + notePad, yy); yy += noteLh; }
+  cx.fillText("NHẬN ĐỊNH: ", box.x + notePad, yy);
+  cx.fillStyle = bias === "BUY" ? "#4ade80" : bias === "SELL" ? "#f87171" : "#fde68a";
+  cx.fillText(biasText || "—", box.x + notePad + cx.measureText("NHẬN ĐỊNH: ").width, yy);
+  yy += noteLh;
   cx.font = "600 " + Math.round(noteSz * 0.9) + "px " + FONT;
   cx.fillStyle = "#fde68a";
   for (const t of extraLines) { cx.fillText(t, box.x + notePad, yy); yy += noteSz * 1.15; }
   cx.font = "600 " + Math.round(u * 0.55) + "px " + FONT;
   cx.textAlign = "right";
   cx.fillStyle = "rgba(255,255,255,.6)";
-  cx.fillText(stamp, box.x + box.w - notePad, yy + u * 0.1);
+  cx.fillText(stamp, box.x + box.w, box.y + box.h + u * 0.25);
 
   return { dataUrl: cv.toDataURL("image/jpeg", 0.9), scaled: !!yOf };
 }
