@@ -1,38 +1,3 @@
-const xOf = i =&gt; LAY.plotW - (S.anchor - i + 0.5) * S.barW;
-const idxAtX = x =&gt; S.anchor + 0.5 - (LAY.plotW - x) / S.barW;
-const yOf = p =&gt; LAY.candleTop + (VP.pMax - p) / (VP.pMax - VP.pMin) * (LAY.candleBottom - LAY.candleTop);
-const priceAtY = y =&gt; VP.pMax - (y - LAY.candleTop) / (LAY.candleBottom - LAY.candleTop) * (VP.pMax - VP.pMin);
-
-function clampAnchor() {
-  if (!hasData) return;
-  const n = series(S.tf).bars.length;
-  const lo = Math.min(5, n - 1);
-  const hi = Math.max(lo, n - 1 + (LAY.plotW * 0.3) / S.barW);
-  S.anchor = clamp(S.anchor, lo, hi);
-}
-
-function fitView() {
-  LAY = layout();
-  const n = series(S.tf).bars.length;
-  S.barW = clamp(LAY.plotW / 72, 4, 16);
-  S.anchor = n - 1 + 4;
-  clampAnchor();
-}
-
-function zoomAt(x, factor) {
-  const iC = idxAtX(x);
-  S.barW = clamp(S.barW * factor, 1.5, 40);
-  S.anchor = iC - 0.5 + (LAY.plotW - x) / S.barW;
-  clampAnchor();
-}
-
-function snapshotState() {
-  const o = {};
-  for (const k of STATE_KEYS) o[k] = S[k];
-  o.inds = S.inds.map(x =&gt; ({ id: x.id, p: x.p, on: x.on }));
-  return o;
-}
-
 function applyState(st) {
   if (!st || typeof st !== &#x27;object&#x27;) return;
   if (TFS.some(t =&gt; t.id === st.tf)) S.tf = st.tf;
@@ -1632,4 +1597,195 @@ const ACCT_HIST_DAYS = 7;               // lịch sử lệnh đã đóng: 7 ng�
 let acctTimer = 0, acctSeq = 0, acctMem = null;
 // Số liệu mới nhất từ VPS, giữ sẵn để các tính năng sau này dùng (null nếu cầu nối đó đang lỗi)
 const acctLast = { health: null, account: null, positions: null, history: null, at: 0 };
+
+function acctStored() {
+  if (acctMem) return acctMem;
+  try { const v = JSON.parse(localStorage.getItem(ACCT_KEY) || &#x27;null&#x27;); return v &amp;&amp; typeof v === &#x27;object&#x27; ? v : {}; }
+  catch (err) { return {}; }
+}
+function acctPutStored(url, token) {
+  acctMem = { url, token };
+  try { localStorage.setItem(ACCT_KEY, JSON.stringify(acctMem)); }
+  catch (err) { /* không lưu được vào máy: vẫn dùng trong phiên này */ }
+}
+// Chỉ nhận https. Chỉ cho http khi là máy trong (127.0.0.1 hoặc localhost).
+function acctBase(raw) {
+  const s = String(raw || &#x27;&#x27;).trim();
+  if (!s) return &#x27;&#x27;;
+  let u;
+  try { u = new URL(s); } catch (err) { return &#x27;&#x27;; }
+  const local = u.hostname === &#x27;127.0.0.1&#x27; || u.hostname === &#x27;localhost&#x27;;
+  if (u.protocol !== &#x27;https:&#x27; &amp;&amp; !(local &amp;&amp; u.protocol === &#x27;http:&#x27;)) return &#x27;&#x27;;
+  return u.origin + u.pathname.replace(/\/+$/, &#x27;&#x27;);
+}
+function acctFill() {
+  const v = acctStored();
+  $(&#x27;acctUrl&#x27;).value = v.url || &#x27;&#x27;;
+  $(&#x27;acctToken&#x27;).value = v.token || &#x27;&#x27;;
+}
+function acctMsg(text) { $(&#x27;acctMsgLine&#x27;).textContent = text; }
+function acctClock() {
+  const d = new Date(), p = n =&gt; String(n).padStart(2, &#x27;0&#x27;);
+  return p(d.getHours()) + &#x27;:&#x27; + p(d.getMinutes()) + &#x27;:&#x27; + p(d.getSeconds());
+}
+// Thời điểm lệnh đóng, ví dụ 20/11 14:05
+function acctWhen(sec) {
+  const d = new Date(Number(sec) * 1000), p = n =&gt; String(n).padStart(2, &#x27;0&#x27;);
+  return p(d.getDate()) + &#x27;/&#x27; + p(d.getMonth() + 1) + &#x27; &#x27; + p(d.getHours()) + &#x27;:&#x27; + p(d.getMinutes());
+}
+// Số có dấu phẩy hàng nghìn và hai số lẻ: 10250.5 → 10,250.50
+function acctNum(v, ccy) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return &#x27;—&#x27;;
+  const parts = Math.abs(n).toFixed(2).split(&#x27;.&#x27;);
+  let whole = parts[0], out = &#x27;&#x27;;
+  while (whole.length &gt; 3) { out = &#x27;,&#x27; + whole.slice(-3) + out; whole = whole.slice(0, -3); }
+  return (n &lt; 0 ? &#x27;-&#x27; : &#x27;&#x27;) + whole + out + &#x27;.&#x27; + parts[1] + (ccy ? &#x27; &#x27; + ccy : &#x27;&#x27;);
+}
+async function acctGet(base, token, path) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() =&gt; ctl.abort(), 10000);
+  try {
+    const res = await fetch(base + path, { headers: { &#x27;X-Token&#x27;: token }, cache: &#x27;no-store&#x27;, signal: ctl.signal });
+    const data = await res.json().catch(() =&gt; ({}));
+    if (res.status === 401) throw new Error(&#x27;Sai token.&#x27;);
+    if (res.status === 503) {
+      const noi = String(data.error || &#x27;VPS chưa sẵn sàng&#x27;);
+      throw new Error(noi.charAt(0).toUpperCase() + noi.slice(1) + (data.detail ? &#x27; (&#x27; + data.detail + &#x27;)&#x27; : &#x27;&#x27;) + &#x27;.&#x27;);
+    }
+    if (!res.ok) throw new Error(&#x27;VPS trả lỗi &#x27; + res.status + &#x27;.&#x27;);
+    return data;
+  } catch (err) {
+    if (err.name === &#x27;AbortError&#x27;) throw new Error(&#x27;Hết thời gian chờ VPS.&#x27;);
+    if (err instanceof TypeError) throw new Error(&#x27;Không kết nối được VPS. Kiểm tra địa chỉ và mạng.&#x27;);
+    throw err;
+  } finally { clearTimeout(timer); }
+}
+function acctTile(label, value, color) {
+  const d = document.createElement(&#x27;div&#x27;), s = document.createElement(&#x27;span&#x27;), b = document.createElement(&#x27;b&#x27;);
+  s.textContent = label;
+  b.textContent = value;
+  if (color) b.style.color = color;
+  d.appendChild(s);
+  d.appendChild(b);
+  return d;
+}
+function acctEmpty(box, text) {
+  const p = document.createElement(&#x27;p&#x27;);
+  p.className = &#x27;note&#x27;;
+  p.textContent = text;
+  box.appendChild(p);
+}
+// Trạng thái một cầu nối: ok = true (đạt) hoặc false (lỗi)
+function acctBr(key, text, ok) {
+  const el = $(&#x27;br-&#x27; + key);
+  el.textContent = text;
+  el.style.color = ok ? &#x27;var(--up)&#x27; : &#x27;var(--down)&#x27;;
+}
+function acctRenderGrid(acc, nLenh, c) {
+  const grid = $(&#x27;acctGrid&#x27;);
+  grid.textContent = &#x27;&#x27;;
+  if (!acc) return;
+  grid.appendChild(acctTile(&#x27;Số dư&#x27;, acctNum(acc.balance, c)));
+  grid.appendChild(acctTile(&#x27;Vốn&#x27;, acctNum(acc.equity, c)));
+  grid.appendChild(acctTile(&#x27;Ký quỹ&#x27;, acctNum(acc.margin, c)));
+  grid.appendChild(acctTile(&#x27;Ký quỹ khả dụng&#x27;, acctNum(acc.margin_free, c)));
+  grid.appendChild(acctTile(&#x27;Lãi/lỗ đang mở&#x27;, acctNum(acc.profit, c), Number(acc.profit) &lt; 0 ? &#x27;var(--down)&#x27; : &#x27;var(--up)&#x27;));
+  grid.appendChild(acctTile(&#x27;Số lệnh mở&#x27;, nLenh === null ? &#x27;—&#x27; : String(nLenh)));
+}
+function acctRenderPos(list, c) {
+  acctRenderPosInto($(&#x27;acctPos&#x27;), list, c);
+  acctRenderPosInto($(&#x27;tradePos&#x27;), list, c);
+}
+function acctRenderPosInto(box, list, c) {
+  box.textContent = &#x27;&#x27;;
+  if (!list) return;
+  if (!list.length) { acctEmpty(box, &#x27;Không có lệnh đang mở.&#x27;); return; }
+  for (const o of list) {
+    const r = document.createElement(&#x27;div&#x27;);
+    r.className = &#x27;acct-pos-row&#x27;;
+    r.style.color = Number(o.profit) &lt; 0 ? &#x27;var(--down)&#x27; : &#x27;var(--up)&#x27;;
+    r.textContent = [o.symbol, o.type, Number(o.volume).toFixed(2) + &#x27; lot&#x27;, &#x27;vào &#x27; + o.price_open,
+      &#x27;SL &#x27; + (Number(o.sl) ? o.sl : &#x27;—&#x27;), &#x27;TP &#x27; + (Number(o.tp) ? o.tp : &#x27;—&#x27;), &#x27;L/L &#x27; + acctNum(o.profit, c)].join(&#x27; · &#x27;);
+    const tk = Number(o.ticket);
+    if ($(&#x27;ordEnable&#x27;).checked &amp;&amp; Number.isInteger(tk) &amp;&amp; tk &gt; 0) {
+      const bt = document.createElement(&#x27;button&#x27;);
+      bt.type = &#x27;button&#x27;;
+      bt.className = &#x27;ord-close danger&#x27;;
+      bt.textContent = &#x27;Đóng&#x27;;
+      bt.addEventListener(&#x27;click&#x27;, () =&gt; ordCloseClick(bt, tk));
+      r.prepend(bt);
+    }
+    box.appendChild(r);
+  }
+}
+function acctRenderHist(h, c) {
+  const sum = $(&#x27;acctHistSum&#x27;), box = $(&#x27;acctHist&#x27;);
+  sum.textContent = &#x27;&#x27;;
+  box.textContent = &#x27;&#x27;;
+  if (!h) return;
+  const list = Array.isArray(h.trades) ? h.trades : [];
+  sum.textContent = h.count + &#x27; lệnh đã đóng · lãi/lỗ ròng &#x27; + acctNum(h.net, c);
+  if (!list.length) { acctEmpty(box, &#x27;Không có lệnh đã đóng trong &#x27; + ACCT_HIST_DAYS + &#x27; ngày.&#x27;); return; }
+  for (const t of list) {
+    const r = document.createElement(&#x27;div&#x27;);
+    r.className = &#x27;acct-pos-row&#x27;;
+    r.style.color = Number(t.net) &lt; 0 ? &#x27;var(--down)&#x27; : &#x27;var(--up)&#x27;;
+    r.textContent = [t.symbol, t.side, Number(t.volume).toFixed(2) + &#x27; lot&#x27;, &#x27;vào &#x27; + t.price_in + &#x27; → &#x27; + t.price_out,
+      &#x27;ròng &#x27; + acctNum(t.net, c), acctWhen(t.time_out)].join(&#x27; · &#x27;);
+    box.appendChild(r);
+  }
+  if (h.count &gt; list.length) acctEmpty(box, &#x27;Chỉ hiện &#x27; + list.length + &#x27; lệnh gần nhất.&#x27;);
+}
+async function acctRefresh() {
+  const cfg = acctStored();
+  const base = acctBase(cfg.url), token = String(cfg.token || &#x27;&#x27;);
+  if (!base || !token) { acctMsg(&#x27;Nhập địa chỉ VPS và token, rồi bấm Lưu và kết nối.&#x27;); return; }
+  const lan = ++acctSeq;
+  acctMsg(&#x27;Đang lấy số liệu...&#x27;);
+  const cau = [[&#x27;health&#x27;, &#x27;/health&#x27;], [&#x27;account&#x27;, &#x27;/account&#x27;], [&#x27;positions&#x27;, &#x27;/positions&#x27;],
+    [&#x27;history&#x27;, &#x27;/history?days=&#x27; + ACCT_HIST_DAYS]];
+  const kq = {};
+  await Promise.all(cau.map(async ([key, path]) =&gt; {
+    try { kq[key] = { ok: true, v: await acctGet(base, token, path) }; }
+    catch (err) { kq[key] = { ok: false, msg: err.message || &#x27;Lỗi không rõ.&#x27; }; }
+  }));
+  if (lan !== acctSeq) return;   // đã có lần làm mới mới hơn: bỏ kết quả cũ
+  const val = key =&gt; (kq[key].ok ? kq[key].v : null);
+  const hong = cau.map(([key]) =&gt; key).filter(key =&gt; !kq[key].ok);
+  const suc = val(&#x27;health&#x27;), acc = val(&#x27;account&#x27;), list = val(&#x27;positions&#x27;), hist = val(&#x27;history&#x27;);
+  const c = (acc &amp;&amp; acc.currency) || (hist &amp;&amp; hist.currency) || &#x27;&#x27;;
+  // Trạng thái từng cầu nối
+  acctBr(&#x27;health&#x27;, suc ? (suc.login ? &#x27;TK &#x27; + suc.login + &#x27; · &#x27; + (suc.server || &#x27;&#x27;) + (suc.connected === false ? &#x27; · mất kết nối broker&#x27; : &#x27;&#x27;) + (suc.trade_allowed === false ? &#x27; · Algo Trading tắt&#x27; : &#x27;&#x27;)
+    : &#x27;MT5 chạy, chưa đăng nhập&#x27;) + &#x27; · build &#x27; + suc.build : kq.health.msg, !!(suc &amp;&amp; suc.login !== 0));
+  mtShowState(suc);
+  acctBr(&#x27;account&#x27;, acc ? &#x27;Đã đọc · tài khoản &#x27; + acc.login : kq.account.msg, !!acc);
+  acctBr(&#x27;positions&#x27;, list ? &#x27;Đã đọc · &#x27; + list.length + &#x27; lệnh&#x27; : kq.positions.msg, !!list);
+  acctBr(&#x27;history&#x27;, hist ? &#x27;Đã đọc · &#x27; + hist.count + &#x27; lệnh đã đóng&#x27; : kq.history.msg, !!hist);
+  // Cầu nối nào lỗi thì khối đó bị xóa, không để số liệu cũ lẫn vào
+  acctRenderGrid(acc, list ? list.length : null, c);
+  acctRenderPos(list, c);
+  acctRenderHist(hist, c);
+  Object.assign(acctLast, { health: suc, account: acc, positions: list, history: hist, at: Date.now() });
+  if (!hong.length) acctMsg(&#x27;Đã kết nối · cập nhật &#x27; + acctClock());
+  else acctMsg(kq[hong[0]].msg + &#x27; (&#x27; + hong.length + &#x27; cầu nối lỗi)&#x27;);
+}
+// Làm mới tài khoản khi Cài đặt hoặc khung Đặt lệnh đang mở
+function acctWanted() { return !$(&#x27;settings&#x27;).hidden || !$(&#x27;trade&#x27;).hidden; }
+function acctPanelChanged(open) {
+  clearInterval(acctTimer);
+  acctTimer = 0;
+  if (!open) return;
+  acctRefresh();
+  acctTimer = setInterval(acctRefresh, ACCT_EVERY);
+}
+function acctSaveClick() {
+  const base = acctBase($(&#x27;acctUrl&#x27;).value);
+  const token = $(&#x27;acctToken&#x27;).value.trim();
+  if (!base) { acctMsg(&#x27;Địa chỉ VPS phải bắt đầu bằng https://&#x27;); return; }
+  if (!token) { acctMsg(&#x27;Nhập token của VPS.&#x27;); return; }
+  acctPutStored(base, token);
+  $(&#x27;acctUrl&#x27;).value = base;
+  acctPanelChanged(true);
+}
 

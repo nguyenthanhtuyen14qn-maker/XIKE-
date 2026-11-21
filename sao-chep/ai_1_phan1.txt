@@ -1318,3 +1318,38 @@ function layout() {
   };
 }
 
+const xOf = i =&gt; LAY.plotW - (S.anchor - i + 0.5) * S.barW;
+const idxAtX = x =&gt; S.anchor + 0.5 - (LAY.plotW - x) / S.barW;
+const yOf = p =&gt; LAY.candleTop + (VP.pMax - p) / (VP.pMax - VP.pMin) * (LAY.candleBottom - LAY.candleTop);
+const priceAtY = y =&gt; VP.pMax - (y - LAY.candleTop) / (LAY.candleBottom - LAY.candleTop) * (VP.pMax - VP.pMin);
+
+function clampAnchor() {
+  if (!hasData) return;
+  const n = series(S.tf).bars.length;
+  const lo = Math.min(5, n - 1);
+  const hi = Math.max(lo, n - 1 + (LAY.plotW * 0.3) / S.barW);
+  S.anchor = clamp(S.anchor, lo, hi);
+}
+
+function fitView() {
+  LAY = layout();
+  const n = series(S.tf).bars.length;
+  S.barW = clamp(LAY.plotW / 72, 4, 16);
+  S.anchor = n - 1 + 4;
+  clampAnchor();
+}
+
+function zoomAt(x, factor) {
+  const iC = idxAtX(x);
+  S.barW = clamp(S.barW * factor, 1.5, 40);
+  S.anchor = iC - 0.5 + (LAY.plotW - x) / S.barW;
+  clampAnchor();
+}
+
+function snapshotState() {
+  const o = {};
+  for (const k of STATE_KEYS) o[k] = S[k];
+  o.inds = S.inds.map(x =&gt; ({ id: x.id, p: x.p, on: x.on }));
+  return o;
+}
+

@@ -1,194 +1,3 @@
-function acctStored() {
-  if (acctMem) return acctMem;
-  try { const v = JSON.parse(localStorage.getItem(ACCT_KEY) || &#x27;null&#x27;); return v &amp;&amp; typeof v === &#x27;object&#x27; ? v : {}; }
-  catch (err) { return {}; }
-}
-function acctPutStored(url, token) {
-  acctMem = { url, token };
-  try { localStorage.setItem(ACCT_KEY, JSON.stringify(acctMem)); }
-  catch (err) { /* không lưu được vào máy: vẫn dùng trong phiên này */ }
-}
-// Chỉ nhận https. Chỉ cho http khi là máy trong (127.0.0.1 hoặc localhost).
-function acctBase(raw) {
-  const s = String(raw || &#x27;&#x27;).trim();
-  if (!s) return &#x27;&#x27;;
-  let u;
-  try { u = new URL(s); } catch (err) { return &#x27;&#x27;; }
-  const local = u.hostname === &#x27;127.0.0.1&#x27; || u.hostname === &#x27;localhost&#x27;;
-  if (u.protocol !== &#x27;https:&#x27; &amp;&amp; !(local &amp;&amp; u.protocol === &#x27;http:&#x27;)) return &#x27;&#x27;;
-  return u.origin + u.pathname.replace(/\/+$/, &#x27;&#x27;);
-}
-function acctFill() {
-  const v = acctStored();
-  $(&#x27;acctUrl&#x27;).value = v.url || &#x27;&#x27;;
-  $(&#x27;acctToken&#x27;).value = v.token || &#x27;&#x27;;
-}
-function acctMsg(text) { $(&#x27;acctMsgLine&#x27;).textContent = text; }
-function acctClock() {
-  const d = new Date(), p = n =&gt; String(n).padStart(2, &#x27;0&#x27;);
-  return p(d.getHours()) + &#x27;:&#x27; + p(d.getMinutes()) + &#x27;:&#x27; + p(d.getSeconds());
-}
-// Thời điểm lệnh đóng, ví dụ 20/11 14:05
-function acctWhen(sec) {
-  const d = new Date(Number(sec) * 1000), p = n =&gt; String(n).padStart(2, &#x27;0&#x27;);
-  return p(d.getDate()) + &#x27;/&#x27; + p(d.getMonth() + 1) + &#x27; &#x27; + p(d.getHours()) + &#x27;:&#x27; + p(d.getMinutes());
-}
-// Số có dấu phẩy hàng nghìn và hai số lẻ: 10250.5 → 10,250.50
-function acctNum(v, ccy) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return &#x27;—&#x27;;
-  const parts = Math.abs(n).toFixed(2).split(&#x27;.&#x27;);
-  let whole = parts[0], out = &#x27;&#x27;;
-  while (whole.length &gt; 3) { out = &#x27;,&#x27; + whole.slice(-3) + out; whole = whole.slice(0, -3); }
-  return (n &lt; 0 ? &#x27;-&#x27; : &#x27;&#x27;) + whole + out + &#x27;.&#x27; + parts[1] + (ccy ? &#x27; &#x27; + ccy : &#x27;&#x27;);
-}
-async function acctGet(base, token, path) {
-  const ctl = new AbortController();
-  const timer = setTimeout(() =&gt; ctl.abort(), 10000);
-  try {
-    const res = await fetch(base + path, { headers: { &#x27;X-Token&#x27;: token }, cache: &#x27;no-store&#x27;, signal: ctl.signal });
-    const data = await res.json().catch(() =&gt; ({}));
-    if (res.status === 401) throw new Error(&#x27;Sai token.&#x27;);
-    if (res.status === 503) {
-      const noi = String(data.error || &#x27;VPS chưa sẵn sàng&#x27;);
-      throw new Error(noi.charAt(0).toUpperCase() + noi.slice(1) + (data.detail ? &#x27; (&#x27; + data.detail + &#x27;)&#x27; : &#x27;&#x27;) + &#x27;.&#x27;);
-    }
-    if (!res.ok) throw new Error(&#x27;VPS trả lỗi &#x27; + res.status + &#x27;.&#x27;);
-    return data;
-  } catch (err) {
-    if (err.name === &#x27;AbortError&#x27;) throw new Error(&#x27;Hết thời gian chờ VPS.&#x27;);
-    if (err instanceof TypeError) throw new Error(&#x27;Không kết nối được VPS. Kiểm tra địa chỉ và mạng.&#x27;);
-    throw err;
-  } finally { clearTimeout(timer); }
-}
-function acctTile(label, value, color) {
-  const d = document.createElement(&#x27;div&#x27;), s = document.createElement(&#x27;span&#x27;), b = document.createElement(&#x27;b&#x27;);
-  s.textContent = label;
-  b.textContent = value;
-  if (color) b.style.color = color;
-  d.appendChild(s);
-  d.appendChild(b);
-  return d;
-}
-function acctEmpty(box, text) {
-  const p = document.createElement(&#x27;p&#x27;);
-  p.className = &#x27;note&#x27;;
-  p.textContent = text;
-  box.appendChild(p);
-}
-// Trạng thái một cầu nối: ok = true (đạt) hoặc false (lỗi)
-function acctBr(key, text, ok) {
-  const el = $(&#x27;br-&#x27; + key);
-  el.textContent = text;
-  el.style.color = ok ? &#x27;var(--up)&#x27; : &#x27;var(--down)&#x27;;
-}
-function acctRenderGrid(acc, nLenh, c) {
-  const grid = $(&#x27;acctGrid&#x27;);
-  grid.textContent = &#x27;&#x27;;
-  if (!acc) return;
-  grid.appendChild(acctTile(&#x27;Số dư&#x27;, acctNum(acc.balance, c)));
-  grid.appendChild(acctTile(&#x27;Vốn&#x27;, acctNum(acc.equity, c)));
-  grid.appendChild(acctTile(&#x27;Ký quỹ&#x27;, acctNum(acc.margin, c)));
-  grid.appendChild(acctTile(&#x27;Ký quỹ khả dụng&#x27;, acctNum(acc.margin_free, c)));
-  grid.appendChild(acctTile(&#x27;Lãi/lỗ đang mở&#x27;, acctNum(acc.profit, c), Number(acc.profit) &lt; 0 ? &#x27;var(--down)&#x27; : &#x27;var(--up)&#x27;));
-  grid.appendChild(acctTile(&#x27;Số lệnh mở&#x27;, nLenh === null ? &#x27;—&#x27; : String(nLenh)));
-}
-function acctRenderPos(list, c) {
-  acctRenderPosInto($(&#x27;acctPos&#x27;), list, c);
-  acctRenderPosInto($(&#x27;tradePos&#x27;), list, c);
-}
-function acctRenderPosInto(box, list, c) {
-  box.textContent = &#x27;&#x27;;
-  if (!list) return;
-  if (!list.length) { acctEmpty(box, &#x27;Không có lệnh đang mở.&#x27;); return; }
-  for (const o of list) {
-    const r = document.createElement(&#x27;div&#x27;);
-    r.className = &#x27;acct-pos-row&#x27;;
-    r.style.color = Number(o.profit) &lt; 0 ? &#x27;var(--down)&#x27; : &#x27;var(--up)&#x27;;
-    r.textContent = [o.symbol, o.type, Number(o.volume).toFixed(2) + &#x27; lot&#x27;, &#x27;vào &#x27; + o.price_open,
-      &#x27;SL &#x27; + (Number(o.sl) ? o.sl : &#x27;—&#x27;), &#x27;TP &#x27; + (Number(o.tp) ? o.tp : &#x27;—&#x27;), &#x27;L/L &#x27; + acctNum(o.profit, c)].join(&#x27; · &#x27;);
-    const tk = Number(o.ticket);
-    if ($(&#x27;ordEnable&#x27;).checked &amp;&amp; Number.isInteger(tk) &amp;&amp; tk &gt; 0) {
-      const bt = document.createElement(&#x27;button&#x27;);
-      bt.type = &#x27;button&#x27;;
-      bt.className = &#x27;ord-close danger&#x27;;
-      bt.textContent = &#x27;Đóng&#x27;;
-      bt.addEventListener(&#x27;click&#x27;, () =&gt; ordCloseClick(bt, tk));
-      r.prepend(bt);
-    }
-    box.appendChild(r);
-  }
-}
-function acctRenderHist(h, c) {
-  const sum = $(&#x27;acctHistSum&#x27;), box = $(&#x27;acctHist&#x27;);
-  sum.textContent = &#x27;&#x27;;
-  box.textContent = &#x27;&#x27;;
-  if (!h) return;
-  const list = Array.isArray(h.trades) ? h.trades : [];
-  sum.textContent = h.count + &#x27; lệnh đã đóng · lãi/lỗ ròng &#x27; + acctNum(h.net, c);
-  if (!list.length) { acctEmpty(box, &#x27;Không có lệnh đã đóng trong &#x27; + ACCT_HIST_DAYS + &#x27; ngày.&#x27;); return; }
-  for (const t of list) {
-    const r = document.createElement(&#x27;div&#x27;);
-    r.className = &#x27;acct-pos-row&#x27;;
-    r.style.color = Number(t.net) &lt; 0 ? &#x27;var(--down)&#x27; : &#x27;var(--up)&#x27;;
-    r.textContent = [t.symbol, t.side, Number(t.volume).toFixed(2) + &#x27; lot&#x27;, &#x27;vào &#x27; + t.price_in + &#x27; → &#x27; + t.price_out,
-      &#x27;ròng &#x27; + acctNum(t.net, c), acctWhen(t.time_out)].join(&#x27; · &#x27;);
-    box.appendChild(r);
-  }
-  if (h.count &gt; list.length) acctEmpty(box, &#x27;Chỉ hiện &#x27; + list.length + &#x27; lệnh gần nhất.&#x27;);
-}
-async function acctRefresh() {
-  const cfg = acctStored();
-  const base = acctBase(cfg.url), token = String(cfg.token || &#x27;&#x27;);
-  if (!base || !token) { acctMsg(&#x27;Nhập địa chỉ VPS và token, rồi bấm Lưu và kết nối.&#x27;); return; }
-  const lan = ++acctSeq;
-  acctMsg(&#x27;Đang lấy số liệu...&#x27;);
-  const cau = [[&#x27;health&#x27;, &#x27;/health&#x27;], [&#x27;account&#x27;, &#x27;/account&#x27;], [&#x27;positions&#x27;, &#x27;/positions&#x27;],
-    [&#x27;history&#x27;, &#x27;/history?days=&#x27; + ACCT_HIST_DAYS]];
-  const kq = {};
-  await Promise.all(cau.map(async ([key, path]) =&gt; {
-    try { kq[key] = { ok: true, v: await acctGet(base, token, path) }; }
-    catch (err) { kq[key] = { ok: false, msg: err.message || &#x27;Lỗi không rõ.&#x27; }; }
-  }));
-  if (lan !== acctSeq) return;   // đã có lần làm mới mới hơn: bỏ kết quả cũ
-  const val = key =&gt; (kq[key].ok ? kq[key].v : null);
-  const hong = cau.map(([key]) =&gt; key).filter(key =&gt; !kq[key].ok);
-  const suc = val(&#x27;health&#x27;), acc = val(&#x27;account&#x27;), list = val(&#x27;positions&#x27;), hist = val(&#x27;history&#x27;);
-  const c = (acc &amp;&amp; acc.currency) || (hist &amp;&amp; hist.currency) || &#x27;&#x27;;
-  // Trạng thái từng cầu nối
-  acctBr(&#x27;health&#x27;, suc ? (suc.login ? &#x27;TK &#x27; + suc.login + &#x27; · &#x27; + (suc.server || &#x27;&#x27;) + (suc.connected === false ? &#x27; · mất kết nối broker&#x27; : &#x27;&#x27;) + (suc.trade_allowed === false ? &#x27; · Algo Trading tắt&#x27; : &#x27;&#x27;)
-    : &#x27;MT5 chạy, chưa đăng nhập&#x27;) + &#x27; · build &#x27; + suc.build : kq.health.msg, !!(suc &amp;&amp; suc.login !== 0));
-  mtShowState(suc);
-  acctBr(&#x27;account&#x27;, acc ? &#x27;Đã đọc · tài khoản &#x27; + acc.login : kq.account.msg, !!acc);
-  acctBr(&#x27;positions&#x27;, list ? &#x27;Đã đọc · &#x27; + list.length + &#x27; lệnh&#x27; : kq.positions.msg, !!list);
-  acctBr(&#x27;history&#x27;, hist ? &#x27;Đã đọc · &#x27; + hist.count + &#x27; lệnh đã đóng&#x27; : kq.history.msg, !!hist);
-  // Cầu nối nào lỗi thì khối đó bị xóa, không để số liệu cũ lẫn vào
-  acctRenderGrid(acc, list ? list.length : null, c);
-  acctRenderPos(list, c);
-  acctRenderHist(hist, c);
-  Object.assign(acctLast, { health: suc, account: acc, positions: list, history: hist, at: Date.now() });
-  if (!hong.length) acctMsg(&#x27;Đã kết nối · cập nhật &#x27; + acctClock());
-  else acctMsg(kq[hong[0]].msg + &#x27; (&#x27; + hong.length + &#x27; cầu nối lỗi)&#x27;);
-}
-// Làm mới tài khoản khi Cài đặt hoặc khung Đặt lệnh đang mở
-function acctWanted() { return !$(&#x27;settings&#x27;).hidden || !$(&#x27;trade&#x27;).hidden; }
-function acctPanelChanged(open) {
-  clearInterval(acctTimer);
-  acctTimer = 0;
-  if (!open) return;
-  acctRefresh();
-  acctTimer = setInterval(acctRefresh, ACCT_EVERY);
-}
-function acctSaveClick() {
-  const base = acctBase($(&#x27;acctUrl&#x27;).value);
-  const token = $(&#x27;acctToken&#x27;).value.trim();
-  if (!base) { acctMsg(&#x27;Địa chỉ VPS phải bắt đầu bằng https://&#x27;); return; }
-  if (!token) { acctMsg(&#x27;Nhập token của VPS.&#x27;); return; }
-  acctPutStored(base, token);
-  $(&#x27;acctUrl&#x27;).value = base;
-  acctPanelChanged(true);
-}
-
 /* ===== Đăng nhập MT5 qua VPS (POST /login, POST /logout). Mật khẩu chỉ gửi đi, không lưu. ===== */
 const MT_KEY = &#x27;xau-chart-mt5-login-v1&#x27;;   // chỉ lưu số tài khoản và server
 let mtHold = 0;   // giữ thông báo đăng nhập vừa xong, không để lần làm mới ghi đè ngay
@@ -739,13 +548,17 @@ const ANALYZE_PROMPT = [
   "5. Điều kiện huỷ kế hoạch.",
   "Viết ngắn gọn, khoảng 250 chữ.",
   "",
-  "6. Cuối câu trả lời, thêm một khối số liệu để app vẽ lên ảnh: dòng <<<VE, rồi một JSON hợp lệ, rồi dòng VE>>>. Không giải thích khối này. Mẫu:",
+  "6. Cuối câu trả lời, thêm một khối số liệu để app vẽ phân tích lên ảnh: dòng <<<VE, rồi một JSON hợp lệ, rồi dòng VE>>>. Không giải thích khối này. Mẫu:",
   "<<<VE",
-  '{"bias":"SELL","now":3527.95,"support":[3500],"resistance":[3550],"entry":3537,"sl":3556,"tp":[3510,3500,3475],"note":"Xu hướng giảm, giá dưới EMA, giằng co tại 3527.95","axis":[{"price":3600,"y":205},{"price":3450,"y":462}],"last_x":465}',
+  '{"bias":"SELL","now":3527.95,"resistance":[3550],"support":[3500],"entry":3537,"sl":3556,"tp":[3510,3500,3475],"note":"Xu hướng giảm vẫn chủ đạo do giá nằm dưới đường EMA. Giá đang giằng co nhẹ tại 3,527.95 nhưng có khả năng kiểm tra lại vùng hỗ trợ 3,500 nếu không vượt qua được 3,550.","axis":[{"price":3600,"y":209},{"price":3450,"y":463}],"last_x":465,"callouts":[{"text":"Kháng cự động (EMA/MA)","x":330,"y":275,"tx":520,"ty":228},{"text":"MACD yếu, lực mua không mạnh (Weak momentum)","x":420,"y":540,"tx":650,"ty":510}]}',
   "VE>>>",
-  "bias là BUY, SELL hoặc SIDEWAY. now là giá hiện tại. entry, sl để null và tp để [] nếu ĐỨNG NGOÀI. note tối đa 25 chữ.",
-  "axis là 2 mức giá in trên trục giá của ảnh, một mức gần trên, một mức gần dưới vùng nến, kèm y là vị trí dọc của chữ số đó trên ảnh (0 = mép trên, 1000 = mép dưới).",
-  "last_x là vị trí ngang của nến cuối cùng (0 = mép trái, 1000 = mép phải). Chỉ dùng số đọc được trên ảnh, không đoán."
+  "bias: BUY, SELL hoặc SIDEWAY. now: giá hiện tại. resistance, support: tối đa 2 mức chính mỗi loại. entry, sl để null và tp để [] nếu ĐỨNG NGOÀI.",
+  "note: nhận định 25-45 chữ, giọng như mẫu.",
+  "Toạ độ tính trên ảnh gốc theo thang 0-1000 (x: 0 mép trái, 1000 mép phải; y: 0 mép trên, 1000 mép dưới).",
+  "axis: 2 mức giá in trên trục giá của ảnh, một mức gần trên, một mức gần dưới vùng nến, y là vị trí dọc của chữ số đó.",
+  "last_x: vị trí ngang của nến cuối cùng.",
+  "callouts: 2-4 chú thích ngắn (dưới 10 chữ) cho chi tiết đáng chú ý trên ảnh: đường EMA, MACD, TRIX, tín hiệu Buy/Sell, nến đặc biệt. x,y là điểm cần chỉ vào; tx,ty là chỗ đặt chữ, chọn vùng trống không che nến và không trùng nhau.",
+  "Chỉ dùng số đọc được trên ảnh, không đoán."
 ].join("\n");
 
 const ANALYZE_QUERY = "phân tích biểu đồ XAUUSD, tín hiệu EMA 34/80, MACD, TRIX, entry, SL, TP";
@@ -1098,8 +911,50 @@ async function annotateChart(src, d) {
   cv.height = H;
   const cx = cv.getContext("2d");
   cx.drawImage(img, 0, 0);
-  const u = Math.max(11, Math.round(Math.min(W, H * 0.75) / 34));   // cỡ chữ gốc theo kích thước ảnh
+  const u = Math.max(11, Math.round(Math.min(W, H * 0.75) / 30));   // cỡ chữ gốc theo kích thước ảnh
   const FONT = 'system-ui, Roboto, "Segoe UI", sans-serif';
+  const fx = (v, def) => { const n = Number(v); return (Number.isFinite(n) && n >= 0 && n <= 1000 ? n : def) / 1000 * W; };
+  const fy = (v, def) => { const n = Number(v); return (Number.isFinite(n) && n >= 0 && n <= 1000 ? n : def) / 1000 * H; };
+
+  // Chữ trắng có viền tối, đọc được trên mọi nền
+  function label(text, x, y, color, size, align, base) {
+    cx.font = "700 " + Math.round(size) + "px " + FONT;
+    cx.textAlign = align || "center";
+    cx.textBaseline = base || "middle";
+    cx.lineJoin = "round";
+    cx.lineWidth = size * 0.28;
+    cx.strokeStyle = "rgba(8,11,18,.9)";
+    cx.strokeText(text, x, y);
+    cx.fillStyle = color || "#ffffff";
+    cx.fillText(text, x, y);
+  }
+  function lines(arr, x, y, color, size, align) {
+    const lh = size * 1.22;
+    arr.forEach((t, i) => label(t, x, y + i * lh, color, size, align, "top"));
+    return arr.length * lh;
+  }
+  function arrow(x0, y0, x1, y1, opt) {
+    const o = opt || {};
+    cx.save();
+    cx.strokeStyle = cx.fillStyle = o.color || "#ffffff";
+    cx.shadowColor = "rgba(0,0,0,.65)";
+    cx.shadowBlur = u * 0.3;
+    cx.lineWidth = o.width || Math.max(2, u * 0.16);
+    cx.setLineDash(o.dash || []);
+    const ang = Math.atan2(y1 - y0, x1 - x0), head = o.head || u * 0.9;
+    cx.beginPath();
+    cx.moveTo(x0, y0);
+    cx.lineTo(x1 - Math.cos(ang) * head * 0.7, y1 - Math.sin(ang) * head * 0.7);
+    cx.stroke();
+    cx.setLineDash([]);
+    cx.beginPath();
+    cx.moveTo(x1, y1);
+    cx.lineTo(x1 - head * Math.cos(ang - 0.45), y1 - head * Math.sin(ang - 0.45));
+    cx.lineTo(x1 - head * Math.cos(ang + 0.45), y1 - head * Math.sin(ang + 0.45));
+    cx.closePath();
+    cx.fill();
+    cx.restore();
+  }
 
   // Thang giá: nối 2 mức giá AI đọc trên trục giá (giá cao phải nằm trên)
   let yOf = null;
@@ -1113,159 +968,176 @@ async function annotateChart(src, d) {
       yOf = (p) => ((hi.y + (hi.p - p) * k) / 1000) * H;
     }
   }
+  const inside = (y) => y > H * 0.03 && y < H * 0.97;
 
   const bias = String(d.bias || "").toUpperCase();
   const now = numOrNull(d.now);
-  const levels = [];
-  for (const p of numList(d.resistance)) levels.push({ p, name: "Kháng cự", color: "#ef4444", dash: [1, 0.6] });
-  for (const p of numList(d.support)) levels.push({ p, name: "Hỗ trợ", color: "#22c55e", dash: [1, 0.6] });
-  const entry = numOrNull(d.entry), sl = numOrNull(d.sl), tps = numList(d.tp);
-  if (entry !== null) levels.push({ p: entry, name: "Entry", color: "#f5b301", dash: [0.5, 0.35] });
-  if (sl !== null) levels.push({ p: sl, name: "SL", color: "#f87171", dash: [0.25, 0.25] });
-  tps.forEach((p, i) => levels.push({ p, name: "TP" + (i + 1), color: "#4ade80", dash: [0.25, 0.25] }));
-  // Gộp các mức trùng giá, ví dụ Hỗ trợ 3,500 và TP2 3,500 thành một đường
-  for (let i = levels.length - 1; i > 0; i--) {
-    const j = levels.findIndex((L, k) => k < i && Math.abs(L.p - levels[i].p) < 0.005);
-    if (j >= 0) { levels[j].name += " / " + levels[i].name; levels.splice(i, 1); }
+  const res = numList(d.resistance).slice(0, 2), sup = numList(d.support).slice(0, 2);
+  const entry = numOrNull(d.entry), sl = numOrNull(d.sl), tps = numList(d.tp).slice(0, 3);
+  const lastX = fx(d.last_x, 550);
+  cx.font = "700 " + Math.round(u * 0.85) + "px " + FONT;
+  const tagW = cx.measureText("0,000.00").width + u * 0.9, tagH = u * 1.4;
+  const notShown = [];
+  // Khung nhận định góc trên phải: tính chỗ trước để các chữ khác tránh ra
+  const boxW = Math.min(W * 0.54, u * 16.5);
+  const noteSz = u * 0.86, noteLh = noteSz * 1.25, notePad = u * 0.45;
+  const biasText = bias === "BUY" ? "Xu hướng tăng (Bullish)" : bias === "SELL" ? "Xu hướng giảm (Bearish)" : bias ? "Đi ngang (Sideways)" : "";
+  cx.font = "700 " + Math.round(noteSz) + "px " + FONT;
+  const noteLines = wrapText(cx, "NHẬN ĐỊNH: " + (biasText ? biasText + ". " : "") + String(d.note || ""), boxW - notePad * 2).slice(0, 7);
+  const box = { x: W - boxW - u * 0.3, y: fy(d.note_y, 100), w: boxW, h: 0 };
+  box.h = notePad * 2 + noteLh * noteLines.length + u * 0.75 + (yOf ? 0 : noteSz * 1.15 * 3);   // chiều cao dự kiến
+  const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  const hits = (r) => overlap(r, box);
+  const taken = [];   // vùng đã có chữ, để chú thích tránh ra
+  const tags = [];   // nhãn giá ở mép phải, xếp không chồng nhau
+  function tag(p, color, text) {
+    let y = yOf(p) - tagH / 2;
+    for (const t of tags) if (Math.abs(y - t) < tagH + 2) y = t + tagH + 2;
+    tags.push(y);
+    cx.fillStyle = color;
+    roundRect(cx, W - tagW, y, tagW, tagH, u * 0.2);
+    cx.fill();
+    cx.font = "700 " + Math.round(u * 0.85) + "px " + FONT;
+    cx.fillStyle = "#0b0f17";
+    cx.textAlign = "center";
+    cx.textBaseline = "middle";
+    cx.fillText(text || fmtPrice(p), W - tagW / 2, y + tagH / 2);
+  }
+  function hline(p, color, dash, x0) {
+    cx.save();
+    cx.strokeStyle = color;
+    cx.lineWidth = Math.max(2, u * 0.16);
+    cx.setLineDash(dash);
+    cx.beginPath();
+    cx.moveTo(x0 || 0, yOf(p));
+    cx.lineTo(W - tagW, yOf(p));
+    cx.stroke();
+    cx.restore();
   }
 
-  const offImage = [];
   if (yOf) {
-    // Đường ngang và nhãn giá ở mép phải
-    cx.font = "700 " + Math.round(u * 0.9) + "px " + FONT;
-    const tagW = cx.measureText("0,000.00").width + u * 0.8, tagH = u * 1.35;
-    const placed = [];
-    cx.font = "700 " + Math.round(u * 0.95) + "px " + FONT;
-    const labelBoxes = [];        // vùng chữ tên mức, để mũi tên không đè lên
-
-    const vis = levels.map((L) => ({ ...L, y: yOf(L.p) })).filter((L) => {
-      const ok = L.y > H * 0.02 && L.y < H * 0.98;
-      if (!ok) offImage.push(L);
-      return ok;
-    }).sort((a, b) => a.y - b.y);
-    for (const L of vis) {
-      cx.save();
-      cx.strokeStyle = L.color;
-      cx.lineWidth = Math.max(2, u / 6);
-      cx.setLineDash(L.dash.map((v) => v * u));
-      cx.beginPath();
-      cx.moveTo(0, L.y);
-      cx.lineTo(W - tagW, L.y);
-      cx.stroke();
-      cx.restore();
-      // Nhãn không chồng lên nhau
-      let ty = L.y - tagH / 2;
-      for (const q of placed) if (Math.abs(ty - q) < tagH + 2) ty = q + tagH + 2;
-      placed.push(ty);
-      cx.fillStyle = L.color;
-      roundRect(cx, W - tagW, ty, tagW, tagH, u * 0.25);
-      cx.fill();
-      cx.fillStyle = "#0b0f17";
-      cx.textAlign = "center";
-      cx.textBaseline = "middle";
-      cx.font = "700 " + Math.round(u * 0.9) + "px " + FONT;
-      cx.fillText(fmtPrice(L.p), W - tagW / 2, ty + tagH / 2);
-      // Tên mức, đặt trên đường
-      cx.font = "700 " + Math.round(u * 0.95) + "px " + FONT;
-      cx.textAlign = "right";
-      cx.textBaseline = "bottom";
-      cx.lineWidth = u * 0.3;
-      cx.strokeStyle = "rgba(10,14,22,.85)";
-      const label = L.name;
-      labelBoxes.push({ x: W - tagW - u * 0.6 - cx.measureText(label).width, y0: ty - u * 0.6, y1: ty + tagH });
-      cx.strokeText(label, W - tagW - u * 0.6, ty + tagH / 2 - u * 0.15);
-      cx.fillStyle = L.color;
-      cx.fillText(label, W - tagW - u * 0.6, ty + tagH / 2 - u * 0.15);
+    // Kháng cự, hỗ trợ: đường đứt nét ngang cả ảnh, nhãn 2 dòng đặt cạnh nến cuối
+    const srLabels = [], srDraw = [];
+    // SELL: kháng cự bên phải, hỗ trợ bên trái (chừa đường cho mũi tên đi xuống). BUY thì ngược lại.
+    const rightX = Math.min(lastX + W * 0.17, W - tagW - u * 5.5);
+    const leftX = Math.max(u * 5.5, lastX - W * 0.22);
+    const srs = res.map((p) => ({ p, up: true })).concat(sup.map((p) => ({ p, up: false })));
+    for (const L of srs) {
+      if (!inside(yOf(L.p))) { notShown.push((L.up ? "Kháng cự " : "Hỗ trợ ") + fmtPrice(L.p)); continue; }
+      const color = L.up ? "#ef4444" : "#22c55e";
+      hline(L.p, color, [u * 0.9, u * 0.55]);
+      tag(L.p, color);
+      const txt = [(L.up ? "Kháng cự (Resistance):" : "Hỗ trợ (Support):"), "~" + fmtPrice(L.p)];
+      const sz = u * 0.95, hh = sz * 1.22 * 2;
+      let y = L.up ? yOf(L.p) - hh - u * 0.35 : yOf(L.p) + u * 0.35;
+      for (const r of srLabels) if (y < r + hh && y + hh > r) y = L.up ? r - hh - u * 0.2 : r + hh + u * 0.2;
+      srLabels.push(y);
+      const onRight = bias === "BUY" ? !L.up : L.up;
+      let lx = onRight ? rightX : leftX;
+      cx.font = "700 " + Math.round(sz) + "px " + FONT;
+      let lw = Math.max(...txt.map((t) => cx.measureText(t).width));
+      let out = txt;
+      if (hits({ x: lx - lw / 2, y, w: lw, h: hh })) {
+        // Chật: thử nhãn 1 dòng sát đường, không được thì đổi bên
+        const one = [(L.up ? "Kháng cự " : "Hỗ trợ ") + "~" + fmtPrice(L.p)];
+        const y1 = L.up ? yOf(L.p) - sz * 1.22 - u * 0.3 : yOf(L.p) + u * 0.3;
+        const w1 = cx.measureText(one[0]).width;
+        if (!hits({ x: lx - w1 / 2, y: y1, w: w1, h: sz * 1.22 })) { out = one; y = y1; }
+        else lx = onRight ? leftX : rightX;
+      }
+      lw = Math.max(...out.map((t) => cx.measureText(t).width));
+      taken.push({ x: lx - lw / 2, y, w: lw, h: out.length * sz * 1.22 });
+      srDraw.push(() => lines(out, lx, y, L.up ? "#f87171" : "#4ade80", sz, "center"));
+    }
+    // Kế hoạch lệnh: chỉ vẽ ngắn từ nến cuối ra mép phải
+    const plan = [];
+    if (entry !== null) plan.push({ p: entry, n: "Entry", c: "#f5b301" });
+    if (sl !== null) plan.push({ p: sl, n: "SL", c: "#fb7185" });
+    tps.forEach((p, i) => plan.push({ p, n: "TP" + (i + 1), c: "#86efac" }));
+    for (const L of plan) {
+      if (!inside(yOf(L.p))) { notShown.push(L.n + " " + fmtPrice(L.p)); continue; }
+      if (res.concat(sup).some((q) => Math.abs(q - L.p) < 0.005)) continue;   // trùng đường hỗ trợ/kháng cự
+      hline(L.p, L.c, [u * 0.25, u * 0.3], lastX + u * 0.5);
+      tag(L.p, L.c, L.n + " " + Math.round(L.p));
     }
 
-    // Mũi tên hướng dự báo, từ nến cuối
+    // Mũi tên lớn chỉ hướng giá, từ nến cuối
     if (now !== null && (bias === "BUY" || bias === "SELL")) {
       const up = bias === "BUY";
       const y0 = yOf(now);
-      // Mục tiêu: TP rồi đến các mức theo hướng lệnh, chọn mức đầu tiên đủ xa giá hiện tại
-      const ahead = (q) => (up ? q > now : q < now) && Math.abs(yOf(q) - y0) >= u * 2.5;
-      const byDist = (a, b) => Math.abs(a - now) - Math.abs(b - now);
-      const cands = tps.filter(ahead).concat(levels.map((L) => L.p).filter(ahead).sort(byDist));
-      const target = cands.length ? cands[0] : null;
-      let y1 = target ? yOf(target) : y0 + (up ? -1 : 1) * H * 0.15;
+      const ahead = (q) => (up ? q > now : q < now) && Math.abs(yOf(q) - y0) >= u * 3;
+      const near = (a, b) => Math.abs(a - now) - Math.abs(b - now);
+      const cands = (up ? res : sup).filter(ahead).concat(tps.filter(ahead)).sort(near);
+      let y1 = cands.length ? yOf(cands[cands.length > 1 ? 1 : 0]) + (up ? -1 : 1) * u * 2 : y0 + (up ? -1 : 1) * H * 0.12;
       y1 = Math.max(H * 0.06, Math.min(H * 0.94, y1));
-      if (Math.abs(y1 - y0) < u * 2) y1 = y0 + (up ? -1 : 1) * u * 3;
-      const lx = Number(d.last_x);
-      const x0 = (Number.isFinite(lx) && lx > 50 && lx < 950 ? lx / 1000 : 0.55) * W + u;
-      // Né chữ tên mức nằm trong khoảng dọc mũi tên đi qua
-      const yA = Math.min(y0, y1) - u, yB = Math.max(y0, y1) + u;
-      let xMax = Math.min(W - tagW - u * 2, x0 + W * 0.25);
-      for (const bx of labelBoxes) if (bx.y1 > yA && bx.y0 < yB) xMax = Math.min(xMax, bx.x - u * 0.6);
-      const x1 = Math.max(xMax, x0 + u * 2.5);   // vẫn vẽ mũi tên ngắn nếu chật chỗ
-      if (x1 > x0 + u) {
-        cx.save();
-        cx.strokeStyle = "#ffffff";
-        cx.fillStyle = "#ffffff";
-        cx.shadowColor = "rgba(0,0,0,.6)";
-        cx.shadowBlur = u * 0.3;
-        cx.lineWidth = Math.max(3, u * 0.35);
-        cx.setLineDash([u * 1.1, u * 0.7]);
-        const ang = Math.atan2(y1 - y0, x1 - x0), head = u * 1.4;
-        const ex = x1 - Math.cos(ang) * head * 0.8, ey = y1 - Math.sin(ang) * head * 0.8;
-        cx.beginPath();
-        cx.moveTo(x0, y0);
-        cx.lineTo(ex, ey);
-        cx.stroke();
-        cx.setLineDash([]);
-        cx.beginPath();
-        cx.moveTo(x1, y1);
-        cx.lineTo(x1 - head * Math.cos(ang - 0.45), y1 - head * Math.sin(ang - 0.45));
-        cx.lineTo(x1 - head * Math.cos(ang + 0.45), y1 - head * Math.sin(ang + 0.45));
-        cx.closePath();
-        cx.fill();
-        cx.restore();
-      }
+      const x0 = lastX + u * 1.2, x1 = Math.min(W - tagW - u * 1.5, x0 + W * 0.3);
+      if (x1 > x0 + u * 2) arrow(x0, y0 + (up ? -u : u), x1, y1, { width: Math.max(4, u * 0.38), dash: [u * 1.2, u * 0.8], head: u * 1.8 });
     }
+    srDraw.forEach((f) => f());   // chữ hỗ trợ/kháng cự vẽ sau cùng, nằm trên đường và mũi tên
   }
 
-  // Khung nhận định ở góc trên
-  const biasText = bias === "BUY" ? "Xu hướng tăng (BUY)" : bias === "SELL" ? "Xu hướng giảm (SELL)" : bias ? "Đi ngang (đứng ngoài)" : "";
-  const biasColor = bias === "BUY" ? "#4ade80" : bias === "SELL" ? "#f87171" : "#fde68a";
-  const boxW = Math.min(W * 0.62, u * 24);
-  const pad = u * 0.6, lh = u * 1.3;
-  cx.font = "600 " + Math.round(u * 0.95) + "px " + FONT;
-  const body = wrapText(cx, String(d.note || ""), boxW - pad * 2).slice(0, 5);
-  const extra = (yOf ? offImage : levels).slice(0, 6).map((L) => L.name + " " + fmtPrice(L.p));
-  const extraLines = extra.length ? wrapText(cx, (yOf ? "Ngoài khung: " : "") + extra.join(" · "), boxW - pad * 2).slice(0, 3) : [];
-  const boxH = pad * 2 + lh * (1 + body.length + extraLines.length);
-  const bx = u * 0.6, by = u * 0.6;
-  cx.fillStyle = "rgba(10,14,22,.82)";
-  roundRect(cx, bx, by, boxW, boxH, u * 0.4);
+  // Chú thích kèm mũi tên chỉ vào chi tiết trên biểu đồ (EMA, MACD, tín hiệu...)
+  const callouts = Array.isArray(d.callouts) ? d.callouts.slice(0, 5) : [];
+  for (const c of callouts) {
+    if (!c || !c.text) continue;
+    const px = fx(c.x, NaN), py = fy(c.y, NaN), tx = fx(c.tx, NaN), ty = fy(c.ty, NaN);
+    if (![px, py, tx, ty].every(Number.isFinite)) continue;
+    const sz = u * 0.9;
+    cx.font = "700 " + Math.round(sz) + "px " + FONT;
+    const arr = wrapText(cx, String(c.text).slice(0, 80), Math.min(W * 0.42, u * 13)).slice(0, 3);
+    const tw = Math.max(...arr.map((t) => cx.measureText(t).width)), th = arr.length * sz * 1.22;
+    // Tìm chỗ trống gần vị trí AI chọn: dời lên/xuống, hoặc sang trái khung nhận định; tránh khung và chữ khác
+    const clampX = (v) => Math.max(tw / 2 + u * 0.3, Math.min(W - tw / 2 - u * 0.3, v));
+    const clampY = (v) => Math.max(u * 0.3, Math.min(H - th - u * 0.3, v));
+    const by0 = clampY(ty - th / 2), step = th + u * 0.4;
+    const xs = [clampX(tx), clampX(box.x - tw / 2 - u * 0.4)];
+    const ys = [by0];
+    for (let k = 1; k <= 4; k++) ys.push(clampY(by0 + k * step), clampY(by0 - k * step));
+    const rect = (x, y) => ({ x: x - tw / 2 - u * 0.2, y: y - u * 0.15, w: tw + u * 0.4, h: th + u * 0.3 });
+    let bx = xs[0], by = by0, found = false;
+    for (const yv of ys) {
+      for (const xv of xs) {
+        if (![box].concat(taken).some((r) => overlap(rect(xv, yv), r))) { bx = xv; by = yv; found = true; break; }
+      }
+      if (found) break;
+    }
+    if (!found) {   // không có chỗ trống hẳn: ít nhất không nằm dưới khung nhận định
+      outer: for (const yv of ys) for (const xv of xs) if (!overlap(rect(xv, yv), box)) { bx = xv; by = yv; break outer; }
+    }
+    taken.push({ x: bx - tw / 2, y: by, w: tw, h: th });
+    lines(arr, bx, by, "#ffffff", sz, "center");
+    // Mũi tên từ mép khung chữ gần điểm cần chỉ nhất
+    const sx = Math.max(bx - tw / 2, Math.min(bx + tw / 2, px)), sy = py < by ? by - u * 0.2 : py > by + th ? by + th + u * 0.2 : by + th / 2;
+    const ssx = sy === by + th / 2 ? (px < bx ? bx - tw / 2 - u * 0.3 : bx + tw / 2 + u * 0.3) : sx;
+    if (Math.hypot(px - ssx, py - sy) > u * 1.2) arrow(ssx, sy, px, py, { width: Math.max(2, u * 0.13), head: u * 0.8 });
+  }
+
+  // Vẽ khung nhận định (sau cùng, nằm trên mọi thứ)
+  const extra = yOf ? notShown : res.map((p) => "Kháng cự " + fmtPrice(p)).concat(sup.map((p) => "Hỗ trợ " + fmtPrice(p)),
+    entry !== null ? ["Entry " + fmtPrice(entry)] : [], sl !== null ? ["SL " + fmtPrice(sl)] : [], tps.map((p, i) => "TP" + (i + 1) + " " + fmtPrice(p)));
+  cx.font = "600 " + Math.round(noteSz * 0.9) + "px " + FONT;
+  const extraLines = extra.length ? wrapText(cx, (yOf ? "Ngoài khung: " : "") + extra.join(" · "), boxW - notePad * 2).slice(0, 3) : [];
+  const stamp = "AI XIKE · chỉ để tham khảo" + (yOf ? "" : " · không đọc được trục giá");
+  box.h = notePad * 2 + noteLh * noteLines.length + noteSz * 1.15 * extraLines.length + u * 0.75;
+  cx.fillStyle = "rgba(14,19,29,.9)";
+  roundRect(cx, box.x, box.y, box.w, box.h, u * 0.3);
   cx.fill();
-  cx.strokeStyle = "rgba(255,255,255,.55)";
-  cx.lineWidth = Math.max(1, u / 12);
+  cx.strokeStyle = "rgba(255,255,255,.85)";
+  cx.lineWidth = Math.max(1.5, u / 10);
   cx.stroke();
   cx.textAlign = "left";
   cx.textBaseline = "top";
-  let ty = by + pad;
-  cx.font = "800 " + Math.round(u * 0.95) + "px " + FONT;
+  cx.font = "700 " + Math.round(noteSz) + "px " + FONT;
   cx.fillStyle = "#ffffff";
-  cx.fillText("NHẬN ĐỊNH: ", bx + pad, ty);
-  const tw = cx.measureText("NHẬN ĐỊNH: ").width;
-  cx.fillStyle = biasColor;
-  cx.fillText(biasText, bx + pad + tw, ty);
-  ty += lh;
-  cx.font = "600 " + Math.round(u * 0.95) + "px " + FONT;
-  cx.fillStyle = "#e5e7eb";
-  for (const l of body) { cx.fillText(l, bx + pad, ty); ty += lh; }
+  let yy = box.y + notePad;
+  for (const t of noteLines) { cx.fillText(t, box.x + notePad, yy); yy += noteLh; }
+  cx.font = "600 " + Math.round(noteSz * 0.9) + "px " + FONT;
   cx.fillStyle = "#fde68a";
-  for (const l of extraLines) { cx.fillText(l, bx + pad, ty); ty += lh; }
-
-  // Dòng chữ nhỏ ngay dưới khung nhận định
-  cx.font = "600 " + Math.round(u * 0.7) + "px " + FONT;
-  cx.textAlign = "left";
-  cx.textBaseline = "top";
-  cx.lineWidth = u * 0.25;
-  cx.strokeStyle = "rgba(10,14,22,.8)";
-  const stamp = "AI XIKE · chỉ để tham khảo" + (yOf ? "" : " · không đọc được trục giá");
-  cx.strokeText(stamp, bx + u * 0.2, by + boxH + u * 0.3);
-  cx.fillStyle = "rgba(255,255,255,.75)";
-  cx.fillText(stamp, bx + u * 0.2, by + boxH + u * 0.3);
+  for (const t of extraLines) { cx.fillText(t, box.x + notePad, yy); yy += noteSz * 1.15; }
+  cx.font = "600 " + Math.round(u * 0.55) + "px " + FONT;
+  cx.textAlign = "right";
+  cx.fillStyle = "rgba(255,255,255,.6)";
+  cx.fillText(stamp, box.x + box.w - notePad, yy + u * 0.1);
 
   return { dataUrl: cv.toDataURL("image/jpeg", 0.9), scaled: !!yOf };
 }
