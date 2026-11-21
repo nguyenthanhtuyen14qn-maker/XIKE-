@@ -1,98 +1,3 @@
-/* ===== Gắn sự kiện và khởi động ===== */
-function bindUI() {
-  $(&#x27;bFile&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; $(&#x27;picker&#x27;).click());
-  $(&#x27;picker&#x27;).addEventListener(&#x27;change&#x27;, () =&gt; {
-    const f = $(&#x27;picker&#x27;).files &amp;&amp; $(&#x27;picker&#x27;).files[0];
-    if (!f) return;
-    const rd = new FileReader();
-    rd.onload = () =&gt; {
-      try { setBase(parseCSV(String(rd.result)), f.name); }
-      catch (err) { say(&#x27;Lỗi đọc file: &#x27; + err.message); }
-      $(&#x27;picker&#x27;).value = &#x27;&#x27;;
-    };
-    rd.onerror = () =&gt; say(&#x27;Không đọc được file này.&#x27;);
-    rd.readAsText(f);
-  });
-  $(&#x27;bDemo&#x27;).addEventListener(&#x27;click&#x27;, loadDemo);
-  $(&#x27;bFull&#x27;).addEventListener(&#x27;click&#x27;, toggleFull);
-  $(&#x27;bFan&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; setMode(S.mode === &#x27;fan&#x27; ? &#x27;pan&#x27; : &#x27;fan&#x27;));
-  $(&#x27;bHl&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; setMode(S.mode === &#x27;hline&#x27; ? &#x27;pan&#x27; : &#x27;hline&#x27;));
-  $(&#x27;bDraw&#x27;).addEventListener(&#x27;click&#x27;, drawSheetOpen);
-  bindDraw();
-  $(&#x27;bClr&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; {
-    if (S.drawings.length) { lastDel = { items: S.drawings.map((d, idx) =&gt; ({ d, idx })) }; showUndo(&#x27;Đã xóa toàn bộ hình vẽ.&#x27;); }
-    selDraw = null;
-    S.drawings = [];
-    S.pendingFan = null;
-    S.pendingDraw = [];
-    saveDrawings();
-    say(&#x27;Đã xóa toàn bộ hình vẽ.&#x27;);
-    schedule();
-  });
-  $(&#x27;bBlock&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; {
-    S.showBlock = !S.showBlock;
-    setOn(&#x27;bBlock&#x27;, S.showBlock);
-    legendKey = &#x27;&#x27;;
-    schedule();
-  });
-  $(&#x27;bSet&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; {
-    const panel = $(&#x27;settings&#x27;);
-    panel.hidden = !panel.hidden;
-    setOn(&#x27;bSet&#x27;, !panel.hidden);
-    resize();
-    acctPanelChanged(acctWanted());
-  });
-  $(&#x27;bOrd&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; {
-    const panel = $(&#x27;trade&#x27;);
-    panel.hidden = !panel.hidden;
-    setOn(&#x27;bOrd&#x27;, !panel.hidden);
-    resize();
-    ordPrices();
-    acctPanelChanged(acctWanted());
-    if (!panel.hidden &amp;&amp; !mtVps()) ordSay(&#x27;Chưa kết nối VPS: vào Cài đặt, nhập địa chỉ VPS, token và đăng nhập MT5.&#x27;, &#x27;err&#x27;);
-  });
-  $(&#x27;ordLotDn&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; ordStep(-1));
-  $(&#x27;ordLotUp&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; ordStep(1));
-  $(&#x27;iTz&#x27;).addEventListener(&#x27;change&#x27;, applyTz);
-  $(&#x27;acctSave&#x27;).addEventListener(&#x27;click&#x27;, acctSaveClick);
-  $(&#x27;acctRefresh&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; acctRefresh());
-  $(&#x27;mtLoginBtn&#x27;).addEventListener(&#x27;click&#x27;, mtLoginClick);
-  $(&#x27;mtLogoutBtn&#x27;).addEventListener(&#x27;click&#x27;, mtLogoutClick);
-  $(&#x27;mtPass&#x27;).addEventListener(&#x27;keydown&#x27;, e =&gt; { if (e.key === &#x27;Enter&#x27;) mtLoginClick(); });
-  $(&#x27;ordEnable&#x27;).addEventListener(&#x27;change&#x27;, () =&gt; { ordSync(); if (acctLast.positions) acctRenderPos(acctLast.positions, (acctLast.account &amp;&amp; acctLast.account.currency) || &#x27;&#x27;); });
-  $(&#x27;ordBuy&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; ordClick(&#x27;BUY&#x27;));
-  $(&#x27;ordSell&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; ordClick(&#x27;SELL&#x27;));
-  for (const id of [&#x27;ordSym&#x27;, &#x27;ordVol&#x27;, &#x27;ordSl&#x27;, &#x27;ordTp&#x27;, &#x27;ordMax&#x27;, &#x27;ordNote&#x27;]) {
-    $(id).addEventListener(&#x27;input&#x27;, () =&gt; { if (ordArm) { ordDisarm(); ordSay(&#x27;Đã đổi số liệu: bấm lại BUY hoặc SELL.&#x27;); } });
-    $(id).addEventListener(&#x27;change&#x27;, ordStore);
-  }
-
-  // Bảng chỉ báo
-  $(&#x27;bInd&#x27;).addEventListener(&#x27;click&#x27;, openSheet);
-  $(&#x27;sheetClose&#x27;).addEventListener(&#x27;click&#x27;, closeSheet);
-  $(&#x27;scrim&#x27;).addEventListener(&#x27;click&#x27;, closeSheet);
-  $(&#x27;sheetBack&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; showSheetView(&#x27;lib&#x27;));
-  $(&#x27;indSearch&#x27;).addEventListener(&#x27;input&#x27;, e =&gt; { libQuery = e.target.value; renderLib(); });
-  $(&#x27;edSave&#x27;).addEventListener(&#x27;click&#x27;, saveEditor);
-  $(&#x27;edReset&#x27;).addEventListener(&#x27;click&#x27;, resetEditor);
-  $(&#x27;edRemove&#x27;).addEventListener(&#x27;click&#x27;, removeEditing);
-  $(&#x27;legend&#x27;).addEventListener(&#x27;click&#x27;, e =&gt; {
-    const row = e.target.closest ? e.target.closest(&#x27;[data-uid]&#x27;) : null;
-    if (row) openEditorSheet(Number(row.dataset.uid));
-  });
-  document.addEventListener(&#x27;keydown&#x27;, e =&gt; {
-    if (e.key === &#x27;Escape&#x27; &amp;&amp; !$(&#x27;sheet&#x27;).hidden) closeSheet();
-  });
-}
-
-/* ===== Kết nối tài khoản MT5 (chỉ xem), nằm trong phần Cài đặt ===== */
-const ACCT_KEY = &#x27;xau-chart-acct-v1&#x27;;   // địa chỉ VPS và token, lưu trong máy
-const ACCT_EVERY = 20000;               // làm mới mỗi 20 giây khi đang mở Cài đặt
-const ACCT_HIST_DAYS = 7;               // lịch sử lệnh đã đóng: 7 ngày gần nhất
-let acctTimer = 0, acctSeq = 0, acctMem = null;
-// Số liệu mới nhất từ VPS, giữ sẵn để các tính năng sau này dùng (null nếu cầu nối đó đang lỗi)
-const acctLast = { health: null, account: null, positions: null, history: null, at: 0 };
-
 function acctStored() {
   if (acctMem) return acctMem;
   try { const v = JSON.parse(localStorage.getItem(ACCT_KEY) || &#x27;null&#x27;); return v &amp;&amp; typeof v === &#x27;object&#x27; ? v : {}; }
@@ -832,7 +737,15 @@ const ANALYZE_PROMPT = [
   "3. Tín hiệu theo quy tắc: đã có hay chưa, thuộc quy tắc nào, còn thiếu điều kiện gì.",
   "4. Kế hoạch: BUY, SELL hoặc ĐỨNG NGOÀI. Nếu vào lệnh thì ghi vùng entry, SL, TP1, TP2, TP3, mỗi mức ghi khoảng cách bằng giá và pip (10 giá = 100 pip).",
   "5. Điều kiện huỷ kế hoạch.",
-  "Viết ngắn gọn, khoảng 250 chữ."
+  "Viết ngắn gọn, khoảng 250 chữ.",
+  "",
+  "6. Cuối câu trả lời, thêm một khối số liệu để app vẽ lên ảnh: dòng <<<VE, rồi một JSON hợp lệ, rồi dòng VE>>>. Không giải thích khối này. Mẫu:",
+  "<<<VE",
+  '{"bias":"SELL","now":3527.95,"support":[3500],"resistance":[3550],"entry":3537,"sl":3556,"tp":[3510,3500,3475],"note":"Xu hướng giảm, giá dưới EMA, giằng co tại 3527.95","axis":[{"price":3600,"y":205},{"price":3450,"y":462}],"last_x":465}',
+  "VE>>>",
+  "bias là BUY, SELL hoặc SIDEWAY. now là giá hiện tại. entry, sl để null và tp để [] nếu ĐỨNG NGOÀI. note tối đa 25 chữ.",
+  "axis là 2 mức giá in trên trục giá của ảnh, một mức gần trên, một mức gần dưới vùng nến, kèm y là vị trí dọc của chữ số đó trên ảnh (0 = mép trên, 1000 = mép dưới).",
+  "last_x là vị trí ngang của nến cuối cùng (0 = mép trái, 1000 = mép phải). Chỉ dùng số đọc được trên ảnh, không đoán."
 ].join("\n");
 
 const ANALYZE_QUERY = "phân tích biểu đồ XAUUSD, tín hiệu EMA 34/80, MACD, TRIX, entry, SL, TP";
@@ -1114,10 +1027,255 @@ function addToLog(el) {
   return el;
 }
 
+// ===== VẼ PHÂN TÍCH LÊN ẢNH =====
+// AI trả một khối <<<VE {json} VE>>> ở cuối. App bỏ khối đó khỏi chữ, rồi tự vẽ các mức lên ảnh gốc.
+function extractDraw(text) {
+  const src = String(text || "");
+  let m = src.match(/<<<\s*VE\s*([\s\S]*?)\s*VE\s*>>>/);
+  if (!m) m = src.match(/```(?:json)?\s*(\{[\s\S]*?"axis"[\s\S]*?\})\s*```/);
+  if (!m) return { clean: src.trim(), data: null };
+  const clean = (src.slice(0, m.index) + src.slice(m.index + m[0].length)).replace(/\n{3,}/g, "\n\n").trim();
+  let raw = m[1].trim().replace(/^```(?:json)?/, "").replace(/```$/, "").trim();
+  const a = raw.indexOf("{"), b = raw.lastIndexOf("}");
+  if (a < 0 || b <= a) return { clean, data: null };
+  try {
+    return { clean, data: JSON.parse(raw.slice(a, b + 1)) };
+  } catch (e) {
+    return { clean, data: null };
+  }
+}
+
+function numOrNull(v) {
+  const n = Number(v);
+  return v === null || v === "" || !Number.isFinite(n) || n <= 0 ? null : n;
+}
+function numList(v) {
+  return (Array.isArray(v) ? v : [v]).map(numOrNull).filter((n) => n !== null).slice(0, 4);
+}
+function fmtPrice(n) {
+  const parts = Number(n).toFixed(2).split(".");
+  return parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "." + parts[1];
+}
+
+function loadImg(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Không đọc được ảnh."));
+    img.src = src;
+  });
+}
+
+// Chia chữ thành các dòng vừa chiều rộng
+function wrapText(cx, text, maxW) {
+  const words = String(text).split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = "";
+  for (const w of words) {
+    const t = line ? line + " " + w : w;
+    if (cx.measureText(t).width <= maxW || !line) line = t;
+    else { lines.push(line); line = w; }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function roundRect(cx, x, y, w, h, r) {
+  cx.beginPath();
+  cx.moveTo(x + r, y);
+  cx.arcTo(x + w, y, x + w, y + h, r);
+  cx.arcTo(x + w, y + h, x, y + h, r);
+  cx.arcTo(x, y + h, x, y, r);
+  cx.arcTo(x, y, x + w, y, r);
+  cx.closePath();
+}
+
+async function annotateChart(src, d) {
+  const img = await loadImg(src);
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const cv = document.createElement("canvas");
+  cv.width = W;
+  cv.height = H;
+  const cx = cv.getContext("2d");
+  cx.drawImage(img, 0, 0);
+  const u = Math.max(11, Math.round(Math.min(W, H * 0.75) / 34));   // cỡ chữ gốc theo kích thước ảnh
+  const FONT = 'system-ui, Roboto, "Segoe UI", sans-serif';
+
+  // Thang giá: nối 2 mức giá AI đọc trên trục giá (giá cao phải nằm trên)
+  let yOf = null;
+  const ax = Array.isArray(d.axis) ? d.axis.map((a) => ({ p: numOrNull(a && a.price), y: Number(a && a.y) }))
+    .filter((a) => a.p !== null && Number.isFinite(a.y) && a.y >= 0 && a.y <= 1000) : [];
+  if (ax.length >= 2) {
+    ax.sort((a, b) => b.p - a.p);
+    const hi = ax[0], lo = ax[ax.length - 1];
+    if (hi.p > lo.p && hi.y < lo.y) {
+      const k = (lo.y - hi.y) / (hi.p - lo.p);
+      yOf = (p) => ((hi.y + (hi.p - p) * k) / 1000) * H;
+    }
+  }
+
+  const bias = String(d.bias || "").toUpperCase();
+  const now = numOrNull(d.now);
+  const levels = [];
+  for (const p of numList(d.resistance)) levels.push({ p, name: "Kháng cự", color: "#ef4444", dash: [1, 0.6] });
+  for (const p of numList(d.support)) levels.push({ p, name: "Hỗ trợ", color: "#22c55e", dash: [1, 0.6] });
+  const entry = numOrNull(d.entry), sl = numOrNull(d.sl), tps = numList(d.tp);
+  if (entry !== null) levels.push({ p: entry, name: "Entry", color: "#f5b301", dash: [0.5, 0.35] });
+  if (sl !== null) levels.push({ p: sl, name: "SL", color: "#f87171", dash: [0.25, 0.25] });
+  tps.forEach((p, i) => levels.push({ p, name: "TP" + (i + 1), color: "#4ade80", dash: [0.25, 0.25] }));
+  // Gộp các mức trùng giá, ví dụ Hỗ trợ 3,500 và TP2 3,500 thành một đường
+  for (let i = levels.length - 1; i > 0; i--) {
+    const j = levels.findIndex((L, k) => k < i && Math.abs(L.p - levels[i].p) < 0.005);
+    if (j >= 0) { levels[j].name += " / " + levels[i].name; levels.splice(i, 1); }
+  }
+
+  const offImage = [];
+  if (yOf) {
+    // Đường ngang và nhãn giá ở mép phải
+    cx.font = "700 " + Math.round(u * 0.9) + "px " + FONT;
+    const tagW = cx.measureText("0,000.00").width + u * 0.8, tagH = u * 1.35;
+    const placed = [];
+    cx.font = "700 " + Math.round(u * 0.95) + "px " + FONT;
+    let labelLeft = W - tagW;     // mép trái của chữ tên mức, để mũi tên không đè lên
+
+    const vis = levels.map((L) => ({ ...L, y: yOf(L.p) })).filter((L) => {
+      const ok = L.y > H * 0.02 && L.y < H * 0.98;
+      if (!ok) offImage.push(L);
+      return ok;
+    }).sort((a, b) => a.y - b.y);
+    for (const L of vis) {
+      cx.save();
+      cx.strokeStyle = L.color;
+      cx.lineWidth = Math.max(2, u / 6);
+      cx.setLineDash(L.dash.map((v) => v * u));
+      cx.beginPath();
+      cx.moveTo(0, L.y);
+      cx.lineTo(W - tagW, L.y);
+      cx.stroke();
+      cx.restore();
+      // Nhãn không chồng lên nhau
+      let ty = L.y - tagH / 2;
+      for (const q of placed) if (Math.abs(ty - q) < tagH + 2) ty = q + tagH + 2;
+      placed.push(ty);
+      cx.fillStyle = L.color;
+      roundRect(cx, W - tagW, ty, tagW, tagH, u * 0.25);
+      cx.fill();
+      cx.fillStyle = "#0b0f17";
+      cx.textAlign = "center";
+      cx.textBaseline = "middle";
+      cx.font = "700 " + Math.round(u * 0.9) + "px " + FONT;
+      cx.fillText(fmtPrice(L.p), W - tagW / 2, ty + tagH / 2);
+      // Tên mức, đặt trên đường
+      cx.font = "700 " + Math.round(u * 0.95) + "px " + FONT;
+      cx.textAlign = "right";
+      cx.textBaseline = "bottom";
+      cx.lineWidth = u * 0.3;
+      cx.strokeStyle = "rgba(10,14,22,.85)";
+      const label = L.name;
+      labelLeft = Math.min(labelLeft, W - tagW - u * 0.6 - cx.measureText(label).width);
+      cx.strokeText(label, W - tagW - u * 0.6, ty + tagH / 2 - u * 0.15);
+      cx.fillStyle = L.color;
+      cx.fillText(label, W - tagW - u * 0.6, ty + tagH / 2 - u * 0.15);
+    }
+
+    // Mũi tên hướng dự báo, từ nến cuối
+    if (now !== null && (bias === "BUY" || bias === "SELL")) {
+      const up = bias === "BUY";
+      const above = levels.filter((L) => L.p > now).map((L) => L.p).sort((a, b) => a - b);
+      const below = levels.filter((L) => L.p < now).map((L) => L.p).sort((a, b) => b - a);
+      let target = up ? (tps[0] > now ? tps[0] : above[0]) : (tps[0] < now ? tps[0] : below[0]);
+      const y0 = yOf(now);
+      let y1 = target ? yOf(target) : y0 + (up ? -1 : 1) * H * 0.15;
+      y1 = Math.max(H * 0.06, Math.min(H * 0.94, y1));
+      if (Math.abs(y1 - y0) < u * 2) y1 = y0 + (up ? -1 : 1) * u * 3;
+      const lx = Number(d.last_x);
+      const x0 = (Number.isFinite(lx) && lx > 50 && lx < 950 ? lx / 1000 : 0.55) * W + u;
+      const x1 = Math.min(W - tagW - u * 2, labelLeft - u * 0.8, x0 + W * 0.25);
+      if (x1 > x0 + u * 2) {
+        cx.save();
+        cx.strokeStyle = "#ffffff";
+        cx.fillStyle = "#ffffff";
+        cx.shadowColor = "rgba(0,0,0,.6)";
+        cx.shadowBlur = u * 0.3;
+        cx.lineWidth = Math.max(3, u * 0.35);
+        cx.setLineDash([u * 1.1, u * 0.7]);
+        const ang = Math.atan2(y1 - y0, x1 - x0), head = u * 1.4;
+        const ex = x1 - Math.cos(ang) * head * 0.8, ey = y1 - Math.sin(ang) * head * 0.8;
+        cx.beginPath();
+        cx.moveTo(x0, y0);
+        cx.lineTo(ex, ey);
+        cx.stroke();
+        cx.setLineDash([]);
+        cx.beginPath();
+        cx.moveTo(x1, y1);
+        cx.lineTo(x1 - head * Math.cos(ang - 0.45), y1 - head * Math.sin(ang - 0.45));
+        cx.lineTo(x1 - head * Math.cos(ang + 0.45), y1 - head * Math.sin(ang + 0.45));
+        cx.closePath();
+        cx.fill();
+        cx.restore();
+      }
+    }
+  }
+
+  // Khung nhận định ở góc trên
+  const biasText = bias === "BUY" ? "Xu hướng tăng (BUY)" : bias === "SELL" ? "Xu hướng giảm (SELL)" : bias ? "Đi ngang (đứng ngoài)" : "";
+  const biasColor = bias === "BUY" ? "#4ade80" : bias === "SELL" ? "#f87171" : "#fde68a";
+  const boxW = Math.min(W * 0.62, u * 24);
+  const pad = u * 0.6, lh = u * 1.3;
+  cx.font = "600 " + Math.round(u * 0.95) + "px " + FONT;
+  const body = wrapText(cx, String(d.note || ""), boxW - pad * 2).slice(0, 5);
+  const extra = (yOf ? offImage : levels).slice(0, 6).map((L) => L.name + " " + fmtPrice(L.p));
+  const extraLines = extra.length ? wrapText(cx, (yOf ? "Ngoài khung: " : "") + extra.join(" · "), boxW - pad * 2).slice(0, 3) : [];
+  const boxH = pad * 2 + lh * (1 + body.length + extraLines.length);
+  const bx = u * 0.6, by = u * 0.6;
+  cx.fillStyle = "rgba(10,14,22,.82)";
+  roundRect(cx, bx, by, boxW, boxH, u * 0.4);
+  cx.fill();
+  cx.strokeStyle = "rgba(255,255,255,.55)";
+  cx.lineWidth = Math.max(1, u / 12);
+  cx.stroke();
+  cx.textAlign = "left";
+  cx.textBaseline = "top";
+  let ty = by + pad;
+  cx.font = "800 " + Math.round(u * 0.95) + "px " + FONT;
+  cx.fillStyle = "#ffffff";
+  cx.fillText("NHẬN ĐỊNH: ", bx + pad, ty);
+  const tw = cx.measureText("NHẬN ĐỊNH: ").width;
+  cx.fillStyle = biasColor;
+  cx.fillText(biasText, bx + pad + tw, ty);
+  ty += lh;
+  cx.font = "600 " + Math.round(u * 0.95) + "px " + FONT;
+  cx.fillStyle = "#e5e7eb";
+  for (const l of body) { cx.fillText(l, bx + pad, ty); ty += lh; }
+  cx.fillStyle = "#fde68a";
+  for (const l of extraLines) { cx.fillText(l, bx + pad, ty); ty += lh; }
+
+  // Dòng chữ nhỏ ngay dưới khung nhận định
+  cx.font = "600 " + Math.round(u * 0.7) + "px " + FONT;
+  cx.textAlign = "left";
+  cx.textBaseline = "top";
+  cx.lineWidth = u * 0.25;
+  cx.strokeStyle = "rgba(10,14,22,.8)";
+  const stamp = "AI XIKE · chỉ để tham khảo" + (yOf ? "" : " · không đọc được trục giá");
+  cx.strokeText(stamp, bx + u * 0.2, by + boxH + u * 0.3);
+  cx.fillStyle = "rgba(255,255,255,.75)";
+  cx.fillText(stamp, bx + u * 0.2, by + boxH + u * 0.3);
+
+  return { dataUrl: cv.toDataURL("image/jpeg", 0.9), scaled: !!yOf };
+}
+
 function messageEl(h) {
   const el = document.createElement("div");
   if (h.role === "model") {
     el.className = "msg ai";
+    if (h.ann || h.annThumb) {
+      const img = document.createElement("img");
+      img.className = "thumb ann";
+      img.alt = "Ảnh phân tích";
+      img.src = h.annThumb || h.ann;
+      img.addEventListener("click", () => openViewer(h.ann || h.annThumb));
+      el.appendChild(img);
+    }
     const body = document.createElement("div");
     body.className = "ai-text";
     body.innerHTML = formatAI(h.text);
@@ -1280,8 +1438,21 @@ async function send(analyze) {
       query: note || (isAnalyze ? ANALYZE_QUERY : text),
       extraContext: extra
     });
+    const ex = extractDraw(r.text);
+    const reply = { role: "model", text: ex.clean, model: r.model, rules: r.rules || [], note: r.note || "", t: Date.now() };
+    if (image && ex.data) {
+      try {
+        const out = await annotateChart(image.dataUrl, ex.data);
+        reply.ann = out.dataUrl;
+        reply.annThumb = (await shrink(out.dataUrl, 900, 0.8)).dataUrl;
+        if (!out.scaled) reply.note = (reply.note ? reply.note + "\n" : "") + "AI không đọc được trục giá nên chỉ ghi các mức trong khung nhận định.";
+      } catch (err) {
+        reply.note = (reply.note ? reply.note + "\n" : "") + "Không vẽ được lên ảnh: " + (err.message || "lỗi không rõ") + ".";
+      }
+    } else if (image && isAnalyze) {
+      reply.note = (reply.note ? reply.note + "\n" : "") + "AI không trả số liệu để vẽ lên ảnh lần này.";
+    }
     waiting.remove();
-    const reply = { role: "model", text: r.text, model: r.model, rules: r.rules || [], note: r.note || "", t: Date.now() };
     history.push(reply);
     addToLog(messageEl(reply));
     saveChat();
@@ -1307,6 +1478,7 @@ function saveChat() {
       text: h.text,
       display: h.display || "",
       thumb: h.thumb || "",
+      annThumb: h.annThumb || "",
       model: h.model || "",
       rules: h.rules || [],
       note: h.note || "",

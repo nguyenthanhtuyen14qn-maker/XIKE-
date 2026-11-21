@@ -1,74 +1,3 @@
-// Thư viện chỉ hiện các chỉ báo trong IND_ON, theo đúng thứ tự này. Mã của mọi chỉ báo vẫn nằm trong IND_ALL.
-// Muốn hiện lại một chỉ báo, thêm id của nó vào IND_ON.
-const IND_ON = [&#x27;ema_zone&#x27;, &#x27;trix&#x27;, &#x27;macd&#x27;, &#x27;gann_fan&#x27;];
-const IND_BY_ID = {};
-for (const d of IND_ALL) IND_BY_ID[d.id] = d;
-const IND_LIST = IND_ON.map(id =&gt; IND_BY_ID[id]).filter(Boolean);
-const IND_ENABLED = {};
-for (const d of IND_LIST) IND_ENABLED[d.id] = true;
-
-// Chuẩn hóa một tham số: trống hoặc sai thì lấy mặc định, ngoài khoảng thì kẹp lại.
-function cleanParam(f, v) {
-  const blank = v === null || v === undefined || (typeof v === &#x27;string&#x27; &amp;&amp; v.trim() === &#x27;&#x27;);
-  const x = blank ? NaN : Number(v);
-  const val = clamp(Number.isFinite(x) ? x : f.def, f.min, f.max);
-  return f.float ? r2(val) : Math.round(val);
-}
-
-// Đọc danh sách chỉ báo đã lưu: bỏ id lạ, chuẩn hóa tham số, cấp uid mới.
-function sanitizeInds(arr) {
-  const out = [];
-  for (const it of arr) {
-    if (out.length &gt;= MAX_INDS) break;
-    if (!it || typeof it !== &#x27;object&#x27; || !IND_ENABLED[it.id]) continue;
-    const def = IND_BY_ID[it.id];
-    const src = it.p &amp;&amp; typeof it.p === &#x27;object&#x27; ? it.p : {};
-    const p = {};
-    for (const f of def.params) p[f.k] = cleanParam(f, src[f.k]);
-    out.push({ uid: newUid(), id: def.id, p, on: it.on !== false });
-  }
-  return out;
-}
-
-function defaultInds() {
-  return sanitizeInds(IND_ON.map(id =&gt; ({ id })));
-}
-
-/* ----- Kết quả chỉ báo theo khung hiện tại, bố cục và khung nhìn ----- */
-function instResult(inst) {
-  const ser = series(S.tf);
-  const key = inst.id + &#x27;|&#x27; + JSON.stringify(inst.p);
-  if (!ser.ind[key]) ser.ind[key] = IND_BY_ID[inst.id].calc(ser.bars, inst.p);
-  return ser.ind[key];
-}
-
-function paneInsts() { return S.inds.filter(x =&gt; x.on &amp;&amp; IND_BY_ID[x.id].pane); }
-function overlayInsts() { return S.inds.filter(x =&gt; x.on &amp;&amp; !IND_BY_ID[x.id].pane &amp;&amp; !IND_BY_ID[x.id].volume); }
-function volumeOn() { return hasData &amp;&amp; S.inds.some(x =&gt; x.on &amp;&amp; IND_BY_ID[x.id].volume) &amp;&amp; series(S.tf).hasVol; }
-
-// Vùng giá chính ở trên, mỗi chỉ báo dao động có một ô riêng ở dưới, cuối cùng là trục thời gian.
-function layout() {
-  const w = view.w, h = view.h;
-  const axisR = 64, axisB = 22;
-  const plotW = Math.max(40, w - axisR);
-  const totalH = Math.max(120, h - axisB);
-  const nPanes = paneInsts().length;
-  let paneH = 0, mainH = totalH;
-  if (nPanes) {
-    paneH = clamp(Math.floor(totalH * 0.2), 56, 112);
-    mainH = totalH - nPanes * paneH;
-    if (mainH &lt; 130) {
-      mainH = 130;
-      paneH = Math.max(40, Math.floor((totalH - 130) / nPanes));
-    }
-  }
-  const volH = volumeOn() ? Math.round(mainH * 0.16) : 0;
-  return {
-    w, h, axisR, axisB, plotW, totalH, mainH, paneH, nPanes, volH,
-    candleTop: 8, candleBottom: mainH - volH - 6
-  };
-}
-
 const xOf = i =&gt; LAY.plotW - (S.anchor - i + 0.5) * S.barW;
 const idxAtX = x =&gt; S.anchor + 0.5 - (LAY.plotW - x) / S.barW;
 const yOf = p =&gt; LAY.candleTop + (VP.pMax - p) / (VP.pMax - VP.pMin) * (LAY.candleBottom - LAY.candleTop);
@@ -1608,4 +1537,99 @@ function resize() {
   legendKey = &#x27;&#x27;;
   schedule();
 }
+
+/* ===== Gắn sự kiện và khởi động ===== */
+function bindUI() {
+  $(&#x27;bFile&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; $(&#x27;picker&#x27;).click());
+  $(&#x27;picker&#x27;).addEventListener(&#x27;change&#x27;, () =&gt; {
+    const f = $(&#x27;picker&#x27;).files &amp;&amp; $(&#x27;picker&#x27;).files[0];
+    if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () =&gt; {
+      try { setBase(parseCSV(String(rd.result)), f.name); }
+      catch (err) { say(&#x27;Lỗi đọc file: &#x27; + err.message); }
+      $(&#x27;picker&#x27;).value = &#x27;&#x27;;
+    };
+    rd.onerror = () =&gt; say(&#x27;Không đọc được file này.&#x27;);
+    rd.readAsText(f);
+  });
+  $(&#x27;bDemo&#x27;).addEventListener(&#x27;click&#x27;, loadDemo);
+  $(&#x27;bFull&#x27;).addEventListener(&#x27;click&#x27;, toggleFull);
+  $(&#x27;bFan&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; setMode(S.mode === &#x27;fan&#x27; ? &#x27;pan&#x27; : &#x27;fan&#x27;));
+  $(&#x27;bHl&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; setMode(S.mode === &#x27;hline&#x27; ? &#x27;pan&#x27; : &#x27;hline&#x27;));
+  $(&#x27;bDraw&#x27;).addEventListener(&#x27;click&#x27;, drawSheetOpen);
+  bindDraw();
+  $(&#x27;bClr&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; {
+    if (S.drawings.length) { lastDel = { items: S.drawings.map((d, idx) =&gt; ({ d, idx })) }; showUndo(&#x27;Đã xóa toàn bộ hình vẽ.&#x27;); }
+    selDraw = null;
+    S.drawings = [];
+    S.pendingFan = null;
+    S.pendingDraw = [];
+    saveDrawings();
+    say(&#x27;Đã xóa toàn bộ hình vẽ.&#x27;);
+    schedule();
+  });
+  $(&#x27;bBlock&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; {
+    S.showBlock = !S.showBlock;
+    setOn(&#x27;bBlock&#x27;, S.showBlock);
+    legendKey = &#x27;&#x27;;
+    schedule();
+  });
+  $(&#x27;bSet&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; {
+    const panel = $(&#x27;settings&#x27;);
+    panel.hidden = !panel.hidden;
+    setOn(&#x27;bSet&#x27;, !panel.hidden);
+    resize();
+    acctPanelChanged(acctWanted());
+  });
+  $(&#x27;bOrd&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; {
+    const panel = $(&#x27;trade&#x27;);
+    panel.hidden = !panel.hidden;
+    setOn(&#x27;bOrd&#x27;, !panel.hidden);
+    resize();
+    ordPrices();
+    acctPanelChanged(acctWanted());
+    if (!panel.hidden &amp;&amp; !mtVps()) ordSay(&#x27;Chưa kết nối VPS: vào Cài đặt, nhập địa chỉ VPS, token và đăng nhập MT5.&#x27;, &#x27;err&#x27;);
+  });
+  $(&#x27;ordLotDn&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; ordStep(-1));
+  $(&#x27;ordLotUp&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; ordStep(1));
+  $(&#x27;iTz&#x27;).addEventListener(&#x27;change&#x27;, applyTz);
+  $(&#x27;acctSave&#x27;).addEventListener(&#x27;click&#x27;, acctSaveClick);
+  $(&#x27;acctRefresh&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; acctRefresh());
+  $(&#x27;mtLoginBtn&#x27;).addEventListener(&#x27;click&#x27;, mtLoginClick);
+  $(&#x27;mtLogoutBtn&#x27;).addEventListener(&#x27;click&#x27;, mtLogoutClick);
+  $(&#x27;mtPass&#x27;).addEventListener(&#x27;keydown&#x27;, e =&gt; { if (e.key === &#x27;Enter&#x27;) mtLoginClick(); });
+  $(&#x27;ordEnable&#x27;).addEventListener(&#x27;change&#x27;, () =&gt; { ordSync(); if (acctLast.positions) acctRenderPos(acctLast.positions, (acctLast.account &amp;&amp; acctLast.account.currency) || &#x27;&#x27;); });
+  $(&#x27;ordBuy&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; ordClick(&#x27;BUY&#x27;));
+  $(&#x27;ordSell&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; ordClick(&#x27;SELL&#x27;));
+  for (const id of [&#x27;ordSym&#x27;, &#x27;ordVol&#x27;, &#x27;ordSl&#x27;, &#x27;ordTp&#x27;, &#x27;ordMax&#x27;, &#x27;ordNote&#x27;]) {
+    $(id).addEventListener(&#x27;input&#x27;, () =&gt; { if (ordArm) { ordDisarm(); ordSay(&#x27;Đã đổi số liệu: bấm lại BUY hoặc SELL.&#x27;); } });
+    $(id).addEventListener(&#x27;change&#x27;, ordStore);
+  }
+
+  // Bảng chỉ báo
+  $(&#x27;bInd&#x27;).addEventListener(&#x27;click&#x27;, openSheet);
+  $(&#x27;sheetClose&#x27;).addEventListener(&#x27;click&#x27;, closeSheet);
+  $(&#x27;scrim&#x27;).addEventListener(&#x27;click&#x27;, closeSheet);
+  $(&#x27;sheetBack&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; showSheetView(&#x27;lib&#x27;));
+  $(&#x27;indSearch&#x27;).addEventListener(&#x27;input&#x27;, e =&gt; { libQuery = e.target.value; renderLib(); });
+  $(&#x27;edSave&#x27;).addEventListener(&#x27;click&#x27;, saveEditor);
+  $(&#x27;edReset&#x27;).addEventListener(&#x27;click&#x27;, resetEditor);
+  $(&#x27;edRemove&#x27;).addEventListener(&#x27;click&#x27;, removeEditing);
+  $(&#x27;legend&#x27;).addEventListener(&#x27;click&#x27;, e =&gt; {
+    const row = e.target.closest ? e.target.closest(&#x27;[data-uid]&#x27;) : null;
+    if (row) openEditorSheet(Number(row.dataset.uid));
+  });
+  document.addEventListener(&#x27;keydown&#x27;, e =&gt; {
+    if (e.key === &#x27;Escape&#x27; &amp;&amp; !$(&#x27;sheet&#x27;).hidden) closeSheet();
+  });
+}
+
+/* ===== Kết nối tài khoản MT5 (chỉ xem), nằm trong phần Cài đặt ===== */
+const ACCT_KEY = &#x27;xau-chart-acct-v1&#x27;;   // địa chỉ VPS và token, lưu trong máy
+const ACCT_EVERY = 20000;               // làm mới mỗi 20 giây khi đang mở Cài đặt
+const ACCT_HIST_DAYS = 7;               // lịch sử lệnh đã đóng: 7 ngày gần nhất
+let acctTimer = 0, acctSeq = 0, acctMem = null;
+// Số liệu mới nhất từ VPS, giữ sẵn để các tính năng sau này dùng (null nếu cầu nối đó đang lỗi)
+const acctLast = { health: null, account: null, positions: null, history: null, at: 0 };
 

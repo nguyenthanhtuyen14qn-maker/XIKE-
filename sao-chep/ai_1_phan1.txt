@@ -97,6 +97,7 @@ label select { margin-top: 4px; }
   display: block; width: 100%; max-width: 240px; max-height: 300px; object-fit: contain;
   background: #000; border-radius: 10px; margin-bottom: 6px;
 }
+.msg .thumb.ann { display: block; width: 100%; max-width: 100%; max-height: none; margin: 0 0 10px; border-radius: 10px; cursor: zoom-in; }
 .ai-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
 .ai-text .buy { color: var(--buy); font-weight: 700; }
 .ai-text .sell { color: var(--sell); font-weight: 700; }
@@ -1245,4 +1246,75 @@ const IND_ALL = [
     }
   }
 ];
+
+// Thư viện chỉ hiện các chỉ báo trong IND_ON, theo đúng thứ tự này. Mã của mọi chỉ báo vẫn nằm trong IND_ALL.
+// Muốn hiện lại một chỉ báo, thêm id của nó vào IND_ON.
+const IND_ON = [&#x27;ema_zone&#x27;, &#x27;trix&#x27;, &#x27;macd&#x27;, &#x27;gann_fan&#x27;];
+const IND_BY_ID = {};
+for (const d of IND_ALL) IND_BY_ID[d.id] = d;
+const IND_LIST = IND_ON.map(id =&gt; IND_BY_ID[id]).filter(Boolean);
+const IND_ENABLED = {};
+for (const d of IND_LIST) IND_ENABLED[d.id] = true;
+
+// Chuẩn hóa một tham số: trống hoặc sai thì lấy mặc định, ngoài khoảng thì kẹp lại.
+function cleanParam(f, v) {
+  const blank = v === null || v === undefined || (typeof v === &#x27;string&#x27; &amp;&amp; v.trim() === &#x27;&#x27;);
+  const x = blank ? NaN : Number(v);
+  const val = clamp(Number.isFinite(x) ? x : f.def, f.min, f.max);
+  return f.float ? r2(val) : Math.round(val);
+}
+
+// Đọc danh sách chỉ báo đã lưu: bỏ id lạ, chuẩn hóa tham số, cấp uid mới.
+function sanitizeInds(arr) {
+  const out = [];
+  for (const it of arr) {
+    if (out.length &gt;= MAX_INDS) break;
+    if (!it || typeof it !== &#x27;object&#x27; || !IND_ENABLED[it.id]) continue;
+    const def = IND_BY_ID[it.id];
+    const src = it.p &amp;&amp; typeof it.p === &#x27;object&#x27; ? it.p : {};
+    const p = {};
+    for (const f of def.params) p[f.k] = cleanParam(f, src[f.k]);
+    out.push({ uid: newUid(), id: def.id, p, on: it.on !== false });
+  }
+  return out;
+}
+
+function defaultInds() {
+  return sanitizeInds(IND_ON.map(id =&gt; ({ id })));
+}
+
+/* ----- Kết quả chỉ báo theo khung hiện tại, bố cục và khung nhìn ----- */
+function instResult(inst) {
+  const ser = series(S.tf);
+  const key = inst.id + &#x27;|&#x27; + JSON.stringify(inst.p);
+  if (!ser.ind[key]) ser.ind[key] = IND_BY_ID[inst.id].calc(ser.bars, inst.p);
+  return ser.ind[key];
+}
+
+function paneInsts() { return S.inds.filter(x =&gt; x.on &amp;&amp; IND_BY_ID[x.id].pane); }
+function overlayInsts() { return S.inds.filter(x =&gt; x.on &amp;&amp; !IND_BY_ID[x.id].pane &amp;&amp; !IND_BY_ID[x.id].volume); }
+function volumeOn() { return hasData &amp;&amp; S.inds.some(x =&gt; x.on &amp;&amp; IND_BY_ID[x.id].volume) &amp;&amp; series(S.tf).hasVol; }
+
+// Vùng giá chính ở trên, mỗi chỉ báo dao động có một ô riêng ở dưới, cuối cùng là trục thời gian.
+function layout() {
+  const w = view.w, h = view.h;
+  const axisR = 64, axisB = 22;
+  const plotW = Math.max(40, w - axisR);
+  const totalH = Math.max(120, h - axisB);
+  const nPanes = paneInsts().length;
+  let paneH = 0, mainH = totalH;
+  if (nPanes) {
+    paneH = clamp(Math.floor(totalH * 0.2), 56, 112);
+    mainH = totalH - nPanes * paneH;
+    if (mainH &lt; 130) {
+      mainH = 130;
+      paneH = Math.max(40, Math.floor((totalH - 130) / nPanes));
+    }
+  }
+  const volH = volumeOn() ? Math.round(mainH * 0.16) : 0;
+  return {
+    w, h, axisR, axisB, plotW, totalH, mainH, paneH, nPanes, volH,
+    candleTop: 8, candleBottom: mainH - volH - 6
+  };
+}
 
