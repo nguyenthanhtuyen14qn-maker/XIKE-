@@ -1,0 +1,779 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XIKE CAD</title>
+<style>
+:root{
+  --bg:#1e2228; --panel:#262b33; --panel2:#2e343d; --line:#3a414c; --text:#d8dde5; --muted:#8a94a3;
+  --accent:#3fa7ff; --sel:#ffb02e; --snap:#3cff7a; --canvas:#16191e;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/1.35 system-ui,Segoe UI,Roboto,sans-serif;overflow:hidden}
+#app{display:grid;grid-template-rows:auto 1fr auto auto;grid-template-columns:52px 1fr 240px;height:100vh}
+header{grid-column:1/4;display:flex;align-items:center;gap:6px;padding:4px 8px;background:var(--panel);border-bottom:1px solid var(--line);flex-wrap:wrap}
+header .brand{font-weight:700;letter-spacing:.5px;margin-right:10px;color:var(--accent)}
+button{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:4px;padding:4px 8px;cursor:pointer;font:inherit}
+button:hover{border-color:var(--accent)}
+button.on{background:var(--accent);color:#06121f;border-color:var(--accent)}
+.sep{width:1px;height:22px;background:var(--line);margin:0 4px}
+#tools{grid-row:2/3;grid-column:1/2;background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;gap:3px;padding:4px;overflow-y:auto}
+#tools button{width:42px;height:38px;padding:0;display:flex;align-items:center;justify-content:center;flex-direction:column;font-size:9px;gap:1px}
+#tools button svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.6}
+#wrap{grid-row:2/3;grid-column:2/3;position:relative;overflow:hidden;background:var(--canvas)}
+canvas{display:block;cursor:none;touch-action:none}
+#side{grid-row:2/3;grid-column:3/4;background:var(--panel);border-left:1px solid var(--line);overflow-y:auto;padding:8px}
+#side h3{margin:6px 0;font-size:12px;text-transform:uppercase;color:var(--muted);letter-spacing:.6px}
+.layer{display:flex;align-items:center;gap:5px;padding:3px 4px;border-radius:4px;cursor:pointer}
+.layer.cur{background:var(--panel2);outline:1px solid var(--accent)}
+.layer input[type=color]{width:20px;height:18px;border:none;padding:0;background:none;cursor:pointer}
+.layer .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.layer .ic{cursor:pointer;opacity:.85;user-select:none}
+.prop{display:grid;grid-template-columns:80px 1fr;gap:4px 6px;align-items:center}
+.prop input[type=checkbox]{width:auto}
+.prop input[type=color]{width:30px;padding:0;height:20px;vertical-align:middle}
+.prop select,.prop input:not([type=checkbox]):not([type=color]){width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:3px;padding:2px 4px;font:inherit}
+#history{grid-column:1/4;background:#111418;color:#aab3c0;font:12px/1.4 ui-monospace,Consolas,monospace;padding:3px 10px;height:64px;overflow-y:auto;border-top:1px solid var(--line);white-space:pre-wrap}
+#cmdbar{grid-column:1/4;display:flex;align-items:center;gap:8px;background:#111418;padding:3px 10px 5px;font:13px ui-monospace,Consolas,monospace}
+#prompt{color:var(--accent);white-space:nowrap}
+#cmd{flex:1;background:transparent;border:none;outline:none;color:#fff;font:inherit}
+#status{display:flex;gap:4px;align-items:center}
+#status button{padding:2px 6px;font-size:11px}
+#coords{min-width:170px;color:var(--muted);text-align:right}
+.hint{color:var(--muted);font-size:11px;margin-top:10px;line-height:1.5}
+.hint b{color:var(--text)}
+@media (max-width:760px){#app{grid-template-columns:52px 1fr 0}#side{display:none}#coords{min-width:0}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <span class="brand">XIKE CAD</span>
+    <button data-act="new" title="Bản vẽ mới">Mới</button>
+    <button data-act="open" title="Mở file .json / .dxf">Mở</button>
+    <button data-act="save" title="Lưu file .json">Lưu</button>
+    <span class="sep"></span>
+    <button data-act="dxf" title="Xuất DXF (mở được trong các phần mềm CAD)">Xuất DXF</button>
+    <button data-act="svg">Xuất SVG</button>
+    <button data-act="png">Xuất PNG</button>
+    <span class="sep"></span>
+    <button data-act="undo" title="Ctrl+Z">↶ Hoàn tác</button>
+    <button data-act="redo" title="Ctrl+Y">↷ Làm lại</button>
+    <button data-act="zoomext" title="Lệnh Z">Thu phóng toàn bộ</button>
+    <button data-act="pan" id="panBtn" title="Kéo để di chuyển màn hình (hoặc giữ chuột giữa)">✋ Pan</button>
+    <input type="file" id="file" accept=".json,.dxf" hidden>
+  </header>
+
+  <nav id="tools"></nav>
+
+  <div id="wrap"><canvas id="cv"></canvas></div>
+
+  <aside id="side">
+    <h3>Lớp (Layer)</h3>
+    <div id="layers"></div>
+    <button id="addLayer" style="margin-top:6px;width:100%">+ Thêm lớp</button>
+    <h3 style="margin-top:14px">Thuộc tính</h3>
+    <div id="props"></div>
+    <h3 style="margin-top:14px">Cài đặt</h3>
+    <div class="prop">
+      <label>Bước lưới</label><input id="gridSize" type="number" min="0.01" step="any" value="10">
+      <label>Cao chữ</label><input id="textH" type="number" min="0.01" step="any" value="5">
+      <label>Số lẻ</label><input id="prec" type="number" min="0" max="6" value="2">
+    </div>
+    <div class="hint">
+      <b>Nhập tọa độ:</b> <code>x,y</code> tuyệt đối · <code>@dx,dy</code> tương đối · <code>@d&lt;góc</code> cực · gõ một số = khoảng cách theo hướng chuột.<br>
+      <b>Phím:</b> Enter/Space/chuột phải = xác nhận · Esc = hủy · Del = xóa · Enter rỗng = lặp lệnh · F3 bắt điểm · F7 lưới · F8 vuông góc · F9 snap lưới.<br>
+      <b>Chọn:</b> kéo trái→phải = chọn nằm trong · phải→trái = chọn cắt qua · Shift+click = bỏ chọn.
+    </div>
+  </aside>
+
+  <div id="history"></div>
+  <div id="cmdbar">
+    <span id="prompt">Lệnh:</span>
+    <input id="cmd" autocomplete="off" spellcheck="false">
+    <div id="status">
+      <button data-tog="osnap" title="F3">BẮT ĐIỂM</button>
+      <button data-tog="grid" title="F7">LƯỚI</button>
+      <button data-tog="ortho" title="F8">VUÔNG GÓC</button>
+      <button data-tog="snap" title="F9">SNAP</button>
+    </div>
+    <span id="coords">0, 0</span>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================== STATE ============================== */
+const S = {
+  ents: [],
+  layers: [{name:'0', color:'#ffffff', visible:true, locked:false}],
+  curLayer: '0',
+  sel: new Set(),
+  view: {ox:0, oy:0, scale:3},
+  osnap:true, grid:true, ortho:false, snap:false,
+  gridSize:10, textH:5, prec:2, nextId:1,
+};
+let undoStack = [], redoStack = [];
+let cmd = null, lastCmd = null, panMode = false;
+let mouse = {sx:0, sy:0, w:{x:0,y:0}}, cur = {x:0,y:0}, snapHit = null, hoverId = null;
+let drag = null; // {sx,sy,wx,wy,button,moved}
+
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const $ = id => document.getElementById(id);
+const measureCtx = document.createElement('canvas').getContext('2d');
+let DPR = window.devicePixelRatio || 1;
+
+/* ============================== MATH ============================== */
+const TAU = Math.PI*2;
+const P = (x,y)=>({x,y});
+const add=(a,b)=>P(a.x+b.x,a.y+b.y), sub=(a,b)=>P(a.x-b.x,a.y-b.y), mul=(a,k)=>P(a.x*k,a.y*k);
+const dist=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y), dot=(a,b)=>a.x*b.x+a.y*b.y;
+const len=a=>Math.hypot(a.x,a.y), norm=a=>{const l=len(a)||1;return P(a.x/l,a.y/l)}, perp=a=>P(-a.y,a.x);
+const ang=(a,b)=>Math.atan2(b.y-a.y,b.x-a.x), mid=(a,b)=>P((a.x+b.x)/2,(a.y+b.y)/2);
+const normA=a=>((a%TAU)+TAU)%TAU;
+const inArc=(a,a1,a2)=>normA(a-a1)<=normA(a2-a1)+1e-9;
+const rotP=(p,c,t)=>{const s=Math.sin(t),k=Math.cos(t),d=sub(p,c);return P(c.x+d.x*k-d.y*s,c.y+d.x*s+d.y*k)};
+const deg=r=>r*180/Math.PI, rad=d=>d*Math.PI/180;
+function fmt(v){const p=S.prec;return (+v.toFixed(p)).toString()}
+function segDist(p,a,b){const ab=sub(b,a),l2=dot(ab,ab);if(!l2)return dist(p,a);let t=dot(sub(p,a),ab)/l2;t=Math.max(0,Math.min(1,t));return dist(p,add(a,mul(ab,t)))}
+function segInter(a,b,c,d){const r=sub(b,a),s=sub(d,c),den=r.x*s.y-r.y*s.x;if(Math.abs(den)<1e-12)return null;
+  const t=((c.x-a.x)*s.y-(c.y-a.y)*s.x)/den,u=((c.x-a.x)*r.y-(c.y-a.y)*r.x)/den;
+  return (t>=-1e-9&&t<=1+1e-9&&u>=-1e-9&&u<=1+1e-9)?add(a,mul(r,t)):null}
+function segCircle(a,b,c,r){const d=sub(b,a),f=sub(a,c),A=dot(d,d),B=2*dot(f,d),C=dot(f,f)-r*r;let disc=B*B-4*A*C;if(disc<0||!A)return[];
+  disc=Math.sqrt(disc);return [(-B-disc)/(2*A),(-B+disc)/(2*A)].filter(t=>t>=-1e-9&&t<=1+1e-9).map(t=>add(a,mul(d,t)))}
+function circumcenter(a,b,c){const d=2*(a.x*(b.y-c.y)+b.x*(c.y-a.y)+c.x*(a.y-b.y));if(Math.abs(d)<1e-12)return null;
+  const a2=dot(a,a),b2=dot(b,b),c2=dot(c,c);
+  return P((a2*(b.y-c.y)+b2*(c.y-a.y)+c2*(a.y-b.y))/d,(a2*(c.x-b.x)+b2*(a.x-c.x)+c2*(b.x-a.x))/d)}
+function arc3(p1,p2,p3){const c=circumcenter(p1,p2,p3);if(!c)return null;const r=dist(c,p1);
+  let a1=ang(c,p1),a3=ang(c,p3),a2=ang(c,p2);
+  return inArc(a2,a1,a3)?{cx:c.x,cy:c.y,r,a1:normA(a1),a2:normA(a3)}:{cx:c.x,cy:c.y,r,a1:normA(a3),a2:normA(a1)}}
+
+/* ============================== VIEW ============================== */
+const toS = p => P(p.x*S.view.scale+S.view.ox, -p.y*S.view.scale+S.view.oy);
+const toW = (sx,sy) => P((sx-S.view.ox)/S.view.scale, -(sy-S.view.oy)/S.view.scale);
+function resize(){
+  const r=$('wrap').getBoundingClientRect(); DPR=window.devicePixelRatio||1;
+  cv.width=Math.max(1,r.width*DPR); cv.height=Math.max(1,r.height*DPR);
+  cv.style.width=r.width+'px'; cv.style.height=r.height+'px'; draw();
+}
+function zoomAt(sx,sy,f){const w=toW(sx,sy);S.view.scale=Math.min(1e5,Math.max(1e-4,S.view.scale*f));
+  S.view.ox=sx-w.x*S.view.scale;S.view.oy=sy+w.y*S.view.scale;draw()}
+function zoomExtents(){
+  const vis=S.ents.filter(isVisible); const W=cv.width/DPR,H=cv.height/DPR;
+  if(!vis.length){S.view.scale=3;S.view.ox=60;S.view.oy=H-60;draw();return}
+  let b=bboxOf(vis); const w=Math.max(b.x2-b.x1,1e-6),h=Math.max(b.y2-b.y1,1e-6);
+  S.view.scale=Math.min((W-80)/w,(H-80)/h); if(!isFinite(S.view.scale)||S.view.scale<=0)S.view.scale=1;
+  const c=P((b.x1+b.x2)/2,(b.y1+b.y2)/2); S.view.ox=W/2-c.x*S.view.scale; S.view.oy=H/2+c.y*S.view.scale; draw();
+}
+
+/* ============================== ENTITIES ============================== */
+const layerOf = e => S.layers.find(l=>l.name===e.layer) || S.layers[0];
+const isVisible = e => layerOf(e).visible;
+const isEditable = e => isVisible(e) && !layerOf(e).locked;
+const colorOf = e => (e.color && e.color!=='BYLAYER') ? e.color : layerOf(e).color;
+function textWidth(e){measureCtx.font='100px sans-serif';return measureCtx.measureText(e.text).width*e.h/100}
+function textBox(e){const w=textWidth(e),r=e.rot||0,o=P(e.x,e.y);
+  return [o,rotP(P(e.x+w,e.y),o,r),rotP(P(e.x+w,e.y+e.h),o,r),rotP(P(e.x,e.y+e.h),o,r)]}
+function dimGeom(e){const p1=P(e.x1,e.y1),p2=P(e.x2,e.y2),o=P(e.ox,e.oy);
+  const u=norm(sub(p2,p1)),n=perp(u),d=dot(sub(o,p1),n),q1=add(p1,mul(n,d)),q2=add(p2,mul(n,d));
+  return {p1,p2,q1,q2,u,n,d,val:dist(p1,p2)}}
+function polyPts(e){return e.pts.map(p=>P(p[0],p[1]))}
+function arcSample(cx,cy,r,a1,a2,n){const sw=normA(a2-a1)||TAU,pts=[];for(let i=0;i<=n;i++){const a=a1+sw*i/n;pts.push(P(cx+r*Math.cos(a),cy+r*Math.sin(a)))}return pts}
+function getSegs(e){
+  const segs=[],chain=(pts,closed)=>{for(let i=0;i<pts.length-1;i++)segs.push([pts[i],pts[i+1]]);if(closed&&pts.length>2)segs.push([pts[pts.length-1],pts[0]])};
+  switch(e.type){
+    case 'line': segs.push([P(e.x1,e.y1),P(e.x2,e.y2)]);break;
+    case 'pline': chain(polyPts(e),e.closed);break;
+    case 'circle': chain(arcSample(e.cx,e.cy,e.r,0,TAU,64),false);break;
+    case 'arc': chain(arcSample(e.cx,e.cy,e.r,e.a1,e.a2,48),false);break;
+    case 'text': chain(textBox(e),true);break;
+    case 'dim': {const g=dimGeom(e);segs.push([g.p1,g.q1],[g.p2,g.q2],[g.q1,g.q2]);break}
+  }
+  return segs;
+}
+function bboxOf(list){let b={x1:Infinity,y1:Infinity,x2:-Infinity,y2:-Infinity};
+  for(const e of list)for(const s of getSegs(e))for(const p of s){b.x1=Math.min(b.x1,p.x);b.y1=Math.min(b.y1,p.y);b.x2=Math.max(b.x2,p.x);b.y2=Math.max(b.y2,p.y)}
+  return b}
+function hitDist(e,p){
+  if(e.type==='circle')return Math.abs(dist(p,P(e.cx,e.cy))-e.r);
+  if(e.type==='arc'){const a=ang(P(e.cx,e.cy),p);if(inArc(a,e.a1,e.a2))return Math.abs(dist(p,P(e.cx,e.cy))-e.r);
+    return Math.min(dist(p,P(e.cx+e.r*Math.cos(e.a1),e.cy+e.r*Math.sin(e.a1))),dist(p,P(e.cx+e.r*Math.cos(e.a2),e.cy+e.r*Math.sin(e.a2))))}
+  if(e.type==='text'){const box=textBox(e);if(pointInPoly(p,box))return 0}
+  let m=Infinity;for(const [a,b] of getSegs(e))m=Math.min(m,segDist(p,a,b));return m;
+}
+function pointInPoly(p,poly){let c=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];
+  if((a.y>p.y)!==(b.y>p.y)&&p.x<(b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x)c=!c}return c}
+function pick(p){const tol=7/S.view.scale;let best=null,bd=tol;
+  for(let i=S.ents.length-1;i>=0;i--){const e=S.ents[i];if(!isEditable(e))continue;const d=hitDist(e,p);if(d<bd){bd=d;best=e}}return best}
+function segRect(a,b,r){const inR=p=>p.x>=r.x1&&p.x<=r.x2&&p.y>=r.y1&&p.y<=r.y2;if(inR(a)||inR(b))return true;
+  const c=[P(r.x1,r.y1),P(r.x2,r.y1),P(r.x2,r.y2),P(r.x1,r.y2)];for(let i=0;i<4;i++)if(segInter(a,b,c[i],c[(i+1)%4]))return true;return false}
+function windowSelect(r,crossing){const out=[];for(const e of S.ents){if(!isEditable(e))continue;
+  const b=bboxOf([e]);const inside=b.x1>=r.x1&&b.x2<=r.x2&&b.y1>=r.y1&&b.y2<=r.y2;
+  if(inside||(crossing&&getSegs(e).some(([a,c])=>segRect(a,c,r))))out.push(e)}return out}
+
+function snapPoints(e){const pts=[];const pushT=(p,t)=>pts.push({p,t});
+  switch(e.type){
+    case 'line':{const a=P(e.x1,e.y1),b=P(e.x2,e.y2);pushT(a,'end');pushT(b,'end');pushT(mid(a,b),'mid');break}
+    case 'pline':{const v=polyPts(e);v.forEach(p=>pushT(p,'end'));for(let i=0;i<v.length-1;i++)pushT(mid(v[i],v[i+1]),'mid');if(e.closed&&v.length>2)pushT(mid(v[v.length-1],v[0]),'mid');break}
+    case 'circle':{const c=P(e.cx,e.cy);pushT(c,'cen');for(let k=0;k<4;k++)pushT(P(e.cx+e.r*Math.cos(k*Math.PI/2),e.cy+e.r*Math.sin(k*Math.PI/2)),'quad');break}
+    case 'arc':{const c=P(e.cx,e.cy),pa=a=>P(e.cx+e.r*Math.cos(a),e.cy+e.r*Math.sin(a));pushT(c,'cen');pushT(pa(e.a1),'end');pushT(pa(e.a2),'end');pushT(pa(e.a1+normA(e.a2-e.a1)/2),'mid');break}
+    case 'text': pushT(P(e.x,e.y),'ins');break;
+    case 'dim': pushT(P(e.x1,e.y1),'end');pushT(P(e.x2,e.y2),'end');break;
+  }return pts}
+function exactSegs(e){if(e.type==='line'||e.type==='pline'||e.type==='dim')return getSegs(e);return []}
+function intersections(e1,e2){const out=[];const s1=exactSegs(e1),s2=exactSegs(e2);
+  for(const a of s1)for(const b of s2){const p=segInter(a[0],a[1],b[0],b[1]);if(p)out.push(p)}
+  const circ=(c,segs)=>{for(const [a,b] of segs)for(const p of segCircle(a,b,P(c.cx,c.cy),c.r))if(c.type==='circle'||inArc(ang(P(c.cx,c.cy),p),c.a1,c.a2))out.push(p)};
+  if(e1.type==='circle'||e1.type==='arc')circ(e1,s2);
+  if(e2.type==='circle'||e2.type==='arc')circ(e2,s1);
+  return out}
+function findSnap(w){
+  const tol=10/S.view.scale;let best=null,bd=tol;const near=[];
+  for(const e of S.ents){if(!isVisible(e))continue;if(cmd&&cmd.skipSnap&&cmd.skipSnap(e))continue;if(hitDist(e,w)>tol*2&&e.type!=='circle'&&e.type!=='arc')continue;
+    near.push(e);for(const s of snapPoints(e)){const d=dist(s.p,w);if(d<bd){bd=d;best=s}}}
+  if(!best||best.t==='mid'||best.t==='quad'){
+    const cand=near.filter(e=>hitDist(e,w)<tol*2);
+    for(let i=0;i<cand.length;i++)for(let j=i+1;j<cand.length;j++)for(const p of intersections(cand[i],cand[j])){const d=dist(p,w);if(d<bd*0.9||(!best&&d<tol)){bd=d;best={p,t:'int'}}}
+    for(const e of cand) if(e.type==='pline'){ /* self intersections skipped */ }
+  }
+  return best;
+}
+
+/* ============================== HISTORY ============================== */
+const snapshot=()=>JSON.stringify({ents:S.ents,layers:S.layers,curLayer:S.curLayer,nextId:S.nextId});
+function restore(js){const o=JSON.parse(js);S.ents=o.ents;S.layers=o.layers;S.curLayer=o.curLayer;S.nextId=o.nextId;S.sel.clear();refreshUI()}
+function pushUndo(){undoStack.push(snapshot());if(undoStack.length>200)undoStack.shift();redoStack=[]}
+function undo(){if(!undoStack.length){log('Không còn gì để hoàn tác.');return}redoStack.push(snapshot());restore(undoStack.pop());log('Đã hoàn tác.');autosave()}
+function redo(){if(!redoStack.length){log('Không còn gì để làm lại.');return}undoStack.push(snapshot());restore(redoStack.pop());log('Đã làm lại.');autosave()}
+function addEnt(e,noUndo){if(!noUndo)pushUndo();e.id=S.nextId++;e.layer=e.layer||S.curLayer;e.color=e.color||'BYLAYER';S.ents.push(e);autosave();return e}
+function selEnts(){return S.ents.filter(e=>S.sel.has(e.id))}
+function eraseSel(){if(!S.sel.size)return;pushUndo();const n=S.sel.size;S.ents=S.ents.filter(e=>!S.sel.has(e.id));S.sel.clear();log(`Đã xóa ${n} đối tượng.`);refreshUI();autosave()}
+
+/* ============================== TRANSFORMS ============================== */
+function transformEnt(e,f,kind,k){ // f: point map; kind: 'move'|'rot'|'scale'|'mirror'; k: angle/factor/mirror-angle
+  const mp=(x,y)=>{const q=f(P(x,y));return [q.x,q.y]};
+  switch(e.type){
+    case 'line':[e.x1,e.y1]=mp(e.x1,e.y1);[e.x2,e.y2]=mp(e.x2,e.y2);break;
+    case 'dim':[e.x1,e.y1]=mp(e.x1,e.y1);[e.x2,e.y2]=mp(e.x2,e.y2);[e.ox,e.oy]=mp(e.ox,e.oy);break;
+    case 'pline':e.pts=e.pts.map(p=>mp(p[0],p[1]));break;
+    case 'circle':[e.cx,e.cy]=mp(e.cx,e.cy);if(kind==='scale')e.r*=k;break;
+    case 'arc':[e.cx,e.cy]=mp(e.cx,e.cy);if(kind==='scale')e.r*=k;if(kind==='rot'){e.a1=normA(e.a1+k);e.a2=normA(e.a2+k)}
+      if(kind==='mirror'){const a1=normA(2*k-e.a2),a2=normA(2*k-e.a1);e.a1=a1;e.a2=a2}break;
+    case 'text':[e.x,e.y]=mp(e.x,e.y);if(kind==='scale')e.h*=k;if(kind==='rot')e.rot=(e.rot||0)+k;break;
+  }return e}
+const clone=e=>JSON.parse(JSON.stringify(e));
+
+/* ============================== DRAWING ============================== */
+function draw(){
+  const W=cv.width/DPR,H=cv.height/DPR;ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--canvas')||'#16191e';ctx.fillRect(0,0,W,H);
+  if(S.grid)drawGrid(W,H);
+  // axes
+  const o=toS(P(0,0));ctx.lineWidth=1;
+  ctx.strokeStyle='rgba(255,80,80,.55)';ctx.beginPath();ctx.moveTo(o.x,o.y);ctx.lineTo(o.x+40,o.y);ctx.stroke();
+  ctx.strokeStyle='rgba(80,255,120,.55)';ctx.beginPath();ctx.moveTo(o.x,o.y);ctx.lineTo(o.x,o.y-40);ctx.stroke();
+  for(const e of S.ents){if(!isVisible(e))continue;const s=S.sel.has(e.id);
+    drawEnt(e,s?'#ffb02e':colorOf(e),e.id===hoverId&&!s?2.2:1.2,s?[6,4]:null)}
+  // grips
+  ctx.fillStyle='#3fa7ff';for(const e of selEnts())for(const s of snapPoints(e)){const q=toS(s.p);ctx.fillRect(q.x-3,q.y-3,6,6)}
+  if(cmd&&cmd.draw){ctx.save();cmd.draw(cur);ctx.restore()}
+  if(drag&&drag.button===0&&drag.moved&&!cmd?.wantsPoint&&!panMode&&(!cmd||cmd.selecting)){
+    const crossing=mouse.sx<drag.sx;ctx.setLineDash(crossing?[5,4]:[]);
+    ctx.fillStyle=crossing?'rgba(60,255,120,.1)':'rgba(63,167,255,.12)';ctx.strokeStyle=crossing?'#3cff7a':'#3fa7ff';
+    const x=Math.min(drag.sx,mouse.sx),y=Math.min(drag.sy,mouse.sy),w=Math.abs(mouse.sx-drag.sx),h=Math.abs(mouse.sy-drag.sy);
+    ctx.fillRect(x,y,w,h);ctx.strokeRect(x,y,w,h);ctx.setLineDash([])}
+  if(snapHit)drawSnapMarker(snapHit);
+  drawCursor();
+}
+function drawGrid(W,H){
+  let g=S.gridSize;while(g*S.view.scale<12)g*=5;while(g*S.view.scale>120)g/=5;
+  const a=toW(0,H),b=toW(W,0);ctx.lineWidth=1;
+  for(const [step,col] of [[g,'rgba(255,255,255,.045)'],[g*5,'rgba(255,255,255,.09)']]){
+    ctx.strokeStyle=col;ctx.beginPath();
+    for(let x=Math.floor(a.x/step)*step;x<=b.x;x+=step){const sx=Math.round(toS(P(x,0)).x)+.5;ctx.moveTo(sx,0);ctx.lineTo(sx,H)}
+    for(let y=Math.floor(a.y/step)*step;y<=b.y;y+=step){const sy=Math.round(toS(P(0,y)).y)+.5;ctx.moveTo(0,sy);ctx.lineTo(W,sy)}
+    ctx.stroke()}
+}
+function drawEnt(e,color,lw,dash){
+  ctx.strokeStyle=color;ctx.fillStyle=color;ctx.lineWidth=lw||1.2;ctx.setLineDash(dash||[]);ctx.beginPath();
+  switch(e.type){
+    case 'line':{const a=toS(P(e.x1,e.y1)),b=toS(P(e.x2,e.y2));ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();break}
+    case 'pline':{const v=polyPts(e).map(toS);if(!v.length)break;ctx.moveTo(v[0].x,v[0].y);for(const q of v.slice(1))ctx.lineTo(q.x,q.y);if(e.closed)ctx.closePath();ctx.stroke();break}
+    case 'circle':{const c=toS(P(e.cx,e.cy));ctx.arc(c.x,c.y,e.r*S.view.scale,0,TAU);ctx.stroke();break}
+    case 'arc':{const c=toS(P(e.cx,e.cy));ctx.arc(c.x,c.y,e.r*S.view.scale,-e.a1,-e.a2,true);ctx.stroke();break}
+    case 'text':drawText(e.text,P(e.x,e.y),e.h,e.rot||0,'left',color);break;
+    case 'dim':drawDim(e,color);break;
+  }ctx.setLineDash([]);
+}
+function drawText(str,p,h,rot,align,color){const q=toS(p),px=h*S.view.scale;if(px<1.5)return;
+  ctx.save();ctx.translate(q.x,q.y);ctx.rotate(-rot);ctx.font=`${px}px sans-serif`;ctx.textAlign=align;ctx.textBaseline='alphabetic';ctx.fillStyle=color;ctx.fillText(str,0,0);ctx.restore()}
+function drawDim(e,color){const g=dimGeom(e);if(g.val<1e-9)return;const sgn=Math.sign(g.d)||1,ext=mul(g.n,sgn*2/S.view.scale*1.5);
+  const L=(a,b)=>{const A=toS(a),B=toS(b);ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y)};
+  ctx.beginPath();L(add(g.p1,mul(g.n,sgn*1/S.view.scale*3)),add(g.q1,ext));L(add(g.p2,mul(g.n,sgn*1/S.view.scale*3)),add(g.q2,ext));L(g.q1,g.q2);ctx.stroke();
+  const th=e.h||S.textH,as=th*0.8;
+  for(const [q,dir] of [[g.q1,g.u],[g.q2,mul(g.u,-1)]]){const t1=add(add(q,mul(dir,as)),mul(perp(dir),as*0.25)),t2=add(add(q,mul(dir,as)),mul(perp(dir),-as*0.25));
+    const A=toS(q),B=toS(t1),C=toS(t2);ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);ctx.lineTo(C.x,C.y);ctx.closePath();ctx.fill()}
+  let a=Math.atan2(g.u.y,g.u.x);if(a>Math.PI/2+1e-6||a<=-Math.PI/2+1e-6)a+=Math.PI;
+  const up=P(-Math.sin(a),Math.cos(a));drawText(fmt(g.val),add(mid(g.q1,g.q2),mul(up,th*0.35)),th,a,'center',color)}
+function drawSnapMarker(s){const q=toS(s.p);ctx.strokeStyle='#3cff7a';ctx.lineWidth=2;ctx.beginPath();const r=6;
+  if(s.t==='end')ctx.rect(q.x-r,q.y-r,2*r,2*r);
+  else if(s.t==='mid'){ctx.moveTo(q.x,q.y-r);ctx.lineTo(q.x+r,q.y+r);ctx.lineTo(q.x-r,q.y+r);ctx.closePath()}
+  else if(s.t==='cen')ctx.arc(q.x,q.y,r,0,TAU);
+  else if(s.t==='quad'){ctx.moveTo(q.x,q.y-r);ctx.lineTo(q.x+r,q.y);ctx.lineTo(q.x,q.y+r);ctx.lineTo(q.x-r,q.y);ctx.closePath()}
+  else if(s.t==='int'){ctx.moveTo(q.x-r,q.y-r);ctx.lineTo(q.x+r,q.y+r);ctx.moveTo(q.x+r,q.y-r);ctx.lineTo(q.x-r,q.y+r)}
+  else ctx.rect(q.x-r,q.y-r,2*r,2*r);
+  ctx.stroke();const names={end:'Điểm cuối',mid:'Trung điểm',cen:'Tâm',quad:'Góc phần tư',int:'Giao điểm',ins:'Điểm chèn'};
+  ctx.font='11px sans-serif';ctx.fillStyle='#3cff7a';ctx.fillText(names[s.t]||'',q.x+10,q.y+18)}
+function drawCursor(){const q=toS(cur),W=cv.width/DPR,H=cv.height/DPR;ctx.strokeStyle='rgba(255,255,255,.75)';ctx.lineWidth=1;ctx.beginPath();
+  if(panMode){ctx.arc(mouse.sx,mouse.sy,6,0,TAU);ctx.stroke();return}
+  const big=cmd&&cmd.wantsPoint&&!cmd.selecting;const L=big?Math.max(W,H):18;
+  ctx.moveTo(q.x-L,q.y+.5);ctx.lineTo(q.x+L,q.y+.5);ctx.moveTo(q.x+.5,q.y-L);ctx.lineTo(q.x+.5,q.y+L);ctx.stroke();
+  if(!cmd||cmd.selecting||!cmd.wantsPoint)ctx.strokeRect(q.x-4.5,q.y-4.5,9,9)}
+// preview helpers used by commands
+function rub(a,b){const A=toS(a),B=toS(b);ctx.strokeStyle='#9fd3ff';ctx.lineWidth=1;ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);ctx.stroke();ctx.setLineDash([])}
+function ghost(e){drawEnt(e,'#9fd3ff',1.2,null)}
+
+/* ============================== COMMAND SYSTEM ============================== */
+function log(t){const h=$('history');h.textContent+=(h.textContent?'\n':'')+t;h.scrollTop=h.scrollHeight}
+function setPrompt(){$('prompt').textContent=cmd?(cmd.selecting?'Chọn đối tượng (Enter để kết thúc):':cmd.prompt):'Lệnh:'}
+function endCmd(msg){if(msg)log(msg);cmd=null;setPrompt();refreshUI()}
+function cancelCmd(){if(cmd){log('*Hủy*');cmd=null}else{S.sel.clear()}setPrompt();refreshUI()}
+
+const ALIAS={L:'LINE',LINE:'LINE',PL:'PLINE',PLINE:'PLINE',REC:'RECT',RECT:'RECT',RECTANG:'RECT',C:'CIRCLE',CIRCLE:'CIRCLE',A:'ARC',ARC:'ARC',
+  POL:'POLYGON',POLYGON:'POLYGON',T:'TEXT',TEXT:'TEXT',DT:'TEXT',DIM:'DIM',DLI:'DIM',DAL:'DIM',M:'MOVE',MOVE:'MOVE',CO:'COPY',CP:'COPY',COPY:'COPY',
+  RO:'ROTATE',ROTATE:'ROTATE',SC:'SCALE',SCALE:'SCALE',MI:'MIRROR',MIRROR:'MIRROR',E:'ERASE',ERASE:'ERASE',O:'OFFSET',OFFSET:'OFFSET',
+  X:'EXPLODE',EXPLODE:'EXPLODE',DI:'DIST',DIST:'DIST',AA:'AREA',AREA:'AREA',Z:'ZOOM',ZOOM:'ZOOM',U:'UNDO',UNDO:'UNDO',REDO:'REDO',
+  F:'FILLET',FILLET:'FILLET',TR:'TRIM',TRIM:'TRIM',ALL:'SELALL',SELALL:'SELALL',HELP:'HELP','?':'HELP'};
+
+function startCmd(name){
+  name=(ALIAS[name.toUpperCase()]||'');
+  if(!name){log('Lệnh không xác định. Gõ HELP để xem danh sách lệnh.');return}
+  if(cmd)cmd=null;
+  if(name==='UNDO'){undo();return} if(name==='REDO'){redo();return}
+  if(name==='ZOOM'){zoomExtents();log('Thu phóng toàn bộ.');return}
+  if(name==='SELALL'){S.ents.filter(isEditable).forEach(e=>S.sel.add(e.id));refreshUI();log(`Đã chọn ${S.sel.size} đối tượng.`);return}
+  if(name==='HELP'){log(HELP);return}
+  if(name==='ERASE'&&S.sel.size){eraseSel();lastCmd=name;return}
+  const f=COMMANDS[name];lastCmd=name;cmd=f();cmd.name=name;cmd.wantsPoint=true;
+  log('Lệnh: '+name);
+  if(cmd.needSel){if(S.sel.size){cmd.begin&&cmd.begin()}else cmd.selecting=true}
+  else cmd.begin&&cmd.begin();
+  if(cmd)setPrompt();refreshUI();
+}
+const HELP=`Danh sách lệnh (gõ tắt):
+ L  Đoạn thẳng      PL Đa tuyến        REC Hình chữ nhật   C  Đường tròn     A  Cung tròn (3 điểm)
+ POL Đa giác đều    T  Chữ             DIM Kích thước       DI Đo khoảng cách AA Diện tích
+ M  Di chuyển       CO Sao chép        RO Xoay              SC Tỉ lệ          MI Đối xứng
+ O  Offset          TR Cắt (Trim)      F  Bo góc (Fillet)   X  Phá khối       E  Xóa
+ Z  Thu phóng toàn bộ   U  Hoàn tác    REDO Làm lại         ALL Chọn tất cả`;
+
+// Get a point from typed input. Returns point or null.
+function parsePoint(s,base){
+  s=s.trim().replace(/\s+/g,'');let m;
+  if((m=s.match(/^(@?)(-?[\d.]+)<(-?[\d.]+)$/))){const d=+m[2],a=rad(+m[3]);const o=m[1]?(base||P(0,0)):P(0,0);return P(o.x+d*Math.cos(a),o.y+d*Math.sin(a))}
+  if((m=s.match(/^(@?)(-?[\d.]+)[,;](-?[\d.]+)$/))){const x=+m[2],y=+m[3];if(m[1])return add(base||P(0,0),P(x,y));return P(x,y)}
+  if(base&&/^-?[\d.]+$/.test(s)&&cmd&&cmd.distEntry!==false){const d=+s;const dir=dist(cur,base)>1e-9?norm(sub(cur,base)):P(1,0);return add(base,mul(dir,d))}
+  return null;
+}
+function submitInput(raw){
+  const s=raw.trim();
+  if(!cmd){if(!s){if(lastCmd)startCmd(lastCmd);return}startCmd(s);return}
+  if(cmd.selecting){if(!s){cmd.selecting=false;if(!S.sel.size){endCmd('Không có đối tượng nào được chọn.');return}log(`${S.sel.size} đối tượng đã chọn.`);cmd.begin&&cmd.begin();if(cmd)setPrompt();draw();return}
+    if(s.toUpperCase()==='ALL'){S.ents.filter(isEditable).forEach(e=>S.sel.add(e.id));log(`${S.sel.size} đối tượng.`);draw();return}}
+  if(!s){cmd.enter?cmd.enter():endCmd();if(cmd)setPrompt();draw();return}
+  if(cmd.value&&cmd.value(s)){if(cmd)setPrompt();draw();return}
+  const p=parsePoint(s,cmd.base);
+  if(p&&cmd.point){cmd.point(p);if(cmd)setPrompt();draw();return}
+  log('Giá trị không hợp lệ: '+s);
+}
+
+/* ---------- Command definitions ---------- */
+const COMMANDS={
+  LINE:()=>({pts:[],get prompt(){return this.pts.length<1?'Điểm đầu:':this.pts.length<3?'Điểm tiếp theo [U=Lùi]:':'Điểm tiếp theo [C=Đóng / U=Lùi]:'},
+    get base(){return this.pts[this.pts.length-1]},ids:[],
+    point(p){if(this.pts.length){const a=this.base;this.ids.push(addEnt({type:'line',x1:a.x,y1:a.y,x2:p.x,y2:p.y}).id)}this.pts.push(p)},
+    value(s){s=s.toUpperCase();if(s==='C'&&this.pts.length>=3){this.point(this.pts[0]);endCmd();return true}
+      if(s==='U'&&this.pts.length){this.pts.pop();if(this.ids.length){const id=this.ids.pop();pushUndo();S.ents=S.ents.filter(e=>e.id!==id)}return true}return false},
+    draw(c){if(this.base)rub(this.base,c)}}),
+  PLINE:()=>({pts:[],get prompt(){return this.pts.length?'Điểm tiếp theo [C=Đóng / U=Lùi]:':'Điểm đầu:'},get base(){return this.pts[this.pts.length-1]},
+    point(p){this.pts.push(p)},enter(){this.finish(false)},
+    finish(cl){if(this.pts.length>=2)addEnt({type:'pline',pts:this.pts.map(p=>[p.x,p.y]),closed:cl&&this.pts.length>2});endCmd()},
+    value(s){s=s.toUpperCase();if(s==='C'){this.finish(true);return true}if(s==='U'){this.pts.pop();return true}return false},
+    draw(c){if(!this.pts.length)return;ghost({type:'pline',pts:[...this.pts,c].map(p=>[p.x,p.y]),closed:false})}}),
+  RECT:()=>({a:null,get prompt(){return this.a?'Góc đối diện (hoặc @rộng,cao):':'Góc thứ nhất:'},get base(){return this.a},distEntry:false,
+    shape(a,b){return {type:'pline',closed:true,pts:[[a.x,a.y],[b.x,a.y],[b.x,b.y],[a.x,b.y]]}},
+    point(p){if(!this.a){this.a=p;return}if(Math.abs(p.x-this.a.x)<1e-9||Math.abs(p.y-this.a.y)<1e-9){log('Hình chữ nhật có cạnh bằng 0.');return}addEnt(this.shape(this.a,p));endCmd()},
+    draw(c){if(this.a)ghost(this.shape(this.a,c))}}),
+  CIRCLE:()=>({c:null,get prompt(){return this.c?'Bán kính [D=Đường kính]:':'Tâm đường tròn:'},get base(){return this.c},dia:false,
+    point(p){if(!this.c){this.c=p;return}this.make(dist(this.c,p))},
+    make(r){if(r<=0){log('Bán kính phải > 0.');return}addEnt({type:'circle',cx:this.c.x,cy:this.c.y,r:this.dia?r/2:r});endCmd()},
+    value(s){if(!this.c)return false;if(s.toUpperCase()==='D'){this.dia=true;log('Nhập đường kính:');return true}if(/^[\d.]+$/.test(s)){this.make(+s);return true}return false},
+    draw(c){if(this.c){rub(this.c,c);ghost({type:'circle',cx:this.c.x,cy:this.c.y,r:dist(this.c,c)})}}}),
+  ARC:()=>({pts:[],get prompt(){return ['Điểm đầu cung:','Điểm thứ hai trên cung:','Điểm cuối cung:'][this.pts.length]},get base(){return this.pts[this.pts.length-1]},
+    point(p){this.pts.push(p);if(this.pts.length===3){const a=arc3(...this.pts);if(!a){log('Ba điểm thẳng hàng – không tạo được cung.');this.pts.pop();return}addEnt({type:'arc',...a});endCmd()}},
+    draw(c){if(this.pts.length===1)rub(this.pts[0],c);if(this.pts.length===2){const a=arc3(this.pts[0],this.pts[1],c);if(a)ghost({type:'arc',...a})}}}),
+  POLYGON:()=>({n:null,c:null,get prompt(){return this.n==null?'Số cạnh <6>:':this.c?'Bán kính (đỉnh):':'Tâm đa giác:'},get base(){return this.c},
+    begin(){},value(s){if(this.n==null&&/^\d+$/.test(s)){const n=+s;if(n<3||n>1024){log('Số cạnh từ 3 đến 1024.');return true}this.n=n;return true}
+      if(this.c&&/^[\d.]+$/.test(s)){this.make(this.c,add(this.c,P(+s,0)));return true}return false},
+    enter(){if(this.n==null)this.n=6;else endCmd()},
+    shape(c,p){const r=dist(c,p),a0=ang(c,p),pts=[];for(let i=0;i<this.n;i++){const a=a0+TAU*i/this.n;pts.push([c.x+r*Math.cos(a),c.y+r*Math.sin(a)])}return {type:'pline',closed:true,pts}},
+    make(c,p){if(dist(c,p)<=0)return;addEnt(this.shape(c,p));endCmd()},
+    point(p){if(this.n==null)this.n=6;if(!this.c){this.c=p;return}this.make(this.c,p)},
+    draw(c){if(this.c){rub(this.c,c);ghost(this.shape(this.c,c))}}}),
+  TEXT:()=>({p:null,rot:0,stage:0,get prompt(){return ['Điểm đặt chữ:',`Chiều cao <${fmt(S.textH)}>:`,'Góc xoay <0>:','Nhập nội dung chữ:'][this.stage]},get base(){return this.p},
+    get distEntry(){return this.stage===0},
+    point(p){if(this.stage===0){this.p=p;this.stage=1;return}if(this.stage===1){S.textH=dist(this.p,p)||S.textH;$('textH').value=fmt(S.textH);this.stage=2;return}
+      if(this.stage===2){this.rot=ang(this.p,p);this.stage=3;this.wantsPoint=false}},
+    value(s){if(this.stage===3){addEnt({type:'text',x:this.p.x,y:this.p.y,h:S.textH,rot:this.rot,text:s});endCmd();return true}
+      if(this.stage===1&&/^[\d.]+$/.test(s)&&+s>0){S.textH=+s;$('textH').value=s;this.stage=2;return true}
+      if(this.stage===2&&/^-?[\d.]+$/.test(s)){this.rot=rad(+s);this.stage=3;this.wantsPoint=false;return true}return false},
+    enter(){if(this.stage===1||this.stage===2){this.stage++;if(this.stage===3)this.wantsPoint=false}else endCmd()},
+    draw(c){if(this.p&&this.stage<3)rub(this.p,c);if(this.p)ghost({type:'text',x:this.p.x,y:this.p.y,h:S.textH,rot:this.stage===2?ang(this.p,c):this.rot,text:this.stage===3?($('cmd').value||'Abc'):'Abc'})}}),
+  DIM:()=>({pts:[],get prompt(){return ['Gốc đường gióng thứ nhất:','Gốc đường gióng thứ hai:','Vị trí đường kích thước:'][this.pts.length]},get base(){return this.pts[this.pts.length-1]},
+    mk(a,b,o){return {type:'dim',x1:a.x,y1:a.y,x2:b.x,y2:b.y,ox:o.x,oy:o.y,h:S.textH}},
+    point(p){this.pts.push(p);if(this.pts.length===3){addEnt(this.mk(...this.pts));endCmd()}},
+    draw(c){if(this.pts.length===1)rub(this.pts[0],c);if(this.pts.length===2)ghost(this.mk(this.pts[0],this.pts[1],c))}}),
+  DIST:()=>({a:null,get prompt(){return this.a?'Điểm thứ hai:':'Điểm thứ nhất:'},get base(){return this.a},
+    point(p){if(!this.a){this.a=p;return}const d=dist(this.a,p);endCmd(`Khoảng cách = ${fmt(d)},  Góc = ${fmt(deg(normA(ang(this.a,p))))}°,  ΔX = ${fmt(p.x-this.a.x)},  ΔY = ${fmt(p.y-this.a.y)}`)},
+    draw(c){if(this.a)rub(this.a,c)}}),
+  AREA:()=>({pts:[],get prompt(){return 'Điểm tiếp theo (Enter để tính) [O=Chọn đối tượng]:'},get base(){return this.pts[this.pts.length-1]},
+    point(p){if(this.pickMode){const e=pick(p);if(!e){log('Không có đối tượng.');return}const r=measure(e);endCmd(r?`Diện tích = ${fmt(r.area)},  Chu vi = ${fmt(r.per)}`:'Đối tượng không phải hình kín.');return}this.pts.push(p)},
+    value(s){if(s.toUpperCase()==='O'){this.pickMode=true;log('Chọn đối tượng kín:');return true}return false},
+    enter(){if(this.pts.length<3){endCmd();return}const r=polyArea(this.pts);endCmd(`Diện tích = ${fmt(Math.abs(r.area))},  Chu vi = ${fmt(r.per)}`)},
+    draw(c){if(this.pts.length)ghost({type:'pline',pts:[...this.pts,c].map(p=>[p.x,p.y]),closed:true})}}),
+  ERASE:()=>({needSel:true,begin(){eraseSel();endCmd()}}),
+  MOVE:()=>xformCmd('move'),COPY:()=>xformCmd('copy'),ROTATE:()=>xformCmd('rot'),SCALE:()=>xformCmd('scale'),MIRROR:()=>xformCmd('mirror'),
+  OFFSET:()=>({d:null,ent:null,get prompt(){return this.d==null?'Khoảng cách offset:':this.ent?'Chọn phía để offset:':'Chọn đối tượng cần offset (Enter để kết thúc):'},
+    value(s){if(this.d==null&&/^[\d.]+$/.test(s)&&+s>0){this.d=+s;return true}return false},
+    point(p){if(this.d==null){log('Hãy nhập khoảng cách trước.');return}
+      if(!this.ent){const e=pick(p);if(!e){log('Không có đối tượng.');return}if(!['line','circle','arc','pline'].includes(e.type)){log('Không offset được loại này.');return}this.ent=e;S.sel=new Set([e.id]);return}
+      const n=offsetEnt(this.ent,this.d,p);if(n){addEnt(n);n.layer=this.ent.layer}this.ent=null;S.sel.clear()},
+    draw(c){if(this.ent&&this.d!=null){const n=offsetEnt(this.ent,this.d,c);if(n)ghost(n)}}}),
+  EXPLODE:()=>({needSel:true,begin(){pushUndo();let n=0;const out=[];
+    for(const e of S.ents){if(!S.sel.has(e.id)){out.push(e);continue}
+      if(e.type==='pline'){const v=polyPts(e);const segs=[];for(let i=0;i<v.length-1;i++)segs.push([v[i],v[i+1]]);if(e.closed)segs.push([v[v.length-1],v[0]]);
+        for(const [a,b] of segs)out.push({type:'line',x1:a.x,y1:a.y,x2:b.x,y2:b.y,layer:e.layer,color:e.color,id:S.nextId++});n++}
+      else if(e.type==='dim'){const g=dimGeom(e);for(const [a,b] of [[g.p1,g.q1],[g.p2,g.q2],[g.q1,g.q2]])out.push({type:'line',x1:a.x,y1:a.y,x2:b.x,y2:b.y,layer:e.layer,color:e.color,id:S.nextId++});
+        let a=Math.atan2(g.u.y,g.u.x);if(a>Math.PI/2+1e-6||a<=-Math.PI/2+1e-6)a+=Math.PI;const th=e.h||S.textH;const t=fmt(g.val);const w=textWidth({text:t,h:th});
+        const m=add(mid(g.q1,g.q2),mul(P(-Math.sin(a),Math.cos(a)),th*0.35));const st=sub(m,mul(P(Math.cos(a),Math.sin(a)),w/2));
+        out.push({type:'text',x:st.x,y:st.y,h:th,rot:a,text:t,layer:e.layer,color:e.color,id:S.nextId++});n++}
+      else out.push(e)}
+    S.ents=out;S.sel.clear();autosave();endCmd(`Đã phá ${n} đối tượng.`)}}),
+  TRIM:()=>({get prompt(){return 'Chọn phần đoạn thẳng cần cắt (Enter để kết thúc):'},distEntry:false,
+    point(p){const e=pick(p);if(!e){log('Không có đối tượng.');return}if(e.type!=='line'){log('TRIM hiện chỉ áp dụng cho đoạn thẳng (dùng X để phá đa tuyến).');return}
+      const a=P(e.x1,e.y1),b=P(e.x2,e.y2),ab=sub(b,a),L2=dot(ab,ab);const ts=[];
+      for(const o of S.ents){if(o===e||!isVisible(o))continue;for(const q of intersections(e,o))ts.push(dot(sub(q,a),ab)/L2)}
+      const tp=dot(sub(p,a),ab)/L2;const before=ts.filter(t=>t<tp-1e-9&&t>1e-9),after=ts.filter(t=>t>tp+1e-9&&t<1-1e-9);
+      const t0=before.length?Math.max(...before):0,t1=after.length?Math.min(...after):1;
+      if(t0===0&&t1===1){pushUndo();S.ents=S.ents.filter(x=>x!==e);autosave();return}
+      pushUndo();const idx=S.ents.indexOf(e);const parts=[];
+      if(t0>0){const q=add(a,mul(ab,t0));parts.push({...e,x2:q.x,y2:q.y})}
+      if(t1<1){const q=add(a,mul(ab,t1));parts.push({...e,id:S.nextId++,x1:q.x,y1:q.y})}
+      S.ents.splice(idx,1,...parts);autosave()}}),
+  FILLET:()=>({r:0,e1:null,get prompt(){return this.e1?'Chọn đoạn thẳng thứ hai:':`Chọn đoạn thẳng thứ nhất [R=Bán kính <${fmt(this.r)}>]:`},distEntry:false,
+    value(s){if(s.toUpperCase()==='R'){this.askR=true;log('Nhập bán kính bo góc:');return true}if(this.askR&&/^[\d.]+$/.test(s)){this.r=+s;this.askR=false;return true}return false},
+    point(p){const e=pick(p);if(!e||e.type!=='line'){log('Hãy chọn một đoạn thẳng.');return}if(!this.e1){this.e1={e,p};S.sel=new Set([e.id]);return}
+      if(e===this.e1.e)return;const ok=filletLines(this.e1.e,this.e1.p,e,p,this.r);S.sel.clear();endCmd(ok?null:'Hai đường song song – không bo góc được.')}}),
+};
+function xformCmd(kind){
+  const names={move:'Di chuyển',copy:'Sao chép',rot:'Xoay',scale:'Tỉ lệ',mirror:'Đối xứng'};
+  return {needSel:true,b:null,
+    get prompt(){if(!this.b)return kind==='mirror'?'Điểm thứ nhất của trục đối xứng:':'Điểm gốc:';
+      return {move:'Điểm đến:',copy:'Điểm đến (Enter để kết thúc):',rot:'Góc xoay (độ) hoặc chọn điểm:',scale:'Hệ số tỉ lệ hoặc chọn điểm:',mirror:'Điểm thứ hai của trục:'}[kind]},
+    get base(){return this.b},get distEntry(){return kind==='move'||kind==='copy'},
+    begin(){this.items=selEnts()},
+    fn(p){const b=this.b;
+      if(kind==='move'||kind==='copy'){const d=sub(p,b);return [q=>add(q,d),'move',0]}
+      if(kind==='rot'){const t=ang(b,p);return [q=>rotP(q,b,t),'rot',t]}
+      if(kind==='scale'){const k=dist(b,p)/(S.gridSize||1);return [q=>add(b,mul(sub(q,b),k)),'scale',k]}
+      if(kind==='mirror'){const t=ang(b,p),u=P(Math.cos(t),Math.sin(t));return [q=>{const d=sub(q,b),pr=mul(u,dot(d,u));return add(b,sub(mul(pr,2),d))},'mirror',t]}},
+    apply(f,k,v){pushUndo();
+      if(kind==='copy'){for(const e of this.items){const n=transformEnt(clone(e),f,k,v);n.id=S.nextId++;S.ents.push(n)}}
+      else if(kind==='mirror'){for(const e of this.items){const n=transformEnt(clone(e),f,k,v);n.id=S.nextId++;S.ents.push(n)}}
+      else for(const e of this.items)transformEnt(e,f,k,v);autosave()},
+    point(p){if(!this.b){this.b=p;return}if(dist(p,this.b)<1e-12&&kind!=='copy')return;const [f,k,v]=this.fn(p);
+      if(kind==='scale'){log('Gợi ý: nhập số để đặt hệ số chính xác.')}
+      this.apply(f,k,v);if(kind!=='copy')endCmd(`${names[kind]} ${this.items.length} đối tượng.`)},
+    value(s){if(!this.b)return false;if(kind==='rot'&&/^-?[\d.]+$/.test(s)){const t=rad(+s),b=this.b;this.apply(q=>rotP(q,b,t),'rot',t);endCmd(`Xoay ${fmt(+s)}°.`);return true}
+      if(kind==='scale'&&/^[\d.]+$/.test(s)&&+s>0){const k=+s,b=this.b;this.apply(q=>add(b,mul(sub(q,b),k)),'scale',k);endCmd(`Tỉ lệ ×${s}.`);return true}return false},
+    enter(){endCmd()},
+    skipSnap(e){return false},
+    draw(c){if(!this.b||!this.items)return;rub(this.b,c);if(dist(c,this.b)<1e-12)return;const [f,k,v]=this.fn(c);for(const e of this.items)ghost(transformEnt(clone(e),f,k,v))}};
+}
+function offsetEnt(e,d,side){
+  if(e.type==='line'){const a=P(e.x1,e.y1),b=P(e.x2,e.y2),n=perp(norm(sub(b,a))),s=Math.sign(dot(sub(side,a),n))||1,o=mul(n,d*s);
+    return {type:'line',x1:a.x+o.x,y1:a.y+o.y,x2:b.x+o.x,y2:b.y+o.y,layer:e.layer,color:e.color}}
+  if(e.type==='circle'||e.type==='arc'){const r=dist(side,P(e.cx,e.cy))>e.r?e.r+d:e.r-d;if(r<=0)return null;const n=clone(e);delete n.id;n.r=r;return n}
+  if(e.type==='pline'){ // offset each segment then intersect neighbors
+    const v=polyPts(e),cl=e.closed,N=v.length;if(N<2)return null;
+    let ccw=0;for(let i=0;i<N;i++){const a=v[i],b=v[(i+1)%N];ccw+=a.x*b.y-b.x*a.y}
+    // choose side by nearest segment
+    let best=0,bd=Infinity;for(let i=0;i<N-(cl?0:1);i++){const dd=segDist(side,v[i],v[(i+1)%N]);if(dd<bd){bd=dd;best=i}}
+    const a=v[best],b=v[(best+1)%N],sgn=Math.sign(dot(sub(side,a),perp(norm(sub(b,a)))))||1;
+    const segs=[];for(let i=0;i<N-(cl?0:1);i++){const p=v[i],q=v[(i+1)%N],n=mul(perp(norm(sub(q,p))),d*sgn);segs.push([add(p,n),add(q,n)])}
+    const lineInt=(s1,s2)=>{const r=sub(s1[1],s1[0]),s=sub(s2[1],s2[0]),den=r.x*s.y-r.y*s.x;if(Math.abs(den)<1e-12)return s1[1];const t=((s2[0].x-s1[0].x)*s.y-(s2[0].y-s1[0].y)*s.x)/den;return add(s1[0],mul(r,t))};
+    const pts=[];const M=segs.length;
+    if(cl){for(let i=0;i<M;i++)pts.push(lineInt(segs[(i-1+M)%M],segs[i]))}
+    else{pts.push(segs[0][0]);for(let i=1;i<M;i++)pts.push(lineInt(segs[i-1],segs[i]));pts.push(segs[M-1][1])}
+    return {type:'pline',closed:cl,pts:pts.map(p=>[p.x,p.y]),layer:e.layer,color:e.color}}
+  return null}
+function filletLines(e1,p1,e2,p2,r){
+  const A1=P(e1.x1,e1.y1),B1=P(e1.x2,e1.y2),A2=P(e2.x1,e2.y1),B2=P(e2.x2,e2.y2);
+  const d1=sub(B1,A1),d2=sub(B2,A2),den=d1.x*d2.y-d1.y*d2.x;if(Math.abs(den)<1e-12)return false;
+  const t=((A2.x-A1.x)*d2.y-(A2.y-A1.y)*d2.x)/den,X=add(A1,mul(d1,t));
+  // keep side of each line where the user picked
+  const keep=(A,B,p)=>{const u=norm(sub(B,A)),sp=dot(sub(p,X),u)||1e-9,ta=dot(sub(A,X),u)*Math.sign(sp),tb=dot(sub(B,X),u)*Math.sign(sp);return ta>=tb?A:B};
+  const F1=keep(A1,B1,p1),F2=keep(A2,B2,p2);pushUndo();
+  const u1=norm(sub(F1,X)),u2=norm(sub(F2,X));
+  if(r<=0){Object.assign(e1,{x1:F1.x,y1:F1.y,x2:X.x,y2:X.y});Object.assign(e2,{x1:F2.x,y1:F2.y,x2:X.x,y2:X.y});autosave();return true}
+  const half=Math.acos(Math.max(-1,Math.min(1,dot(u1,u2))))/2;const tl=r/Math.tan(half);
+  const T1=add(X,mul(u1,tl)),T2=add(X,mul(u2,tl)),bis=norm(add(u1,u2)),C=add(X,mul(bis,r/Math.sin(half)));
+  Object.assign(e1,{x1:F1.x,y1:F1.y,x2:T1.x,y2:T1.y});Object.assign(e2,{x1:F2.x,y1:F2.y,x2:T2.x,y2:T2.y});
+  let a1=ang(C,T1),a2=ang(C,T2);if(normA(a2-a1)>Math.PI)[a1,a2]=[a2,a1];
+  S.ents.push({type:'arc',cx:C.x,cy:C.y,r,a1:normA(a1),a2:normA(a2),layer:e1.layer,color:'BYLAYER',id:S.nextId++});autosave();return true}
+function polyArea(v){let a=0,p=0;for(let i=0;i<v.length;i++){const b=v[(i+1)%v.length];a+=v[i].x*b.y-b.x*v[i].y;p+=dist(v[i],b)}return {area:a/2,per:p}}
+function measure(e){
+  if(e.type==='circle')return {area:Math.PI*e.r*e.r,per:TAU*e.r};
+  if(e.type==='pline'&&e.closed){const r=polyArea(polyPts(e));return {area:Math.abs(r.area),per:r.per}}return null}
+
+/* ============================== INPUT ============================== */
+function updateCursor(){
+  const w=toW(mouse.sx,mouse.sy);mouse.w=w;snapHit=null;let p=w;
+  const active=cmd&&cmd.wantsPoint&&!cmd.selecting;
+  if(active&&S.osnap){const s=findSnap(w);if(s){snapHit=s;p=s.p}}
+  if(!snapHit&&S.snap&&active){const g=S.gridSize;p=P(Math.round(w.x/g)*g,Math.round(w.y/g)*g)}
+  if(!snapHit&&S.ortho&&active&&cmd.base){const b=cmd.base,d=sub(p,b);p=Math.abs(d.x)>=Math.abs(d.y)?P(p.x,b.y):P(b.x,p.y)}
+  cur=p;
+  hoverId=(!active&&!drag)?(pick(w)?.id??null):null;
+  $('coords').textContent=`${fmt(cur.x)}, ${fmt(cur.y)}`+(cmd&&cmd.base&&active?`   L=${fmt(dist(cmd.base,cur))} ∠${fmt(deg(normA(ang(cmd.base,cur))))}°`:'');
+}
+cv.addEventListener('pointerdown',ev=>{
+  cv.setPointerCapture(ev.pointerId);const r=cv.getBoundingClientRect();mouse.sx=ev.clientX-r.left;mouse.sy=ev.clientY-r.top;
+  drag={sx:mouse.sx,sy:mouse.sy,ox:S.view.ox,oy:S.view.oy,button:ev.button,moved:false,shift:ev.shiftKey};
+  if(ev.button===1)ev.preventDefault();
+});
+cv.addEventListener('pointermove',ev=>{
+  const r=cv.getBoundingClientRect();mouse.sx=ev.clientX-r.left;mouse.sy=ev.clientY-r.top;
+  if(drag){if(Math.hypot(mouse.sx-drag.sx,mouse.sy-drag.sy)>4)drag.moved=true;
+    if(drag.button===1||(drag.button===0&&panMode)){S.view.ox=drag.ox+mouse.sx-drag.sx;S.view.oy=drag.oy+mouse.sy-drag.sy}}
+  updateCursor();draw();
+});
+cv.addEventListener('pointerup',ev=>{
+  if(!drag)return;const d=drag;drag=null;
+  if(d.button===1||panMode){draw();return}
+  if(d.button===2){submitInput('');$('cmd').value='';focusCmd();return}
+  if(d.button!==0)return;
+  const pointMode=cmd&&cmd.wantsPoint&&!cmd.selecting;
+  if(pointMode){updateCursor();cmd.point(cur);if(cmd)setPrompt();refreshUI();focusCmd();return}
+  if(d.moved){const a=toW(d.sx,d.sy),b=mouse.w;const rect={x1:Math.min(a.x,b.x),y1:Math.min(a.y,b.y),x2:Math.max(a.x,b.x),y2:Math.max(a.y,b.y)};
+    const found=windowSelect(rect,mouse.sx<d.sx);for(const e of found)d.shift?S.sel.delete(e.id):S.sel.add(e.id)}
+  else{const e=pick(mouse.w);if(e){if(d.shift||S.sel.has(e.id)&&ev.ctrlKey)S.sel.delete(e.id);else S.sel.add(e.id)}else if(!cmd&&!d.shift)S.sel.clear()}
+  refreshUI();focusCmd();
+});
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+cv.addEventListener('wheel',ev=>{ev.preventDefault();const r=cv.getBoundingClientRect();zoomAt(ev.clientX-r.left,ev.clientY-r.top,ev.deltaY<0?1.2:1/1.2);updateCursor();draw()},{passive:false});
+cv.addEventListener('pointerleave',()=>{snapHit=null;draw()});
+cv.addEventListener('dblclick',ev=>{if(ev.button===1||!cmd&&!S.sel.size&&!pick(mouse.w))zoomExtents()});
+
+const cmdIn=$('cmd');
+function focusCmd(){if(document.activeElement!==cmdIn&&!document.activeElement.closest('#side'))cmdIn.focus({preventScroll:true})}
+cmdIn.addEventListener('keydown',ev=>{
+  const textStage=cmd&&cmd.name==='TEXT'&&cmd.stage===3;
+  if(ev.key==='Enter'||(ev.key===' '&&!textStage)){ev.preventDefault();const v=cmdIn.value;cmdIn.value='';submitInput(v);refreshUI();return}
+  if(ev.key==='Escape'){ev.preventDefault();cmdIn.value='';cancelCmd();return}
+  if((ev.key==='Delete')&&!cmdIn.value&&S.sel.size&&!cmd){ev.preventDefault();eraseSel();return}
+  if(ev.key==='ArrowUp'&&!cmdIn.value&&lastCmd){cmdIn.value=lastCmd;ev.preventDefault()}
+});
+cmdIn.addEventListener('input',()=>{if(cmd&&cmd.name==='TEXT')draw()});
+document.addEventListener('keydown',ev=>{
+  const inSide=ev.target.closest&&ev.target.closest('#side');
+  if((ev.ctrlKey||ev.metaKey)&&!inSide){const k=ev.key.toLowerCase();
+    if(k==='z'){ev.preventDefault();cancelCmdSilently();undo();return}if(k==='y'){ev.preventDefault();redo();return}
+    if(k==='s'){ev.preventDefault();saveJSON();return}if(k==='a'&&ev.target!==cmdIn){ev.preventDefault();startCmd('ALL');return}}
+  const tog={F3:'osnap',F7:'grid',F8:'ortho',F9:'snap'}[ev.key];if(tog){ev.preventDefault();toggle(tog);return}
+  if(ev.target===cmdIn||inSide)return;
+  if(ev.key==='Escape'){cancelCmd();return}if(ev.key==='Delete'){eraseSel();return}
+  if(ev.key.length===1&&!ev.ctrlKey&&!ev.metaKey)cmdIn.focus();
+  if(ev.key==='Enter'){submitInput('');}
+});
+function cancelCmdSilently(){if(cmd){cmd=null;setPrompt()}}
+function toggle(k){S[k]=!S[k];log(`${{osnap:'Bắt điểm',grid:'Lưới',ortho:'Vuông góc',snap:'Snap lưới'}[k]}: ${S[k]?'BẬT':'TẮT'}`);refreshUI()}
+
+/* ============================== UI ============================== */
+const ICONS={
+  LINE:'<path d="M4 20L20 4"/>',PLINE:'<path d="M3 18l6-10 6 8 6-12"/>',RECT:'<rect x="4" y="6" width="16" height="12"/>',CIRCLE:'<circle cx="12" cy="12" r="8"/>',
+  ARC:'<path d="M4 18A10 10 0 0 1 20 18"/>',POLYGON:'<path d="M12 3l8 6-3 10H7L4 9z"/>',TEXT:'<path d="M5 6h14M12 6v13"/>',DIM:'<path d="M4 8v10M20 8v10M4 13h16M4 13l3-2M4 13l3 2M20 13l-3-2M20 13l-3 2"/>',
+  MOVE:'<path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/>',COPY:'<rect x="4" y="8" width="11" height="11"/><path d="M9 8V4h11v11h-5"/>',
+  ROTATE:'<path d="M20 12a8 8 0 1 1-3-6.3M20 4v5h-5"/>',SCALE:'<rect x="3" y="11" width="10" height="10"/><path d="M13 11l8-8M15 3h6v6"/>',MIRROR:'<path d="M12 3v18M9 7L4 17h5zM15 7l5 10h-5z"/>',
+  OFFSET:'<path d="M4 18L18 4M8 21L21 8"/>',TRIM:'<path d="M3 12h7M14 12h7M12 3v18" /><path d="M10 10l4 4M14 10l-4 4"/>',FILLET:'<path d="M5 3v9a7 7 0 0 0 7 7h9"/>',
+  EXPLODE:'<path d="M12 2v6M12 16v6M2 12h6M16 12h6M5 5l4 4M15 15l4 4M19 5l-4 4M9 15l-4 4"/>',ERASE:'<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  DIST:'<path d="M3 17l14-14 4 4L7 21zM7 13l2 2M10 10l2 2M13 7l2 2"/>',AREA:'<path d="M4 20V8l8-5 8 5v12z"/><path d="M4 20l16-12" opacity=".5"/>'};
+const TOOLNAMES={LINE:'Line',PLINE:'PLine',RECT:'Rect',CIRCLE:'Circle',ARC:'Arc',POLYGON:'Polygon',TEXT:'Text',DIM:'Dim',MOVE:'Move',COPY:'Copy',ROTATE:'Rotate',
+  SCALE:'Scale',MIRROR:'Mirror',OFFSET:'Offset',TRIM:'Trim',FILLET:'Fillet',EXPLODE:'Explode',ERASE:'Erase',DIST:'Dist',AREA:'Area'};
+const TIPS={LINE:'Đoạn thẳng (L)',PLINE:'Đa tuyến (PL)',RECT:'Hình chữ nhật (REC)',CIRCLE:'Đường tròn (C)',ARC:'Cung tròn 3 điểm (A)',POLYGON:'Đa giác đều (POL)',TEXT:'Chữ (T)',
+  DIM:'Kích thước (DIM)',MOVE:'Di chuyển (M)',COPY:'Sao chép (CO)',ROTATE:'Xoay (RO)',SCALE:'Tỉ lệ (SC)',MIRROR:'Đối xứng (MI)',OFFSET:'Offset (O)',TRIM:'Cắt (TR)',
+  FILLET:'Bo góc (F)',EXPLODE:'Phá khối (X)',ERASE:'Xóa (E)',DIST:'Đo khoảng cách (DI)',AREA:'Diện tích (AA)'};
+(function buildTools(){const t=$('tools');for(const k of Object.keys(ICONS)){const b=document.createElement('button');b.dataset.cmd=k;b.title=TIPS[k];
+  b.innerHTML=`<svg viewBox="0 0 24 24">${ICONS[k]}</svg>${TOOLNAMES[k]}`;b.onclick=()=>{startCmd(k);focusCmd()};t.appendChild(b);
+  if(['POLYGON','DIM','FILLET','ERASE'].includes(k)){const s=document.createElement('div');s.style.cssText='height:1px;background:var(--line);margin:3px 2px';t.appendChild(s)}}})();
+
+function refreshUI(){
+  document.querySelectorAll('#tools button').forEach(b=>b.classList.toggle('on',!!cmd&&cmd.name===b.dataset.cmd));
+  document.querySelectorAll('[data-tog]').forEach(b=>b.classList.toggle('on',!!S[b.dataset.tog]));
+  $('panBtn').classList.toggle('on',panMode);
+  renderLayers();renderProps();setPrompt();draw();
+}
+function renderLayers(){const box=$('layers');box.innerHTML='';
+  for(const l of S.layers){const d=document.createElement('div');d.className='layer'+(l.name===S.curLayer?' cur':'');d.title='Bấm để đặt làm lớp hiện hành';
+    d.innerHTML=`<span class="ic" data-a="vis" title="Ẩn/hiện">${l.visible?'👁':'⨯'}</span><span class="ic" data-a="lock" title="Khóa">${l.locked?'🔒':'🔓'}</span>
+      <input type="color" value="${l.color}"><span class="nm"></span>${l.name!=='0'?'<span class="ic" data-a="del" title="Xóa lớp">✕</span>':''}`;
+    d.querySelector('.nm').textContent=l.name;
+    d.onclick=ev=>{const a=ev.target.dataset.a;
+      if(a==='vis'){pushUndo();l.visible=!l.visible;if(!l.visible)selEnts().filter(e=>e.layer===l.name).forEach(e=>S.sel.delete(e.id))}
+      else if(a==='lock'){pushUndo();l.locked=!l.locked}
+      else if(a==='del'){if(S.ents.some(e=>e.layer===l.name)&&!confirm(`Lớp "${l.name}" có đối tượng. Xóa lớp và chuyển đối tượng sang lớp 0?`))return;
+        pushUndo();S.ents.forEach(e=>{if(e.layer===l.name)e.layer='0'});S.layers=S.layers.filter(x=>x!==l);if(S.curLayer===l.name)S.curLayer='0'}
+      else if(ev.target.tagName!=='INPUT')S.curLayer=l.name;
+      autosave();refreshUI()};
+    d.ondblclick=ev=>{if(l.name==='0'||ev.target.tagName==='INPUT')return;const n=prompt('Đổi tên lớp:',l.name);if(!n||S.layers.some(x=>x.name===n))return;
+      pushUndo();S.ents.forEach(e=>{if(e.layer===l.name)e.layer=n});if(S.curLayer===l.name)S.curLayer=n;l.name=n;autosave();refreshUI()};
+    const ci=d.querySelector('input');ci.onchange=()=>{pushUndo();l.color=ci.value;autosave();refreshUI()};
+    box.appendChild(d)}}
+$('addLayer').onclick=()=>{let i=1;while(S.layers.some(l=>l.name==='Lop'+i))i++;const n=prompt('Tên lớp mới:','Lop'+i);if(!n)return;
+  if(S.layers.some(l=>l.name===n)){alert('Tên lớp đã tồn tại.');return}
+  const cols=['#ff5050','#ffd23f','#3cff7a','#3fe0ff','#4f7dff','#ff4fd8','#ff9a3c'];pushUndo();
+  S.layers.push({name:n,color:cols[(S.layers.length-1)%cols.length],visible:true,locked:false});S.curLayer=n;autosave();refreshUI()};
+function renderProps(){const box=$('props');const sel=selEnts();
+  if(!sel.length){box.innerHTML=`<div class="hint" style="margin:0">Chưa chọn đối tượng.<br>Tổng: ${S.ents.length} đối tượng.</div>`;return}
+  const types=[...new Set(sel.map(e=>e.type))];const TN={line:'Đoạn thẳng',pline:'Đa tuyến',circle:'Đường tròn',arc:'Cung tròn',text:'Chữ',dim:'Kích thước'};
+  let html=`<div class="prop"><label>Đã chọn</label><span>${sel.length} (${types.map(t=>TN[t]).join(', ')})</span>
+    <label>Lớp</label><select id="pLayer">${sel.every(e=>e.layer===sel[0].layer)?'':'<option value="">*khác nhau*</option>'}${S.layers.map(l=>`<option ${sel.every(e=>e.layer===l.name)?'selected':''}></option>`).join('')}</select>
+    <label>Màu</label><span><input type="checkbox" id="pBy" ${sel.every(e=>e.color==='BYLAYER')?'checked':''}> Theo lớp <input type="color" id="pCol" value="${sel[0].color!=='BYLAYER'?sel[0].color:colorOf(sel[0])}"></span>`;
+  if(sel.length===1){const e=sel[0];const row=(k,v)=>`<label>${k}</label><span>${v}</span>`;
+    if(e.type==='line'){const a=P(e.x1,e.y1),b=P(e.x2,e.y2);html+=row('Điểm đầu',`${fmt(a.x)}, ${fmt(a.y)}`)+row('Điểm cuối',`${fmt(b.x)}, ${fmt(b.y)}`)+row('Chiều dài',fmt(dist(a,b)))+row('Góc',fmt(deg(normA(ang(a,b))))+'°')}
+    if(e.type==='circle')html+=row('Tâm',`${fmt(e.cx)}, ${fmt(e.cy)}`)+`<label>Bán kính</label><input id="pR" type="number" step="any" value="${fmt(e.r)}">`+row('Diện tích',fmt(Math.PI*e.r*e.r))+row('Chu vi',fmt(TAU*e.r));
+    if(e.type==='arc')html+=row('Tâm',`${fmt(e.cx)}, ${fmt(e.cy)}`)+`<label>Bán kính</label><input id="pR" type="number" step="any" value="${fmt(e.r)}">`+row('Góc đầu/cuối',`${fmt(deg(e.a1))}° / ${fmt(deg(e.a2))}°`)+row('Chiều dài cung',fmt(e.r*normA(e.a2-e.a1)));
+    if(e.type==='pline'){const v=polyPts(e);let L=0;for(let i=0;i<v.length-1;i++)L+=dist(v[i],v[i+1]);if(e.closed)L+=dist(v[v.length-1],v[0]);
+      html+=row('Số đỉnh',v.length)+row('Kín',e.closed?'Có':'Không')+row('Chiều dài',fmt(L));if(e.closed)html+=row('Diện tích',fmt(Math.abs(polyArea(v).area)))}
+    if(e.type==='text')html+=`<label>Nội dung</label><input id="pText" value="">`+`<label>Cao chữ</label><input id="pH" type="number" step="any" value="${fmt(e.h)}">`;
+    if(e.type==='dim')html+=row('Giá trị',fmt(dimGeom(e).val))+`<label>Cao chữ</label><input id="pH" type="number" step="any" value="${fmt(e.h||S.textH)}">`;
+  }
+  box.innerHTML=html+'</div>';
+  const ls=$('pLayer');[...ls.querySelectorAll('option')].forEach((o,i)=>{if(o.value===''&&o.textContent.startsWith('*'))return;});
+  // fill layer option texts safely
+  let k=0;for(const o of ls.options){if(o.textContent==='*khác nhau*')continue;o.textContent=S.layers[k].name;o.value=S.layers[k].name;k++}
+  ls.onchange=()=>{if(!ls.value)return;pushUndo();sel.forEach(e=>e.layer=ls.value);autosave();refreshUI()};
+  $('pBy').onchange=ev=>{pushUndo();sel.forEach(e=>e.color=ev.target.checked?'BYLAYER':$('pCol').value);autosave();refreshUI()};
+  $('pCol').onchange=ev=>{pushUndo();sel.forEach(e=>e.color=ev.target.value);autosave();refreshUI()};
+  if($('pR'))$('pR').onchange=ev=>{const v=+ev.target.value;if(v>0){pushUndo();sel[0].r=v;autosave();refreshUI()}};
+  if($('pH'))$('pH').onchange=ev=>{const v=+ev.target.value;if(v>0){pushUndo();sel[0].h=v;autosave();refreshUI()}};
+  if($('pText')){$('pText').value=sel[0].text;$('pText').onchange=ev=>{pushUndo();sel[0].text=ev.target.value;autosave();refreshUI()}};
+}
+document.querySelectorAll('[data-tog]').forEach(b=>b.onclick=()=>{toggle(b.dataset.tog);focusCmd()});
+$('gridSize').onchange=e=>{const v=+e.target.value;if(v>0){S.gridSize=v;autosave();draw()}};
+$('textH').onchange=e=>{const v=+e.target.value;if(v>0){S.textH=v;autosave()}};
+$('prec').onchange=e=>{S.prec=Math.max(0,Math.min(6,+e.target.value|0));autosave();refreshUI()};
+document.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>{({
+  new:()=>{if(S.ents.length&&!confirm('Tạo bản vẽ mới? Bản vẽ hiện tại sẽ bị xóa (có thể hoàn tác).'))return;pushUndo();S.ents=[];S.layers=[{name:'0',color:'#ffffff',visible:true,locked:false}];S.curLayer='0';S.sel.clear();cmd=null;autosave();zoomExtents();refreshUI();log('Bản vẽ mới.')},
+  open:()=>$('file').click(),save:saveJSON,dxf:exportDXF,svg:exportSVG,png:exportPNG,undo,redo,zoomext:zoomExtents,
+  pan:()=>{panMode=!panMode;refreshUI()}})[b.dataset.act]();focusCmd()});
+
+/* ============================== FILES ============================== */
+function download(name,data,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type}));a.download=name;document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)}
+function docJSON(){return JSON.stringify({app:'XIKE CAD',version:1,ents:S.ents,layers:S.layers,curLayer:S.curLayer,nextId:S.nextId,gridSize:S.gridSize,textH:S.textH,prec:S.prec},null,1)}
+function loadDoc(o){S.ents=o.ents||[];S.layers=o.layers?.length?o.layers:[{name:'0',color:'#ffffff',visible:true,locked:false}];S.curLayer=o.curLayer||'0';
+  S.nextId=o.nextId||(Math.max(0,...S.ents.map(e=>e.id||0))+1);S.gridSize=o.gridSize||10;S.textH=o.textH||5;S.prec=o.prec??2;
+  $('gridSize').value=S.gridSize;$('textH').value=S.textH;$('prec').value=S.prec;S.sel.clear()}
+function saveJSON(){download('banve.json',docJSON(),'application/json');log('Đã lưu banve.json')}
+let saveTimer;function autosave(){clearTimeout(saveTimer);saveTimer=setTimeout(()=>{try{localStorage.setItem('xikecad',docJSON())}catch(e){}},300)}
+$('file').onchange=async ev=>{const f=ev.target.files[0];if(!f)return;const txt=await f.text();ev.target.value='';
+  try{pushUndo();if(/\.dxf$/i.test(f.name))importDXF(txt);else loadDoc(JSON.parse(txt));zoomExtents();refreshUI();autosave();log(`Đã mở ${f.name} (${S.ents.length} đối tượng).`)}
+  catch(e){undoStack.pop();alert('Không đọc được file: '+e.message)}};
+
+const ACI={1:[255,0,0],2:[255,255,0],3:[0,255,0],4:[0,255,255],5:[0,0,255],6:[255,0,255],7:[255,255,255],8:[128,128,128],9:[192,192,192],30:[255,127,0]};
+const hexRgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+const rgbHex=c=>'#'+c.map(v=>v.toString(16).padStart(2,'0')).join('');
+function toACI(hex){const c=hexRgb(hex);let best=7,bd=Infinity;for(const [k,v] of Object.entries(ACI)){const d=(c[0]-v[0])**2+(c[1]-v[1])**2+(c[2]-v[2])**2;if(d<bd){bd=d;best=+k}}return best}
+function exportDXF(){
+  const o=[];const g=(c,v)=>o.push(c,typeof v==='number'?(+v.toFixed(8)).toString():v);
+  g(0,'SECTION');g(2,'HEADER');g(9,'$ACADVER');g(1,'AC1009');g(0,'ENDSEC');
+  g(0,'SECTION');g(2,'TABLES');g(0,'TABLE');g(2,'LTYPE');g(70,1);g(0,'LTYPE');g(2,'CONTINUOUS');g(70,0);g(3,'Solid line');g(72,65);g(73,0);g(40,0);g(0,'ENDTAB');
+  g(0,'TABLE');g(2,'LAYER');g(70,S.layers.length);
+  for(const l of S.layers){g(0,'LAYER');g(2,l.name);g(70,0);g(62,l.visible?toACI(l.color):-toACI(l.color));g(6,'CONTINUOUS')}
+  g(0,'ENDTAB');g(0,'ENDSEC');g(0,'SECTION');g(2,'ENTITIES');
+  const head=(t,e)=>{g(0,t);g(8,e.layer);if(e.color&&e.color!=='BYLAYER')g(62,toACI(e.color))};
+  const line=(e,a,b)=>{head('LINE',e);g(10,a.x);g(20,a.y);g(30,0);g(11,b.x);g(21,b.y);g(31,0)};
+  const text=(e,p,h,rot,str,center)=>{head('TEXT',e);g(10,p.x);g(20,p.y);g(30,0);g(40,h);g(1,str);g(50,deg(rot||0));if(center){g(72,1);g(11,p.x);g(21,p.y);g(31,0)}};
+  for(const e of S.ents){
+    if(e.type==='line')line(e,P(e.x1,e.y1),P(e.x2,e.y2));
+    else if(e.type==='circle'){head('CIRCLE',e);g(10,e.cx);g(20,e.cy);g(30,0);g(40,e.r)}
+    else if(e.type==='arc'){head('ARC',e);g(10,e.cx);g(20,e.cy);g(30,0);g(40,e.r);g(50,deg(e.a1));g(51,deg(e.a2))}
+    else if(e.type==='text')text(e,P(e.x,e.y),e.h,e.rot,e.text);
+    else if(e.type==='pline'){head('POLYLINE',e);g(66,1);g(70,e.closed?1:0);g(10,0);g(20,0);g(30,0);
+      for(const p of e.pts){g(0,'VERTEX');g(8,e.layer);g(10,p[0]);g(20,p[1]);g(30,0)}g(0,'SEQEND');g(8,e.layer)}
+    else if(e.type==='dim'){const d=dimGeom(e);line(e,d.p1,d.q1);line(e,d.p2,d.q2);line(e,d.q1,d.q2);
+      let a=Math.atan2(d.u.y,d.u.x);if(a>Math.PI/2+1e-6||a<=-Math.PI/2+1e-6)a+=Math.PI;const th=e.h||S.textH;
+      text(e,add(mid(d.q1,d.q2),mul(P(-Math.sin(a),Math.cos(a)),th*0.35)),th,a,fmt(d.val),true)}
+  }
+  g(0,'ENDSEC');g(0,'EOF');download('banve.dxf',o.join('\r\n')+'\r\n','application/dxf');log('Đã xuất banve.dxf');
+}
+function importDXF(txt){
+  const L=txt.split(/\r?\n/);const pairs=[];for(let i=0;i+1<L.length;i+=2)pairs.push([+L[i].trim(),L[i+1].trim()]);
+  const layers=new Map([['0',{name:'0',color:'#ffffff',visible:true,locked:false}]]);const ents=[];let id=1;
+  const aciHex=n=>rgbHex(ACI[Math.abs(n)]||[255,255,255]);
+  let i=0,section='';
+  const readEnt=()=>{const t=pairs[i][1];const d={type:t,codes:[]};i++;while(i<pairs.length&&pairs[i][0]!==0){d.codes.push(pairs[i]);i++}return d};
+  const val=(d,c,def)=>{const f=d.codes.find(p=>p[0]===c);return f?f[1]:def};
+  const num=(d,c,def=0)=>+val(d,c,def);
+  while(i<pairs.length){const [c,v]=pairs[i];
+    if(c===0&&v==='SECTION'){section=pairs[i+1]?.[1];i+=2;continue}
+    if(c===0&&v==='ENDSEC'){section='';i++;continue}
+    if(c===0&&section==='TABLES'&&v==='LAYER'){const d=readEnt();const n=val(d,2);if(n!=null){const col=num(d,62,7);layers.set(n,{name:n,color:aciHex(col),visible:col>=0,locked:false})}continue}
+    if(c===0&&(section==='ENTITIES'||section==='BLOCKS'&&false)){const d=readEnt();const ly=val(d,8,'0');if(!layers.has(ly))layers.set(ly,{name:ly,color:'#ffffff',visible:true,locked:false});
+      const col=d.codes.find(p=>p[0]===62);const color=col&&+col[1]!==256&&+col[1]!==0?aciHex(+col[1]):'BYLAYER';const base={layer:ly,color,id:id++};
+      if(d.type==='LINE')ents.push({...base,type:'line',x1:num(d,10),y1:num(d,20),x2:num(d,11),y2:num(d,21)});
+      else if(d.type==='CIRCLE')ents.push({...base,type:'circle',cx:num(d,10),cy:num(d,20),r:num(d,40)});
+      else if(d.type==='ARC')ents.push({...base,type:'arc',cx:num(d,10),cy:num(d,20),r:num(d,40),a1:normA(rad(num(d,50))),a2:normA(rad(num(d,51)))});
+      else if(d.type==='TEXT'||d.type==='MTEXT'){let t=val(d,1,'');if(d.type==='MTEXT')t=t.replace(/\\P/g,' ').replace(/\\[A-Za-z][^;]*;/g,'').replace(/[{}]/g,'');
+        ents.push({...base,type:'text',x:num(d,10),y:num(d,20),h:num(d,40,2.5),rot:rad(num(d,50)),text:t})}
+      else if(d.type==='LWPOLYLINE'){const xs=d.codes.filter(p=>p[0]===10).map(p=>+p[1]),ys=d.codes.filter(p=>p[0]===20).map(p=>+p[1]);
+        ents.push({...base,type:'pline',closed:!!(num(d,70)&1),pts:xs.map((x,k)=>[x,ys[k]||0])})}
+      else if(d.type==='POLYLINE'){const closed=!!(num(d,70)&1);const pts=[];while(i<pairs.length&&pairs[i][1]==='VERTEX'){const vx=readEnt();pts.push([num(vx,10),num(vx,20)])}
+        if(pairs[i]?.[1]==='SEQEND')readEnt();if(pts.length>1)ents.push({...base,type:'pline',closed,pts})}
+      continue}
+    i++}
+  S.ents=ents;S.layers=[...layers.values()];S.curLayer='0';S.nextId=id;S.sel.clear();
+}
+function exportSVG(){
+  const vis=S.ents.filter(isVisible);if(!vis.length){log('Bản vẽ trống.');return}
+  const b=bboxOf(vis),pad=Math.max(b.x2-b.x1,b.y2-b.y1)*0.05||5;const W=b.x2-b.x1+2*pad,H=b.y2-b.y1+2*pad;
+  const X=x=>+(x-b.x1+pad).toFixed(4),Y=y=>+(b.y2+pad-y).toFixed(4);const esc=s=>s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const sw=+(Math.max(W,H)/800).toFixed(4);let out=[];
+  const col=e=>{const c=colorOf(e);return c.toLowerCase()==='#ffffff'?'#000000':c};
+  const txt=(e,p,h,rot,s,anchor)=>`<text x="${X(p.x)}" y="${Y(p.y)}" font-size="${h}" font-family="sans-serif" fill="${col(e)}" text-anchor="${anchor||'start'}" transform="rotate(${-deg(rot||0)} ${X(p.x)} ${Y(p.y)})">${esc(s)}</text>`;
+  for(const e of vis){const st=`stroke="${col(e)}" stroke-width="${sw}" fill="none"`;
+    if(e.type==='line')out.push(`<line x1="${X(e.x1)}" y1="${Y(e.y1)}" x2="${X(e.x2)}" y2="${Y(e.y2)}" ${st}/>`);
+    else if(e.type==='circle')out.push(`<circle cx="${X(e.cx)}" cy="${Y(e.cy)}" r="${e.r}" ${st}/>`);
+    else if(e.type==='arc'){const s=P(e.cx+e.r*Math.cos(e.a1),e.cy+e.r*Math.sin(e.a1)),t=P(e.cx+e.r*Math.cos(e.a2),e.cy+e.r*Math.sin(e.a2)),large=normA(e.a2-e.a1)>Math.PI?1:0;
+      out.push(`<path d="M${X(s.x)} ${Y(s.y)} A${e.r} ${e.r} 0 ${large} 0 ${X(t.x)} ${Y(t.y)}" ${st}/>`)}
+    else if(e.type==='pline')out.push(`<${e.closed?'polygon':'polyline'} points="${e.pts.map(p=>X(p[0])+','+Y(p[1])).join(' ')}" ${st}/>`);
+    else if(e.type==='text')out.push(txt(e,P(e.x,e.y),e.h,e.rot,e.text));
+    else if(e.type==='dim'){const d=dimGeom(e);for(const [p,q] of [[d.p1,d.q1],[d.p2,d.q2],[d.q1,d.q2]])out.push(`<line x1="${X(p.x)}" y1="${Y(p.y)}" x2="${X(q.x)}" y2="${Y(q.y)}" ${st}/>`);
+      let a=Math.atan2(d.u.y,d.u.x);if(a>Math.PI/2+1e-6||a<=-Math.PI/2+1e-6)a+=Math.PI;const th=e.h||S.textH;out.push(txt(e,add(mid(d.q1,d.q2),mul(P(-Math.sin(a),Math.cos(a)),th*0.35)),th,a,fmt(d.val),'middle'))}}
+  download('banve.svg',`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${+W.toFixed(4)} ${+H.toFixed(4)}" width="${Math.round(W*4)}" height="${Math.round(H*4)}"><rect width="100%" height="100%" fill="#fff"/>${out.join('')}</svg>`,'image/svg+xml');log('Đã xuất banve.svg');
+}
+function exportPNG(){const s=snapHit;snapHit=null;draw();cv.toBlob(b=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='banve.png';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)});snapHit=s;log('Đã xuất banve.png')}
+
+/* ============================== BOOT ============================== */
+window.addEventListener('resize',resize);
+(function boot(){
+  try{const s=localStorage.getItem('xikecad');if(s)loadDoc(JSON.parse(s))}catch(e){}
+  resize();zoomExtents();refreshUI();
+  log('Chào mừng đến với XIKE CAD! Gõ lệnh (VD: L, C, REC) rồi nhấn Enter. Gõ HELP để xem tất cả lệnh.');
+  focusCmd();
+})();
+</script>
+</body>
+</html>
