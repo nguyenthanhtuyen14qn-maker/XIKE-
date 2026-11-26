@@ -17,6 +17,8 @@
   --buy: #4ade80;
   --sell: #f87171;
   --info: #38bdf8;
+  --up: #4ade80;
+  --down: #f87171;
 }
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
@@ -158,6 +160,23 @@ details.models summary { color: var(--info); font-weight: 600; font-size: 14px; 
   background: var(--bg); color: #cbd5e1; font: 12px/1.5 ui-monospace, "Roboto Mono", monospace; white-space: pre-wrap;
 }
 #sqlCard.attn { border-color: var(--gold); }
+/* Kết nối: nguồn dữ liệu biểu đồ và tài khoản MT5 */
+#tdMsg, #mtMsg, #acctMsgLine { margin: 10px 0; }
+.login { margin: 14px 0 4px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); }
+.login h3, .acct-sub { margin: 0 0 6px; font-size: 15px; }
+.acct-sub { margin-top: 12px; }
+.acct-bridges { display: grid; gap: 6px; margin-bottom: 10px; }
+.acct-br-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); font-size: 13px; }
+.acct-br-row span { flex: none; color: var(--muted); }
+.acct-br-row b { min-width: 0; font: 600 13px/1.35 ui-monospace, "Roboto Mono", monospace; color: var(--muted); text-align: right; overflow-wrap: anywhere; }
+.acct-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.acct-grid > div { display: flex; flex-direction: column; gap: 3px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
+.acct-grid span { font-size: 12px; color: var(--muted); }
+.acct-grid b { font: 600 15px/1.2 ui-monospace, "Roboto Mono", monospace; overflow-wrap: anywhere; }
+.acct-pos { display: grid; gap: 6px; max-height: 240px; overflow-y: auto; }
+.acct-pos .note { margin: 0; }
+.acct-pos-row { padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font: 500 13px/1.45 ui-monospace, "Roboto Mono", monospace; overflow-wrap: anywhere; }
+.acct-pos-row .ord-close { float: right; margin: -2px -2px 0 8px; padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(248, 113, 113, .5); background: transparent; color: var(--sell); font: 600 12px/1 system-ui, sans-serif; }
 
 /* Xem ảnh toàn màn hình */
 .viewer { position: fixed; inset: 0; z-index: 50; background: #000; display: flex; flex-direction: column; }
@@ -289,14 +308,6 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .acct-sub { margin: 6px 0 0; font: 600 13px/1.2 var(--f-ui); color: var(--text); }
 .acct-pos { display: grid; gap: 4px; max-height: 18vh; overflow-y: auto; }
 .acct-pos-row { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font: 500 12px/1.4 var(--f-num); overflow-wrap: anywhere; }
-/* Nút Kết nối và thẻ mời kết nối giữa biểu đồ */
-.feed-btn { display: inline-flex; align-items: center; gap: 6px; }
-.feed-btn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-.feed-btn .dot.live { background: var(--up); box-shadow: 0 0 6px var(--up); }
-.cta { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 2; width: min(300px, calc(100% - 32px)); display: grid; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: rgba(21, 28, 42, .94); box-shadow: 0 10px 30px rgba(0, 0, 0, .45); text-align: center; }
-.cta b { font: 700 18px/1.2 var(--f-display); letter-spacing: .04em; }
-.cta span { font-size: 12px; color: var(--muted); line-height: 1.5; }
-.cta button { padding: 10px; font-size: 13px; }
 /* Nguồn dữ liệu (Twelve Data, OANDA) trong Cài đặt */
 #feed { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .ord-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -390,8 +401,6 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
   &lt;div class=&quot;toolbar&quot; role=&quot;toolbar&quot; aria-label=&quot;Khung thời gian và công cụ&quot;&gt;
     &lt;div class=&quot;seg&quot; id=&quot;tfs&quot; role=&quot;group&quot; aria-label=&quot;Khung thời gian&quot;&gt;&lt;/div&gt;
     &lt;span class=&quot;sep&quot;&gt;&lt;/span&gt;
-    &lt;button type=&quot;button&quot; id=&quot;bFeed&quot; class=&quot;feed-btn&quot; title=&quot;Kết nối nguồn giá thật (Twelve Data, OANDA)&quot;&gt;&lt;span class=&quot;dot&quot; id=&quot;feedDot&quot;&gt;&lt;/span&gt;Kết nối&lt;/button&gt;
-    &lt;span class=&quot;sep&quot;&gt;&lt;/span&gt;
     &lt;button type=&quot;button&quot; id=&quot;bInd&quot; class=&quot;ind-btn&quot; aria-haspopup=&quot;dialog&quot;&gt;Chỉ báo &lt;span class=&quot;badge&quot; id=&quot;indCount&quot; hidden&gt;0&lt;/span&gt;&lt;/button&gt;
     &lt;span class=&quot;sep&quot;&gt;&lt;/span&gt;
     &lt;button type=&quot;button&quot; id=&quot;bFan&quot; aria-pressed=&quot;false&quot;&gt;Gann Fan&lt;/button&gt;
@@ -409,11 +418,6 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
   &lt;div id=&quot;wrap&quot;&gt;
     &lt;canvas id=&quot;cv&quot; role=&quot;img&quot; aria-label=&quot;Biểu đồ nến XAUUSD&quot;&gt;&lt;/canvas&gt;
     &lt;div id=&quot;legend&quot;&gt;&lt;/div&gt;
-    &lt;div id=&quot;feedCta&quot; class=&quot;cta&quot; hidden&gt;
-      &lt;b&gt;Kết nối giá thật&lt;/b&gt;
-      &lt;span&gt;Lấy nến XAU/USD từ Twelve Data hoặc OANDA để xem biểu đồ và cho AI phân tích.&lt;/span&gt;
-      &lt;button type=&quot;button&quot; id=&quot;ctaGo&quot; class=&quot;on&quot;&gt;🔌 Kết nối dữ liệu&lt;/button&gt;
-    &lt;/div&gt;
   &lt;/div&gt;
   &lt;div id=&quot;trade&quot; hidden&gt;
     &lt;div class=&quot;tr-row&quot;&gt;
@@ -448,75 +452,7 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
     &lt;label&gt;Lệch giờ hiển thị (so với UTC)&lt;input id=&quot;iTz&quot; type=&quot;number&quot; inputmode=&quot;numeric&quot; min=&quot;-12&quot; max=&quot;14&quot; value=&quot;7&quot;&gt;&lt;/label&gt;
     &lt;p class=&quot;note&quot; id=&quot;info&quot;&gt;&lt;/p&gt;
     &lt;p class=&quot;note&quot;&gt;Nạp file: CSV hoặc TSV có cột time (hoặc date và time), open, high, low, close, volume. File TradingView xuất theo UTC, để 7 để ra giờ VN. File MT5 theo giờ server của broker, lấy 7 trừ đi lệch giờ đó.&lt;/p&gt;
-    &lt;div class=&quot;acct&quot; id=&quot;feed&quot;&gt;
-      &lt;h3 class=&quot;acct-title&quot;&gt;Nguồn dữ liệu&lt;/h3&gt;
-      &lt;p class=&quot;note&quot;&gt;Nến XAU/USD thật cho biểu đồ và cho AI phân tích.&lt;/p&gt;
-      &lt;label&gt;Nhà cung cấp&lt;select id=&quot;fdProv&quot; class=&quot;td-sel&quot;&gt;
-        &lt;option value=&quot;twelve&quot;&gt;Twelve Data&lt;/option&gt;
-        &lt;option value=&quot;oanda&quot;&gt;OANDA&lt;/option&gt;
-      &lt;/select&gt;&lt;/label&gt;
-      &lt;div id=&quot;fdTwelve&quot; class=&quot;acct&quot;&gt;
-        &lt;p class=&quot;note&quot;&gt;Lấy khoá miễn phí ở twelvedata.com (gói Basic: 8 lần gọi/phút, 800 lần/ngày). Khoá chỉ dùng để đọc giá.&lt;/p&gt;
-        &lt;label&gt;Khoá API Twelve Data&lt;input id=&quot;tdKey&quot; type=&quot;password&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; placeholder=&quot;Dán khoá API&quot;&gt;&lt;/label&gt;
-      &lt;/div&gt;
-      &lt;div id=&quot;fdOanda&quot; class=&quot;acct&quot; hidden&gt;
-        &lt;p class=&quot;note&quot;&gt;Tạo token ở OANDA: Quản lý API (Manage API Access). Nên dùng tài khoản &lt;b&gt;demo (practice)&lt;/b&gt;: token OANDA có quyền giao dịch trên tài khoản, app chỉ dùng để đọc giá.&lt;/p&gt;
-        &lt;label&gt;Token OANDA&lt;input id=&quot;oaKey&quot; type=&quot;password&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; placeholder=&quot;Dán token&quot;&gt;&lt;/label&gt;
-        &lt;label&gt;Loại tài khoản&lt;select id=&quot;oaEnv&quot; class=&quot;td-sel&quot;&gt;
-          &lt;option value=&quot;practice&quot;&gt;Demo (practice)&lt;/option&gt;
-          &lt;option value=&quot;live&quot;&gt;Thật (live)&lt;/option&gt;
-        &lt;/select&gt;&lt;/label&gt;
-      &lt;/div&gt;
-      &lt;div class=&quot;acct-row&quot;&gt;
-        &lt;button type=&quot;button&quot; id=&quot;tdLoad&quot; class=&quot;on&quot;&gt;Lưu và tải nến&lt;/button&gt;
-        &lt;button type=&quot;button&quot; id=&quot;tdStop&quot;&gt;Dừng cập nhật&lt;/button&gt;
-      &lt;/div&gt;
-      &lt;p class=&quot;note fd-msg&quot; id=&quot;tdMsg&quot;&gt;Chưa kết nối nguồn dữ liệu.&lt;/p&gt;
-      &lt;div class=&quot;ord-grid&quot;&gt;
-        &lt;label&gt;Mã&lt;input id=&quot;tdSym&quot; type=&quot;text&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; value=&quot;XAU/USD&quot;&gt;&lt;/label&gt;
-        &lt;label&gt;Khung nến gốc&lt;select id=&quot;tdTf&quot; class=&quot;td-sel&quot;&gt;
-          &lt;option value=&quot;M1&quot;&gt;M1 (khoảng 3,5 ngày)&lt;/option&gt;
-          &lt;option value=&quot;M5&quot;&gt;M5 (khoảng 17 ngày)&lt;/option&gt;
-          &lt;option value=&quot;M15&quot; selected&gt;M15 (khoảng 52 ngày)&lt;/option&gt;
-          &lt;option value=&quot;M30&quot;&gt;M30 (khoảng 104 ngày)&lt;/option&gt;
-          &lt;option value=&quot;H1&quot;&gt;H1 (khoảng 7 tháng)&lt;/option&gt;
-        &lt;/select&gt;&lt;/label&gt;
-        &lt;label&gt;Tự cập nhật (giây, 0 = tắt)&lt;input id=&quot;tdEvery&quot; type=&quot;text&quot; inputmode=&quot;numeric&quot; value=&quot;120&quot;&gt;&lt;/label&gt;
-      &lt;/div&gt;
-    &lt;/div&gt;
-    &lt;div class=&quot;acct&quot; id=&quot;acct&quot;&gt;
-      &lt;h3 class=&quot;acct-title&quot;&gt;Tài khoản MT5&lt;/h3&gt;
-      &lt;label&gt;Địa chỉ VPS (https)&lt;input id=&quot;acctUrl&quot; type=&quot;url&quot; inputmode=&quot;url&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; placeholder=&quot;https://ten-mien-cua-ban.com&quot;&gt;&lt;/label&gt;
-      &lt;label&gt;Token&lt;input id=&quot;acctToken&quot; type=&quot;password&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; placeholder=&quot;Token đặt trên VPS&quot;&gt;&lt;/label&gt;
-      &lt;div class=&quot;acct-row&quot;&gt;
-        &lt;button type=&quot;button&quot; id=&quot;acctSave&quot;&gt;Lưu và kết nối&lt;/button&gt;
-        &lt;button type=&quot;button&quot; id=&quot;acctRefresh&quot;&gt;Làm mới&lt;/button&gt;
-      &lt;/div&gt;
-      &lt;div class=&quot;login&quot; id=&quot;login&quot;&gt;
-        &lt;h4&gt;Đăng nhập MT5&lt;/h4&gt;
-        &lt;p class=&quot;note&quot;&gt;VPS sẽ đăng nhập tài khoản này trên MT5. App không lưu mật khẩu.&lt;/p&gt;
-        &lt;label&gt;Số tài khoản&lt;input id=&quot;mtLogin&quot; type=&quot;text&quot; inputmode=&quot;numeric&quot; autocomplete=&quot;off&quot; spellcheck=&quot;false&quot; placeholder=&quot;vd 12345678&quot;&gt;&lt;/label&gt;
-        &lt;label&gt;Mật khẩu&lt;input id=&quot;mtPass&quot; type=&quot;password&quot; autocomplete=&quot;off&quot; spellcheck=&quot;false&quot; placeholder=&quot;Mật khẩu giao dịch (master)&quot;&gt;&lt;/label&gt;
-        &lt;label&gt;Server&lt;input id=&quot;mtServer&quot; type=&quot;text&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; placeholder=&quot;vd Exness-MT5Real8&quot;&gt;&lt;/label&gt;
-        &lt;div class=&quot;acct-row&quot;&gt;
-          &lt;button type=&quot;button&quot; id=&quot;mtLoginBtn&quot;&gt;Đăng nhập MT5&lt;/button&gt;
-          &lt;button type=&quot;button&quot; id=&quot;mtLogoutBtn&quot;&gt;Ngắt MT5&lt;/button&gt;
-        &lt;/div&gt;
-        &lt;p class=&quot;note login-msg&quot; id=&quot;mtMsg&quot;&gt;Lưu địa chỉ VPS và token ở trên trước.&lt;/p&gt;
-      &lt;/div&gt;
-      &lt;p class=&quot;note&quot; id=&quot;acctMsgLine&quot;&gt;Chưa kết nối.&lt;/p&gt;
-      &lt;div class=&quot;acct-bridges&quot; id=&quot;acctBridges&quot;&gt;
-        &lt;div class=&quot;acct-br-row&quot;&gt;&lt;span&gt;Trạng thái MT5&lt;/span&gt;&lt;b id=&quot;br-health&quot;&gt;Chưa kiểm tra&lt;/b&gt;&lt;/div&gt;
-        &lt;div class=&quot;acct-br-row&quot;&gt;&lt;span&gt;Tài khoản&lt;/span&gt;&lt;b id=&quot;br-account&quot;&gt;Chưa kiểm tra&lt;/b&gt;&lt;/div&gt;
-        &lt;div class=&quot;acct-br-row&quot;&gt;&lt;span&gt;Lệnh đang mở&lt;/span&gt;&lt;b id=&quot;br-positions&quot;&gt;Chưa kiểm tra&lt;/b&gt;&lt;/div&gt;
-        &lt;div class=&quot;acct-br-row&quot;&gt;&lt;span&gt;Lịch sử lệnh&lt;/span&gt;&lt;b id=&quot;br-history&quot;&gt;Chưa kiểm tra&lt;/b&gt;&lt;/div&gt;
-      &lt;/div&gt;
-      &lt;div class=&quot;acct-grid&quot; id=&quot;acctGrid&quot;&gt;&lt;/div&gt;
-      &lt;div class=&quot;acct-pos&quot; id=&quot;acctPos&quot;&gt;&lt;/div&gt;
-      &lt;h4 class=&quot;acct-sub&quot;&gt;Lệnh đã đóng (7 ngày gần nhất)&lt;/h4&gt;
-      &lt;p class=&quot;note&quot; id=&quot;acctHistSum&quot;&gt;&lt;/p&gt;
-      &lt;div class=&quot;acct-pos&quot; id=&quot;acctHist&quot;&gt;&lt;/div&gt;
-    &lt;/div&gt;
+    &lt;p class=&quot;note&quot;&gt;Nguồn dữ liệu (Twelve Data, OANDA) và tài khoản MT5 nằm ở tab ⚙️ Cài đặt của app.&lt;/p&gt;
   &lt;/div&gt;
   &lt;div class=&quot;statusline&quot; id=&quot;status&quot; role=&quot;status&quot;&gt;&lt;/div&gt;
   &lt;input type=&quot;file&quot; id=&quot;picker&quot; accept=&quot;.csv,.tsv,.txt,text/csv,text/plain&quot; tabindex=&quot;-1&quot; aria-hidden=&quot;true&quot;&gt;
@@ -1424,7 +1360,9 @@ function applyState(st) {
 &lt;/script&gt;
 &lt;script id=&quot;app-js&quot;&gt;
 /* ===== Giao diện, vẽ và sự kiện ===== */
-const $ = id =&gt; document.getElementById(id);
+// Các ô kết nối (nguồn dữ liệu, tài khoản MT5) nằm ở tab Cài đặt của trang app: tìm thêm ở trang cha
+const XK_HOST = (() =&gt; { try { return window.parent !== window &amp;&amp; window.parent.document ? window.parent.document : null; } catch (err) { return null; } })();
+const $ = id =&gt; document.getElementById(id) || (XK_HOST ? XK_HOST.getElementById(id) : null);
 const DEMO_LABEL = &#x27;Demo (mô phỏng, không phải giá thật)&#x27;;
 const LS_KEY = &#x27;xau-chart-drawings-v1&#x27;;
 const IND_KEY = &#x27;xau-chart-indicators-v2&#x27;;
@@ -2824,9 +2762,6 @@ function applyTz() {
 }
 
 function updateInfo() {
-  const live = hasData &amp;&amp; /^Live /.test(baseName);
-  if ($(&#x27;feedCta&#x27;)) $(&#x27;feedCta&#x27;).hidden = live || !$(&#x27;settings&#x27;).hidden;   // đang mở Cài đặt thì không che biểu đồ
-  if ($(&#x27;feedDot&#x27;)) $(&#x27;feedDot&#x27;).classList.toggle(&#x27;live&#x27;, live);
   if (!hasData) {
     $(&#x27;tfinfo&#x27;).textContent = &#x27;Chưa có dữ liệu&#x27;;
     $(&#x27;info&#x27;).textContent = &#x27;Chưa có dữ liệu.&#x27;;
@@ -2982,8 +2917,6 @@ function bindUI() {
   $(&#x27;acctSave&#x27;).addEventListener(&#x27;click&#x27;, acctSaveClick);
   $(&#x27;acctRefresh&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; acctRefresh());
   $(&#x27;fdProv&#x27;).addEventListener(&#x27;change&#x27;, fdProvChange);
-  $(&#x27;bFeed&#x27;).addEventListener(&#x27;click&#x27;, openFeed);
-  $(&#x27;ctaGo&#x27;).addEventListener(&#x27;click&#x27;, openFeed);
   $(&#x27;tdLoad&#x27;).addEventListener(&#x27;click&#x27;, tdLoadClick);
   for (const id of [&#x27;tdKey&#x27;, &#x27;oaKey&#x27;]) $(id).addEventListener(&#x27;keydown&#x27;, e =&gt; { if (e.key === &#x27;Enter&#x27;) { e.preventDefault(); tdLoadClick(); } });
   $(&#x27;tdStop&#x27;).addEventListener(&#x27;click&#x27;, tdStopClick);
@@ -3198,7 +3131,11 @@ async function acctRefresh() {
   else acctMsg(kq[hong[0]].msg + &#x27; (&#x27; + hong.length + &#x27; cầu nối lỗi)&#x27;);
 }
 // Làm mới tài khoản khi Cài đặt hoặc khung Đặt lệnh đang mở
-function acctWanted() { return !$(&#x27;settings&#x27;).hidden || !$(&#x27;trade&#x27;).hidden; }
+function acctWanted() {
+  let appSettings = false;
+  try { appSettings = !!(XK_HOST &amp;&amp; XK_HOST.getElementById(&#x27;view-settings&#x27;).classList.contains(&#x27;on&#x27;)); } catch (err) { appSettings = false; }
+  return appSettings || !$(&#x27;settings&#x27;).hidden || !$(&#x27;trade&#x27;).hidden;
+}
 function acctPanelChanged(open) {
   clearInterval(acctTimer);
   acctTimer = 0;
@@ -3352,21 +3289,6 @@ async function tdTick() {
   } catch (err) {
     tdSay(err.message + &#x27; (lần cập nhật &#x27; + acctClock() + &#x27;)&#x27;);
   } finally { tdBusy = false; }
-}
-// Mở Cài đặt ngay tại phần Nguồn dữ liệu, con trỏ vào ô khoá
-function openFeed() {
-  const panel = $(&#x27;settings&#x27;);
-  if (panel.hidden) {
-    panel.hidden = false;
-    setOn(&#x27;bSet&#x27;, true);
-    resize();
-    acctPanelChanged(acctWanted());
-  }
-  fdShow();
-  updateInfo();
-  $(&#x27;feed&#x27;).scrollIntoView({ block: &#x27;start&#x27; });
-  const k = $(&#x27;fdProv&#x27;).value === &#x27;oanda&#x27; ? $(&#x27;oaKey&#x27;) : $(&#x27;tdKey&#x27;);
-  if (!k.value) k.focus();
 }
 function tdStopClick() {
   clearInterval(tdTimer);
@@ -3843,7 +3765,9 @@ function xkUpsertBar(o) {
 }
 
 window.claude?.hot?.snapshot?.(snapshotState);
-window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {});
+function xkBoot() { window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {}); }
+if (XK_HOST &amp;&amp; XK_HOST.readyState === &#x27;loading&#x27;) XK_HOST.addEventListener(&#x27;DOMContentLoaded&#x27;, xkBoot);
+else xkBoot();
 &lt;/script&gt;
 &lt;/body&gt;
 &lt;/html&gt;
@@ -3886,6 +3810,104 @@ window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude
 <!-- CÀI ĐẶT -->
 <section id="view-settings" class="view">
   <div class="scroll">
+    <!-- KẾT NỐI: nguồn dữ liệu biểu đồ và tài khoản MT5 (phần xử lý chạy trong khung biểu đồ) -->
+    <div class="card" id="feed">
+      <h2>Nguồn dữ liệu biểu đồ</h2>
+      <p class="hint">Nến XAU/USD thật cho tab Biểu đồ và cho nút 🤖 AI.</p>
+      <label>Nhà cung cấp
+        <select id="fdProv">
+          <option value="twelve">Twelve Data</option>
+          <option value="oanda">OANDA</option>
+        </select>
+      </label>
+      <div id="fdTwelve">
+        <p class="hint">Lấy khoá miễn phí ở twelvedata.com (gói Basic: 8 lần gọi/phút, 800 lần/ngày). Khoá chỉ dùng để đọc giá.</p>
+        <label>Khoá API Twelve Data
+          <input id="tdKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Dán khoá API">
+        </label>
+      </div>
+      <div id="fdOanda" hidden>
+        <p class="hint">Tạo token ở OANDA, mục Manage API Access. Nên dùng tài khoản <b>demo (practice)</b>: token OANDA có quyền giao dịch, app chỉ dùng để đọc giá.</p>
+        <label>Token OANDA
+          <input id="oaKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Dán token">
+        </label>
+        <label>Loại tài khoản
+          <select id="oaEnv">
+            <option value="practice">Demo (practice)</option>
+            <option value="live">Thật (live)</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <button id="tdLoad" class="btn gold grow">Lưu và tải nến</button>
+        <button id="tdStop" class="btn">Dừng cập nhật</button>
+      </div>
+      <p class="note info" id="tdMsg">Chưa kết nối nguồn dữ liệu.</p>
+      <details class="models">
+        <summary>Mã, khung nến, tự cập nhật</summary>
+        <label>Mã
+          <input id="tdSym" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" value="XAU/USD">
+        </label>
+        <label>Khung nến gốc
+          <select id="tdTf">
+            <option value="M1">M1 (khoảng 3,5 ngày)</option>
+            <option value="M5">M5 (khoảng 17 ngày)</option>
+            <option value="M15" selected>M15 (khoảng 52 ngày)</option>
+            <option value="M30">M30 (khoảng 104 ngày)</option>
+            <option value="H1">H1 (khoảng 7 tháng)</option>
+          </select>
+        </label>
+        <label>Tự cập nhật (giây, 0 = tắt)
+          <input id="tdEvery" type="text" inputmode="numeric" value="120">
+        </label>
+      </details>
+    </div>
+
+    <div class="card" id="acct">
+      <h2>Tài khoản MT5 (qua VPS)</h2>
+      <p class="hint">Địa chỉ và token của cầu nối VPS. Dùng cho khung Đặt lệnh dưới biểu đồ.</p>
+      <label>Địa chỉ VPS (https)
+        <input id="acctUrl" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://ten-mien-cua-ban.com">
+      </label>
+      <label>Token
+        <input id="acctToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Token đặt trên VPS">
+      </label>
+      <div class="row">
+        <button id="acctSave" class="btn gold grow">Lưu và kết nối</button>
+        <button id="acctRefresh" class="btn">Làm mới</button>
+      </div>
+      <div class="login" id="login">
+        <h3>Đăng nhập MT5</h3>
+        <p class="hint">VPS sẽ đăng nhập tài khoản này trên MT5. App không lưu mật khẩu.</p>
+        <label>Số tài khoản
+          <input id="mtLogin" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="vd 12345678">
+        </label>
+        <label>Mật khẩu
+          <input id="mtPass" type="password" autocomplete="off" spellcheck="false" placeholder="Mật khẩu giao dịch (master)">
+        </label>
+        <label>Server
+          <input id="mtServer" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="vd Exness-MT5Real8">
+        </label>
+        <div class="row">
+          <button id="mtLoginBtn" class="btn grow">Đăng nhập MT5</button>
+          <button id="mtLogoutBtn" class="btn">Ngắt MT5</button>
+        </div>
+        <p class="note info" id="mtMsg">Lưu địa chỉ VPS và token ở trên trước.</p>
+      </div>
+      <p class="note info" id="acctMsgLine">Chưa kết nối.</p>
+      <div class="acct-bridges" id="acctBridges">
+        <div class="acct-br-row"><span>Trạng thái MT5</span><b id="br-health">Chưa kiểm tra</b></div>
+        <div class="acct-br-row"><span>Tài khoản</span><b id="br-account">Chưa kiểm tra</b></div>
+        <div class="acct-br-row"><span>Lệnh đang mở</span><b id="br-positions">Chưa kiểm tra</b></div>
+        <div class="acct-br-row"><span>Lịch sử lệnh</span><b id="br-history">Chưa kiểm tra</b></div>
+      </div>
+      <div class="acct-grid" id="acctGrid"></div>
+      <div class="acct-pos" id="acctPos"></div>
+      <h3 class="acct-sub">Lệnh đã đóng (7 ngày gần nhất)</h3>
+      <p class="hint" id="acctHistSum"></p>
+      <div class="acct-pos" id="acctHist"></div>
+    </div>
+
     <div class="card">
       <h2>Khoá và kết nối</h2>
       <p class="hint">Khoá chỉ lưu trong app trên máy này, không nằm trong code. Ô khoá để trống thì giữ khoá cũ.</p>
@@ -4236,6 +4258,11 @@ function show(name) {
   }
   if (name === "rules" && !rulesLoaded) loadRules();
   if (name === "chat") scrollLogEnd();
+  // Tab Cài đặt có phần tài khoản MT5: báo khung biểu đồ bật/tắt làm mới số liệu
+  try {
+    const fw = $("xauFrame").contentWindow;
+    if (fw && typeof fw.acctPanelChanged === "function") fw.acctPanelChanged(fw.acctWanted());
+  } catch (e) { /* khung biểu đồ chưa sẵn sàng */ }
 }
 
 // ===== BIỂU ĐỒ PHÓNG TO =====
