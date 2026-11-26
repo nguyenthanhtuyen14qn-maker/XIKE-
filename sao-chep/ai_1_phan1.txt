@@ -289,6 +289,14 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .acct-sub { margin: 6px 0 0; font: 600 13px/1.2 var(--f-ui); color: var(--text); }
 .acct-pos { display: grid; gap: 4px; max-height: 18vh; overflow-y: auto; }
 .acct-pos-row { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font: 500 12px/1.4 var(--f-num); overflow-wrap: anywhere; }
+/* Nút Kết nối và thẻ mời kết nối giữa biểu đồ */
+.feed-btn { display: inline-flex; align-items: center; gap: 6px; }
+.feed-btn .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.feed-btn .dot.live { background: var(--up); box-shadow: 0 0 6px var(--up); }
+.cta { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 2; width: min(300px, calc(100% - 32px)); display: grid; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: rgba(21, 28, 42, .94); box-shadow: 0 10px 30px rgba(0, 0, 0, .45); text-align: center; }
+.cta b { font: 700 18px/1.2 var(--f-display); letter-spacing: .04em; }
+.cta span { font-size: 12px; color: var(--muted); line-height: 1.5; }
+.cta button { padding: 10px; font-size: 13px; }
 /* Nguồn dữ liệu (Twelve Data, OANDA) trong Cài đặt */
 #feed { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .ord-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -379,6 +387,8 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
   &lt;div class=&quot;toolbar&quot; role=&quot;toolbar&quot; aria-label=&quot;Khung thời gian và công cụ&quot;&gt;
     &lt;div class=&quot;seg&quot; id=&quot;tfs&quot; role=&quot;group&quot; aria-label=&quot;Khung thời gian&quot;&gt;&lt;/div&gt;
     &lt;span class=&quot;sep&quot;&gt;&lt;/span&gt;
+    &lt;button type=&quot;button&quot; id=&quot;bFeed&quot; class=&quot;feed-btn&quot; title=&quot;Kết nối nguồn giá thật (Twelve Data, OANDA)&quot;&gt;&lt;span class=&quot;dot&quot; id=&quot;feedDot&quot;&gt;&lt;/span&gt;Kết nối&lt;/button&gt;
+    &lt;span class=&quot;sep&quot;&gt;&lt;/span&gt;
     &lt;button type=&quot;button&quot; id=&quot;bInd&quot; class=&quot;ind-btn&quot; aria-haspopup=&quot;dialog&quot;&gt;Chỉ báo &lt;span class=&quot;badge&quot; id=&quot;indCount&quot; hidden&gt;0&lt;/span&gt;&lt;/button&gt;
     &lt;span class=&quot;sep&quot;&gt;&lt;/span&gt;
     &lt;button type=&quot;button&quot; id=&quot;bFan&quot; aria-pressed=&quot;false&quot;&gt;Gann Fan&lt;/button&gt;
@@ -396,6 +406,11 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
   &lt;div id=&quot;wrap&quot;&gt;
     &lt;canvas id=&quot;cv&quot; role=&quot;img&quot; aria-label=&quot;Biểu đồ nến XAUUSD&quot;&gt;&lt;/canvas&gt;
     &lt;div id=&quot;legend&quot;&gt;&lt;/div&gt;
+    &lt;div id=&quot;feedCta&quot; class=&quot;cta&quot; hidden&gt;
+      &lt;b&gt;Kết nối giá thật&lt;/b&gt;
+      &lt;span&gt;Lấy nến XAU/USD từ Twelve Data hoặc OANDA để xem biểu đồ và cho AI phân tích.&lt;/span&gt;
+      &lt;button type=&quot;button&quot; id=&quot;ctaGo&quot; class=&quot;on&quot;&gt;🔌 Kết nối dữ liệu&lt;/button&gt;
+    &lt;/div&gt;
   &lt;/div&gt;
   &lt;div id=&quot;trade&quot; hidden&gt;
     &lt;div class=&quot;tr-row&quot;&gt;
@@ -1471,23 +1486,5 @@ function polyline(arr, iA, iB, yfn, color, width) {
   cx.strokeStyle = color;
   cx.lineWidth = width;
   cx.stroke();
-}
-
-// Dải tô giữa hai đường của chỉ báo (EMA zone, Bollinger, Donchian)
-function drawBand(r, iL, iR) {
-  const bd = r.band, A = r.lines[bd.a].v, B = r.lines[bd.b].v;
-  const last = Math.min(A.length - 1, iR + 1);
-  for (let i = Math.max(0, iL - 1); i &lt; last; i++) {
-    const a1 = A[i], b1 = B[i], a2 = A[i + 1], b2 = B[i + 1];
-    if (!(Number.isFinite(a1) &amp;&amp; Number.isFinite(b1) &amp;&amp; Number.isFinite(a2) &amp;&amp; Number.isFinite(b2))) continue;
-    cx.fillStyle = a2 &gt;= b2 ? bd.up : bd.dn;
-    cx.beginPath();
-    cx.moveTo(xOf(i), yOf(a1));
-    cx.lineTo(xOf(i + 1), yOf(a2));
-    cx.lineTo(xOf(i + 1), yOf(b2));
-    cx.lineTo(xOf(i), yOf(b1));
-    cx.closePath();
-    cx.fill();
-  }
 }
 

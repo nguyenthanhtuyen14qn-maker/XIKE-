@@ -1,3 +1,21 @@
+// Dải tô giữa hai đường của chỉ báo (EMA zone, Bollinger, Donchian)
+function drawBand(r, iL, iR) {
+  const bd = r.band, A = r.lines[bd.a].v, B = r.lines[bd.b].v;
+  const last = Math.min(A.length - 1, iR + 1);
+  for (let i = Math.max(0, iL - 1); i &lt; last; i++) {
+    const a1 = A[i], b1 = B[i], a2 = A[i + 1], b2 = B[i + 1];
+    if (!(Number.isFinite(a1) &amp;&amp; Number.isFinite(b1) &amp;&amp; Number.isFinite(a2) &amp;&amp; Number.isFinite(b2))) continue;
+    cx.fillStyle = a2 &gt;= b2 ? bd.up : bd.dn;
+    cx.beginPath();
+    cx.moveTo(xOf(i), yOf(a1));
+    cx.lineTo(xOf(i + 1), yOf(a2));
+    cx.lineTo(xOf(i + 1), yOf(b2));
+    cx.lineTo(xOf(i), yOf(b1));
+    cx.closePath();
+    cx.fill();
+  }
+}
+
 // Nhãn tín hiệu: hộp màu có chữ trắng, góc trên trái tại (x, y0), căn giữa theo x.
 function drawMark(x, y0, text, color) {
   cx.font = smallFont();
@@ -1313,6 +1331,9 @@ function applyTz() {
 }
 
 function updateInfo() {
+  const live = hasData &amp;&amp; /^Live /.test(baseName);
+  if ($(&#x27;feedCta&#x27;)) $(&#x27;feedCta&#x27;).hidden = live;
+  if ($(&#x27;feedDot&#x27;)) $(&#x27;feedDot&#x27;).classList.toggle(&#x27;live&#x27;, live);
   if (!hasData) {
     $(&#x27;tfinfo&#x27;).textContent = &#x27;Chưa có dữ liệu&#x27;;
     $(&#x27;info&#x27;).textContent = &#x27;Chưa có dữ liệu.&#x27;;
@@ -1467,6 +1488,8 @@ function bindUI() {
   $(&#x27;acctSave&#x27;).addEventListener(&#x27;click&#x27;, acctSaveClick);
   $(&#x27;acctRefresh&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; acctRefresh());
   $(&#x27;fdProv&#x27;).addEventListener(&#x27;change&#x27;, fdProvChange);
+  $(&#x27;bFeed&#x27;).addEventListener(&#x27;click&#x27;, openFeed);
+  $(&#x27;ctaGo&#x27;).addEventListener(&#x27;click&#x27;, openFeed);
   $(&#x27;tdLoad&#x27;).addEventListener(&#x27;click&#x27;, tdLoadClick);
   $(&#x27;tdStop&#x27;).addEventListener(&#x27;click&#x27;, tdStopClick);
   $(&#x27;bAI&#x27;).addEventListener(&#x27;click&#x27;, aiClick);
@@ -1830,6 +1853,20 @@ async function tdTick() {
   } catch (err) {
     tdSay(err.message + &#x27; (lần cập nhật &#x27; + acctClock() + &#x27;)&#x27;);
   } finally { tdBusy = false; }
+}
+// Mở Cài đặt ngay tại phần Nguồn dữ liệu, con trỏ vào ô khoá
+function openFeed() {
+  const panel = $(&#x27;settings&#x27;);
+  if (panel.hidden) {
+    panel.hidden = false;
+    setOn(&#x27;bSet&#x27;, true);
+    resize();
+    acctPanelChanged(acctWanted());
+  }
+  fdShow();
+  $(&#x27;feed&#x27;).scrollIntoView({ block: &#x27;start&#x27; });
+  const k = $(&#x27;fdProv&#x27;).value === &#x27;oanda&#x27; ? $(&#x27;oaKey&#x27;) : $(&#x27;tdKey&#x27;);
+  if (!k.value) k.focus();
 }
 function tdStopClick() {
   clearInterval(tdTimer);
