@@ -289,7 +289,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .acct-sub { margin: 6px 0 0; font: 600 13px/1.2 var(--f-ui); color: var(--text); }
 .acct-pos { display: grid; gap: 4px; max-height: 18vh; overflow-y: auto; }
 .acct-pos-row { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font: 500 12px/1.4 var(--f-num); overflow-wrap: anywhere; }
-/* Nguồn dữ liệu Twelve Data trong Cài đặt */
+/* Nguồn dữ liệu (Twelve Data, OANDA) trong Cài đặt */
 #feed { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .ord-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .td-sel { font: 500 14px/1 var(--f-num); color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 8px; width: 100%; }
@@ -431,9 +431,24 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
     &lt;p class=&quot;note&quot; id=&quot;info&quot;&gt;&lt;/p&gt;
     &lt;p class=&quot;note&quot;&gt;Nạp file: CSV hoặc TSV có cột time (hoặc date và time), open, high, low, close, volume. File TradingView xuất theo UTC, để 7 để ra giờ VN. File MT5 theo giờ server của broker, lấy 7 trừ đi lệch giờ đó.&lt;/p&gt;
     &lt;div class=&quot;acct&quot; id=&quot;feed&quot;&gt;
-      &lt;h3 class=&quot;acct-title&quot;&gt;Nguồn dữ liệu: Twelve Data&lt;/h3&gt;
-      &lt;p class=&quot;note&quot;&gt;Nến XAU/USD thật cho biểu đồ và cho AI phân tích. Lấy khoá miễn phí ở twelvedata.com (gói Basic: 8 lần gọi/phút, 800 lần/ngày). Khoá chỉ dùng để đọc giá, lưu trong máy này.&lt;/p&gt;
-      &lt;label&gt;Khoá API Twelve Data&lt;input id=&quot;tdKey&quot; type=&quot;password&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; placeholder=&quot;Dán khoá API&quot;&gt;&lt;/label&gt;
+      &lt;h3 class=&quot;acct-title&quot;&gt;Nguồn dữ liệu&lt;/h3&gt;
+      &lt;p class=&quot;note&quot;&gt;Nến XAU/USD thật cho biểu đồ và cho AI phân tích.&lt;/p&gt;
+      &lt;label&gt;Nhà cung cấp&lt;select id=&quot;fdProv&quot; class=&quot;td-sel&quot;&gt;
+        &lt;option value=&quot;twelve&quot;&gt;Twelve Data&lt;/option&gt;
+        &lt;option value=&quot;oanda&quot;&gt;OANDA&lt;/option&gt;
+      &lt;/select&gt;&lt;/label&gt;
+      &lt;div id=&quot;fdTwelve&quot; class=&quot;acct&quot;&gt;
+        &lt;p class=&quot;note&quot;&gt;Lấy khoá miễn phí ở twelvedata.com (gói Basic: 8 lần gọi/phút, 800 lần/ngày). Khoá chỉ dùng để đọc giá.&lt;/p&gt;
+        &lt;label&gt;Khoá API Twelve Data&lt;input id=&quot;tdKey&quot; type=&quot;password&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; placeholder=&quot;Dán khoá API&quot;&gt;&lt;/label&gt;
+      &lt;/div&gt;
+      &lt;div id=&quot;fdOanda&quot; class=&quot;acct&quot; hidden&gt;
+        &lt;p class=&quot;note&quot;&gt;Tạo token ở OANDA: Quản lý API (Manage API Access). Nên dùng tài khoản &lt;b&gt;demo (practice)&lt;/b&gt;: token OANDA có quyền giao dịch trên tài khoản, app chỉ dùng để đọc giá.&lt;/p&gt;
+        &lt;label&gt;Token OANDA&lt;input id=&quot;oaKey&quot; type=&quot;password&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; placeholder=&quot;Dán token&quot;&gt;&lt;/label&gt;
+        &lt;label&gt;Loại tài khoản&lt;select id=&quot;oaEnv&quot; class=&quot;td-sel&quot;&gt;
+          &lt;option value=&quot;practice&quot;&gt;Demo (practice)&lt;/option&gt;
+          &lt;option value=&quot;live&quot;&gt;Thật (live)&lt;/option&gt;
+        &lt;/select&gt;&lt;/label&gt;
+      &lt;/div&gt;
       &lt;div class=&quot;ord-grid&quot;&gt;
         &lt;label&gt;Mã&lt;input id=&quot;tdSym&quot; type=&quot;text&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; value=&quot;XAU/USD&quot;&gt;&lt;/label&gt;
         &lt;label&gt;Khung nến gốc&lt;select id=&quot;tdTf&quot; class=&quot;td-sel&quot;&gt;

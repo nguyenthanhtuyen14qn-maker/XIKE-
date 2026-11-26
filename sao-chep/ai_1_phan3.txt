@@ -1,3 +1,41 @@
+/* ===== Gói dữ liệu cho AI: nến + EMA 34/80 + MACD + TRIX tính từ dữ liệu thật, kèm ảnh biểu đồ đang xem ===== */
+function aiSnapshot() {
+  if (!hasData) return { error: &#x27;Chưa có nến. Kết nối nguồn dữ liệu (Twelve Data hoặc OANDA) trong Cài đặt, hoặc bấm Demo.&#x27; };
+  const ser = series(S.tf), bars = ser.bars, N = bars.length;
+  if (N &lt; 100) return { error: &#x27;Cần ít nhất 100 nến &#x27; + S.tf + &#x27; (đang có &#x27; + N + &#x27;). Chọn khung nhỏ hơn hoặc tải thêm nến.&#x27; };
+  const c = closesOf(bars), h = highsOf(bars), l = lowsOf(bars);
+  const e34 = ema(c, 34), e80 = ema(c, 80), mac = macdLineArr(c, 12, 26), sig = ema(mac, 9), tr = trixCalc(c, 25, 15);
+  const f = (v, d) =&gt; Number.isFinite(v) ? v.toFixed(d) : &#x27;-&#x27;;
+  const rows = [];
+  for (let i = Math.max(0, N - 40); i &lt; N; i++) {
+    rows.push([fmtTs(bars[i].t, &#x27;dhm&#x27;), f(bars[i].o, 2), f(bars[i].h, 2), f(bars[i].l, 2), f(bars[i].c, 2),
+      f(e34[i], 2), f(e80[i], 2), f(mac[i], 3), f(sig[i], 3), f(mac[i] - sig[i], 3), f(tr.t[i], 3), f(tr.s[i], 3)].join(&#x27; | &#x27;));
+  }
+  // Tín hiệu gần đây theo vùng EMA (BUY/SELL, BUY P/SELL P) và TRIX (Buy/Sell)
+  const marks = [];
+  try {
+    for (const m of zoneMarks(h, l, c, e34, e80, mac, 3, 0.5, 1)) if (m.i &gt;= N - 60) marks.push({ i: m.i, t: m.text });
+    for (const m of trixMarks(tr.t, tr.s)) if (m.i &gt;= N - 60) marks.push({ i: m.i, t: &#x27;TRIX &#x27; + m.text });
+  } catch (err) { /* thiếu hàm đánh dấu: bỏ qua phần tín hiệu */ }
+  marks.sort((a, b) =&gt; a.i - b.i);
+  let hi = -Infinity, lo = Infinity;
+  for (let i = Math.max(0, N - 100); i &lt; N; i++) { hi = Math.max(hi, h[i]); lo = Math.min(lo, l[i]); }
+  const last = bars[N - 1];
+  const text = [
+    &#x27;Mã: &#x27; + (baseName.replace(/^Live (Twelve Data|OANDA) /, &#x27;&#x27;) || &#x27;XAUUSD&#x27;) + &#x27; · khung &#x27; + S.tf + &#x27; · giờ VN (UTC&#x27; + (S.tz &gt;= 0 ? &#x27;+&#x27; : &#x27;&#x27;) + S.tz + &#x27;) · nguồn: &#x27; + baseName,
+    &#x27;Giá hiện tại (đóng nến cuối, nến cuối có thể chưa đóng): &#x27; + f(last.c, 2) + &#x27; lúc &#x27; + fmtTs(last.t, &#x27;dhm&#x27;),
+    &#x27;Đỉnh/đáy 100 nến gần nhất: &#x27; + f(hi, 2) + &#x27; / &#x27; + f(lo, 2),
+    &#x27;Tín hiệu trong 60 nến gần nhất: &#x27; + (marks.length ? marks.map(m =&gt; m.t + &#x27; lúc &#x27; + fmtTs(bars[m.i].t, &#x27;dhm&#x27;)).join(&#x27;; &#x27;) : &#x27;không có&#x27;),
+    &#x27;40 nến gần nhất (cũ → mới):&#x27;,
+    &#x27;Giờ | Mở | Cao | Thấp | Đóng | EMA34 | EMA80 | MACD | Signal | Hist | TRIX | TRIX signal&#x27;,
+    rows.join(&#x27;\n&#x27;)
+  ].join(&#x27;\n&#x27;);
+
+  const shot = takeShot(null);
+  if (!shot) return { error: &#x27;Mở tab Biểu đồ để AI chụp biểu đồ.&#x27; };
+  return Object.assign({ tf: S.tf, now: last.c, text }, shot);
+}
+
 // Chụp biểu đồ đang xem (kéo về nến mới nhất), kèm thang giá đúng để vẽ chính xác.
 // fit = { lo, hi }: mở rộng thang giá cho đủ các mức cần vẽ.
 function takeShot(fit) {

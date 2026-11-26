@@ -289,7 +289,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .acct-sub { margin: 6px 0 0; font: 600 13px/1.2 var(--f-ui); color: var(--text); }
 .acct-pos { display: grid; gap: 4px; max-height: 18vh; overflow-y: auto; }
 .acct-pos-row { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font: 500 12px/1.4 var(--f-num); overflow-wrap: anywhere; }
-/* Nguồn dữ liệu Twelve Data trong Cài đặt */
+/* Nguồn dữ liệu (Twelve Data, OANDA) trong Cài đặt */
 #feed { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .ord-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .td-sel { font: 500 14px/1 var(--f-num); color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 8px; width: 100%; }
@@ -431,9 +431,24 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
     &lt;p class=&quot;note&quot; id=&quot;info&quot;&gt;&lt;/p&gt;
     &lt;p class=&quot;note&quot;&gt;Nạp file: CSV hoặc TSV có cột time (hoặc date và time), open, high, low, close, volume. File TradingView xuất theo UTC, để 7 để ra giờ VN. File MT5 theo giờ server của broker, lấy 7 trừ đi lệch giờ đó.&lt;/p&gt;
     &lt;div class=&quot;acct&quot; id=&quot;feed&quot;&gt;
-      &lt;h3 class=&quot;acct-title&quot;&gt;Nguồn dữ liệu: Twelve Data&lt;/h3&gt;
-      &lt;p class=&quot;note&quot;&gt;Nến XAU/USD thật cho biểu đồ và cho AI phân tích. Lấy khoá miễn phí ở twelvedata.com (gói Basic: 8 lần gọi/phút, 800 lần/ngày). Khoá chỉ dùng để đọc giá, lưu trong máy này.&lt;/p&gt;
-      &lt;label&gt;Khoá API Twelve Data&lt;input id=&quot;tdKey&quot; type=&quot;password&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; placeholder=&quot;Dán khoá API&quot;&gt;&lt;/label&gt;
+      &lt;h3 class=&quot;acct-title&quot;&gt;Nguồn dữ liệu&lt;/h3&gt;
+      &lt;p class=&quot;note&quot;&gt;Nến XAU/USD thật cho biểu đồ và cho AI phân tích.&lt;/p&gt;
+      &lt;label&gt;Nhà cung cấp&lt;select id=&quot;fdProv&quot; class=&quot;td-sel&quot;&gt;
+        &lt;option value=&quot;twelve&quot;&gt;Twelve Data&lt;/option&gt;
+        &lt;option value=&quot;oanda&quot;&gt;OANDA&lt;/option&gt;
+      &lt;/select&gt;&lt;/label&gt;
+      &lt;div id=&quot;fdTwelve&quot; class=&quot;acct&quot;&gt;
+        &lt;p class=&quot;note&quot;&gt;Lấy khoá miễn phí ở twelvedata.com (gói Basic: 8 lần gọi/phút, 800 lần/ngày). Khoá chỉ dùng để đọc giá.&lt;/p&gt;
+        &lt;label&gt;Khoá API Twelve Data&lt;input id=&quot;tdKey&quot; type=&quot;password&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; placeholder=&quot;Dán khoá API&quot;&gt;&lt;/label&gt;
+      &lt;/div&gt;
+      &lt;div id=&quot;fdOanda&quot; class=&quot;acct&quot; hidden&gt;
+        &lt;p class=&quot;note&quot;&gt;Tạo token ở OANDA: Quản lý API (Manage API Access). Nên dùng tài khoản &lt;b&gt;demo (practice)&lt;/b&gt;: token OANDA có quyền giao dịch trên tài khoản, app chỉ dùng để đọc giá.&lt;/p&gt;
+        &lt;label&gt;Token OANDA&lt;input id=&quot;oaKey&quot; type=&quot;password&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; placeholder=&quot;Dán token&quot;&gt;&lt;/label&gt;
+        &lt;label&gt;Loại tài khoản&lt;select id=&quot;oaEnv&quot; class=&quot;td-sel&quot;&gt;
+          &lt;option value=&quot;practice&quot;&gt;Demo (practice)&lt;/option&gt;
+          &lt;option value=&quot;live&quot;&gt;Thật (live)&lt;/option&gt;
+        &lt;/select&gt;&lt;/label&gt;
+      &lt;/div&gt;
       &lt;div class=&quot;ord-grid&quot;&gt;
         &lt;label&gt;Mã&lt;input id=&quot;tdSym&quot; type=&quot;text&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; value=&quot;XAU/USD&quot;&gt;&lt;/label&gt;
         &lt;label&gt;Khung nến gốc&lt;select id=&quot;tdTf&quot; class=&quot;td-sel&quot;&gt;
@@ -2944,6 +2959,7 @@ function bindUI() {
   $(&#x27;iTz&#x27;).addEventListener(&#x27;change&#x27;, applyTz);
   $(&#x27;acctSave&#x27;).addEventListener(&#x27;click&#x27;, acctSaveClick);
   $(&#x27;acctRefresh&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; acctRefresh());
+  $(&#x27;fdProv&#x27;).addEventListener(&#x27;change&#x27;, fdProvChange);
   $(&#x27;tdLoad&#x27;).addEventListener(&#x27;click&#x27;, tdLoadClick);
   $(&#x27;tdStop&#x27;).addEventListener(&#x27;click&#x27;, tdStopClick);
   $(&#x27;bAI&#x27;).addEventListener(&#x27;click&#x27;, aiClick);
@@ -3178,73 +3194,114 @@ function acctSaveClick() {
 /* ===== Nguồn dữ liệu Twelve Data: tải nến XAU/USD thật, tự cập nhật ===== */
 const TD_KEY = &#x27;xau-chart-twelvedata-v1&#x27;;   // khoá API (chỉ đọc giá), mã, khung gốc, chu kỳ cập nhật
 const TD_IV = { M1: &#x27;1min&#x27;, M5: &#x27;5min&#x27;, M15: &#x27;15min&#x27;, M30: &#x27;30min&#x27;, H1: &#x27;1h&#x27; };
+const OA_HOST = { practice: &#x27;https://api-fxpractice.oanda.com&#x27;, live: &#x27;https://api-fxtrade.oanda.com&#x27; };
+const FD_NAME = { twelve: &#x27;Twelve Data&#x27;, oanda: &#x27;OANDA&#x27; };
+const FD_SYM = { twelve: &#x27;XAU/USD&#x27;, oanda: &#x27;XAU_USD&#x27; };
 let tdTimer = 0, tdBusy = false;
 
 function tdStored() {
   try { const v = JSON.parse(localStorage.getItem(TD_KEY) || &#x27;null&#x27;); return v &amp;&amp; typeof v === &#x27;object&#x27; ? v : {}; }
   catch (err) { return {}; }
 }
+function fdShow() {
+  const pv = $(&#x27;fdProv&#x27;).value;
+  $(&#x27;fdTwelve&#x27;).hidden = pv !== &#x27;twelve&#x27;;
+  $(&#x27;fdOanda&#x27;).hidden = pv !== &#x27;oanda&#x27;;
+}
+// Đổi nhà cung cấp: đổi mã mặc định cho đúng cách viết của nhà đó (XAU/USD ↔ XAU_USD)
+function fdProvChange() {
+  const pv = $(&#x27;fdProv&#x27;).value, sym = $(&#x27;tdSym&#x27;).value.trim();
+  if (!sym || Object.values(FD_SYM).includes(sym)) $(&#x27;tdSym&#x27;).value = FD_SYM[pv];
+  fdShow();
+}
 function tdFill() {
   const v = tdStored();
+  if (FD_NAME[v.prov]) $(&#x27;fdProv&#x27;).value = v.prov;
   if (v.key) $(&#x27;tdKey&#x27;).value = v.key;
+  if (v.oaKey) $(&#x27;oaKey&#x27;).value = v.oaKey;
+  if (OA_HOST[v.oaEnv]) $(&#x27;oaEnv&#x27;).value = v.oaEnv;
   if (v.sym) $(&#x27;tdSym&#x27;).value = v.sym;
   if (v.tf &amp;&amp; TD_IV[v.tf]) $(&#x27;tdTf&#x27;).value = v.tf;
   if (v.every !== undefined) $(&#x27;tdEvery&#x27;).value = String(v.every);
+  fdShow();
 }
 function tdSay(t) { $(&#x27;tdMsg&#x27;).textContent = t; }
-// &quot;2026-11-26 09:15:00&quot; (UTC) → giây
+// &quot;2026-11-26 09:15:00&quot; hoặc &quot;2026-11-26T09:15:00.000000000Z&quot; (UTC) → giây
 function tdTime(s) {
   const m = String(s || &#x27;&#x27;).match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
   if (!m) return NaN;
   return Math.floor(Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)) / 1000);
 }
-async function tdFetch(cfg, size) {
-  const q = new URLSearchParams({
-    symbol: cfg.sym, interval: TD_IV[cfg.tf], outputsize: String(size), timezone: &#x27;UTC&#x27;, order: &#x27;asc&#x27;, apikey: cfg.key
-  });
+async function fdGet(url, headers, who) {
   const ctl = new AbortController();
   const timer = setTimeout(() =&gt; ctl.abort(), 20000);
   try {
-    const res = await fetch(&#x27;https://api.twelvedata.com/time_series?&#x27; + q.toString(), { cache: &#x27;no-store&#x27;, signal: ctl.signal });
+    const res = await fetch(url, { cache: &#x27;no-store&#x27;, signal: ctl.signal, headers: headers || {} });
     const data = await res.json().catch(() =&gt; ({}));
-    if (data.status === &#x27;error&#x27; || !res.ok) {
-      const code = Number(data.code || res.status);
-      const why = code === 401 ? &#x27;Sai khoá API.&#x27; : code === 429 ? &#x27;Hết lượt gọi (8 lần/phút hoặc 800 lần/ngày). Đợi rồi thử lại, hoặc tăng số giây tự cập nhật.&#x27;
-        : (data.message || (&#x27;Twelve Data trả lỗi &#x27; + code + &#x27;.&#x27;));
-      throw new Error(why);
-    }
-    const vals = Array.isArray(data.values) ? data.values : [];
-    const bars = vals.map(v =&gt; ({ t: tdTime(v.datetime), o: +v.open, h: +v.high, l: +v.low, c: +v.close, v: +v.volume || 0 }))
-      .filter(b =&gt; [b.t, b.o, b.h, b.l, b.c].every(Number.isFinite)).sort((a, b) =&gt; a.t - b.t);
-    return bars;
+    return { res, data };
   } catch (err) {
-    if (err.name === &#x27;AbortError&#x27;) throw new Error(&#x27;Twelve Data không trả lời (hết 20 giây).&#x27;);
-    if (err instanceof TypeError) throw new Error(&#x27;Không kết nối được Twelve Data. Kiểm tra mạng.&#x27;);
+    if (err.name === &#x27;AbortError&#x27;) throw new Error(who + &#x27; không trả lời (hết 20 giây).&#x27;);
+    if (err instanceof TypeError) throw new Error(&#x27;Không kết nối được &#x27; + who + &#x27;. Kiểm tra mạng.&#x27;);
     throw err;
   } finally { clearTimeout(timer); }
 }
-function tdRead() {
-  const key = $(&#x27;tdKey&#x27;).value.trim(), sym = $(&#x27;tdSym&#x27;).value.trim() || &#x27;XAU/USD&#x27;, tf = $(&#x27;tdTf&#x27;).value;
-  const every = Math.max(0, Math.round(Number($(&#x27;tdEvery&#x27;).value) || 0));
-  return { key, sym, tf: TD_IV[tf] ? tf : &#x27;M15&#x27;, every: every &amp;&amp; every &lt; 30 ? 30 : every };
+async function twelveFetch(cfg, size) {
+  const q = new URLSearchParams({
+    symbol: cfg.sym, interval: TD_IV[cfg.tf], outputsize: String(size), timezone: &#x27;UTC&#x27;, order: &#x27;asc&#x27;, apikey: cfg.key
+  });
+  const { res, data } = await fdGet(&#x27;https://api.twelvedata.com/time_series?&#x27; + q.toString(), null, &#x27;Twelve Data&#x27;);
+  if (data.status === &#x27;error&#x27; || !res.ok) {
+    const code = Number(data.code || res.status);
+    throw new Error(code === 401 ? &#x27;Sai khoá API.&#x27; : code === 429 ? &#x27;Hết lượt gọi (8 lần/phút hoặc 800 lần/ngày). Đợi rồi thử lại, hoặc tăng số giây tự cập nhật.&#x27;
+      : (data.message || (&#x27;Twelve Data trả lỗi &#x27; + code + &#x27;.&#x27;)));
+  }
+  const vals = Array.isArray(data.values) ? data.values : [];
+  return vals.map(v =&gt; ({ t: tdTime(v.datetime), o: +v.open, h: +v.high, l: +v.low, c: +v.close, v: +v.volume || 0 }));
 }
+// OANDA v20: GET /v3/instruments/{mã}/candles, giá giữa (mid), tối đa 5000 nến mỗi lần
+async function oandaFetch(cfg, size) {
+  const q = new URLSearchParams({ granularity: cfg.tf, count: String(Math.min(5000, size)), price: &#x27;M&#x27; });
+  const url = OA_HOST[cfg.oaEnv] + &#x27;/v3/instruments/&#x27; + encodeURIComponent(cfg.sym) + &#x27;/candles?&#x27; + q.toString();
+  const { res, data } = await fdGet(url, { Authorization: &#x27;Bearer &#x27; + cfg.oaKey }, &#x27;OANDA&#x27;);
+  if (!res.ok) {
+    throw new Error(res.status === 401 ? &#x27;Sai token OANDA, hoặc token không thuộc loại tài khoản đã chọn (demo/thật).&#x27;
+      : res.status === 400 || res.status === 404 ? &#x27;OANDA không nhận mã &#x27; + cfg.sym + &#x27; (viết kiểu XAU_USD).&#x27;
+      : res.status === 429 ? &#x27;Gọi OANDA quá nhanh, đợi rồi thử lại.&#x27;
+      : (data.errorMessage || (&#x27;OANDA trả lỗi &#x27; + res.status + &#x27;.&#x27;)));
+  }
+  const list = Array.isArray(data.candles) ? data.candles : [];
+  return list.filter(k =&gt; k &amp;&amp; k.mid).map(k =&gt; ({ t: tdTime(k.time), o: +k.mid.o, h: +k.mid.h, l: +k.mid.l, c: +k.mid.c, v: +k.volume || 0 }));
+}
+async function tdFetch(cfg, size) {
+  const bars = await (cfg.prov === &#x27;oanda&#x27; ? oandaFetch(cfg, size) : twelveFetch(cfg, size));
+  return bars.filter(b =&gt; [b.t, b.o, b.h, b.l, b.c].every(Number.isFinite)).sort((a, b) =&gt; a.t - b.t);
+}
+function tdRead() {
+  const prov = FD_NAME[$(&#x27;fdProv&#x27;).value] ? $(&#x27;fdProv&#x27;).value : &#x27;twelve&#x27;;
+  const key = $(&#x27;tdKey&#x27;).value.trim(), oaKey = $(&#x27;oaKey&#x27;).value.trim(), oaEnv = OA_HOST[$(&#x27;oaEnv&#x27;).value] ? $(&#x27;oaEnv&#x27;).value : &#x27;practice&#x27;;
+  const sym = $(&#x27;tdSym&#x27;).value.trim() || FD_SYM[prov], tf = $(&#x27;tdTf&#x27;).value;
+  const every = Math.max(0, Math.round(Number($(&#x27;tdEvery&#x27;).value) || 0));
+  return { prov, key, oaKey, oaEnv, sym, tf: TD_IV[tf] ? tf : &#x27;M15&#x27;, every: every &amp;&amp; every &lt; 30 ? 30 : every };
+}
+const fdReady = cfg =&gt; (cfg.prov === &#x27;oanda&#x27; ? !!cfg.oaKey : !!cfg.key);
+const fdLabel = cfg =&gt; &#x27;Live &#x27; + FD_NAME[cfg.prov || &#x27;twelve&#x27;] + &#x27; &#x27; + cfg.sym;
 async function tdLoadClick() {
   const cfg = tdRead();
-  if (!cfg.key) { tdSay(&#x27;Dán khoá API Twelve Data trước.&#x27;); return; }
+  if (!fdReady(cfg)) { tdSay(cfg.prov === &#x27;oanda&#x27; ? &#x27;Dán token OANDA trước.&#x27; : &#x27;Dán khoá API Twelve Data trước.&#x27;); return; }
   try { localStorage.setItem(TD_KEY, JSON.stringify(cfg)); } catch (err) { /* không lưu được: vẫn dùng trong phiên */ }
   $(&#x27;tdEvery&#x27;).value = String(cfg.every);
   clearInterval(tdTimer);
   tdTimer = 0;
   tdBusy = true;
-  tdSay(&#x27;Đang tải nến &#x27; + cfg.sym + &#x27; &#x27; + cfg.tf + &#x27;...&#x27;);
+  tdSay(&#x27;Đang tải nến &#x27; + cfg.sym + &#x27; &#x27; + cfg.tf + &#x27; từ &#x27; + FD_NAME[cfg.prov] + &#x27;...&#x27;);
   try {
     const bars = await tdFetch(cfg, 5000);
-    if (bars.length &lt; 50) throw new Error(&#x27;Chỉ nhận được &#x27; + bars.length + &#x27; nến. Kiểm tra mã (vd XAU/USD).&#x27;);
-    setBase(bars, &#x27;Live Twelve Data &#x27; + cfg.sym);
+    if (bars.length &lt; 50) throw new Error(&#x27;Chỉ nhận được &#x27; + bars.length + &#x27; nến. Kiểm tra mã (Twelve Data: XAU/USD, OANDA: XAU_USD).&#x27;);
+    setBase(bars, fdLabel(cfg));
     S.anchor = series(S.tf).bars.length - 1 + 6;
     clampAnchor();
     schedule();
-    tdSay(&#x27;Đã tải &#x27; + bars.length + &#x27; nến &#x27; + cfg.tf + &#x27; · nến cuối &#x27; + fmtTs(bars[bars.length - 1].t, &#x27;dhm&#x27;) +
+    tdSay(FD_NAME[cfg.prov] + &#x27;: đã tải &#x27; + bars.length + &#x27; nến &#x27; + cfg.tf + &#x27; · nến cuối &#x27; + fmtTs(bars[bars.length - 1].t, &#x27;dhm&#x27;) +
       (cfg.every ? &#x27; · tự cập nhật mỗi &#x27; + cfg.every + &#x27; giây&#x27; : &#x27;&#x27;));
     if (cfg.every) tdTimer = setInterval(tdTick, cfg.every * 1000);
   } catch (err) {
@@ -3253,16 +3310,16 @@ async function tdLoadClick() {
 }
 // Cập nhật vài nến mới nhất; bỏ qua khi app ẩn hoặc không ở tab Biểu đồ để tiết kiệm lượt gọi
 async function tdTick() {
-  if (tdBusy || document.hidden || window.innerWidth &lt; 10 || !/^Live Twelve/.test(baseName)) return;
+  if (tdBusy || document.hidden || window.innerWidth &lt; 10 || !/^Live (Twelve Data|OANDA) /.test(baseName)) return;
   const cfg = tdStored();
-  if (!cfg.key) return;
+  if (!fdReady(cfg)) return;
   tdBusy = true;
   try {
     const bars = await tdFetch(cfg, 3);
     let n = 0;
     for (const b of bars) if (xkUpsertBar(Object.assign({ sec: baseSec }, b))) n++;
-    baseName = &#x27;Live Twelve Data &#x27; + cfg.sym;
-    if (n) tdSay(&#x27;Cập nhật &#x27; + acctClock() + &#x27; · giá &#x27; + bars[bars.length - 1].c);
+    baseName = fdLabel(cfg);
+    if (n) tdSay(FD_NAME[cfg.prov || &#x27;twelve&#x27;] + &#x27;: cập nhật &#x27; + acctClock() + &#x27; · giá &#x27; + bars[bars.length - 1].c);
   } catch (err) {
     tdSay(err.message + &#x27; (lần cập nhật &#x27; + acctClock() + &#x27;)&#x27;);
   } finally { tdBusy = false; }
@@ -3274,12 +3331,12 @@ function tdStopClick() {
 }
 function tdAutoStart() {
   const cfg = tdStored();
-  if (cfg.key &amp;&amp; TD_IV[cfg.tf]) setTimeout(tdLoadClick, 300);
+  if (fdReady(Object.assign({ prov: &#x27;twelve&#x27; }, cfg)) &amp;&amp; TD_IV[cfg.tf]) setTimeout(tdLoadClick, 300);
 }
 
 /* ===== Gói dữ liệu cho AI: nến + EMA 34/80 + MACD + TRIX tính từ dữ liệu thật, kèm ảnh biểu đồ đang xem ===== */
 function aiSnapshot() {
-  if (!hasData) return { error: &#x27;Chưa có nến. Kết nối Twelve Data trong Cài đặt, hoặc bấm Demo.&#x27; };
+  if (!hasData) return { error: &#x27;Chưa có nến. Kết nối nguồn dữ liệu (Twelve Data hoặc OANDA) trong Cài đặt, hoặc bấm Demo.&#x27; };
   const ser = series(S.tf), bars = ser.bars, N = bars.length;
   if (N &lt; 100) return { error: &#x27;Cần ít nhất 100 nến &#x27; + S.tf + &#x27; (đang có &#x27; + N + &#x27;). Chọn khung nhỏ hơn hoặc tải thêm nến.&#x27; };
   const c = closesOf(bars), h = highsOf(bars), l = lowsOf(bars);
@@ -3301,7 +3358,7 @@ function aiSnapshot() {
   for (let i = Math.max(0, N - 100); i &lt; N; i++) { hi = Math.max(hi, h[i]); lo = Math.min(lo, l[i]); }
   const last = bars[N - 1];
   const text = [
-    &#x27;Mã: &#x27; + (baseName.replace(/^Live Twelve Data /, &#x27;&#x27;) || &#x27;XAUUSD&#x27;) + &#x27; · khung &#x27; + S.tf + &#x27; · giờ VN (UTC&#x27; + (S.tz &gt;= 0 ? &#x27;+&#x27; : &#x27;&#x27;) + S.tz + &#x27;) · nguồn: &#x27; + baseName,
+    &#x27;Mã: &#x27; + (baseName.replace(/^Live (Twelve Data|OANDA) /, &#x27;&#x27;) || &#x27;XAUUSD&#x27;) + &#x27; · khung &#x27; + S.tf + &#x27; · giờ VN (UTC&#x27; + (S.tz &gt;= 0 ? &#x27;+&#x27; : &#x27;&#x27;) + S.tz + &#x27;) · nguồn: &#x27; + baseName,
     &#x27;Giá hiện tại (đóng nến cuối, nến cuối có thể chưa đóng): &#x27; + f(last.c, 2) + &#x27; lúc &#x27; + fmtTs(last.t, &#x27;dhm&#x27;),
     &#x27;Đỉnh/đáy 100 nến gần nhất: &#x27; + f(hi, 2) + &#x27; / &#x27; + f(lo, 2),
     &#x27;Tín hiệu trong 60 nến gần nhất: &#x27; + (marks.length ? marks.map(m =&gt; m.t + &#x27; lúc &#x27; + fmtTs(bars[m.i].t, &#x27;dhm&#x27;)).join(&#x27;; &#x27;) : &#x27;không có&#x27;),
