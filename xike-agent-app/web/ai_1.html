@@ -300,6 +300,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Nguồn dữ liệu (Twelve Data, OANDA) trong Cài đặt */
 #feed { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .ord-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.fd-msg { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); }
+.fd-msg.err { border-color: rgba(239, 100, 113, .6); color: #fecaca; }
+.fd-msg.ok { border-color: rgba(43, 179, 154, .6); color: #bbf7d0; }
 .td-sel { font: 500 14px/1 var(--f-num); color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 8px; width: 100%; }
 /* Khung đặt lệnh ngay dưới biểu đồ: tắt sẵn, phải bật và bấm xác nhận lần hai mới gửi */
 #trade { display: grid; gap: 8px; padding: 8px 10px 10px; background: var(--panel); border-top: 1px solid var(--line); max-height: 46vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
@@ -464,6 +467,11 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
           &lt;option value=&quot;live&quot;&gt;Thật (live)&lt;/option&gt;
         &lt;/select&gt;&lt;/label&gt;
       &lt;/div&gt;
+      &lt;div class=&quot;acct-row&quot;&gt;
+        &lt;button type=&quot;button&quot; id=&quot;tdLoad&quot; class=&quot;on&quot;&gt;Lưu và tải nến&lt;/button&gt;
+        &lt;button type=&quot;button&quot; id=&quot;tdStop&quot;&gt;Dừng cập nhật&lt;/button&gt;
+      &lt;/div&gt;
+      &lt;p class=&quot;note fd-msg&quot; id=&quot;tdMsg&quot;&gt;Chưa kết nối nguồn dữ liệu.&lt;/p&gt;
       &lt;div class=&quot;ord-grid&quot;&gt;
         &lt;label&gt;Mã&lt;input id=&quot;tdSym&quot; type=&quot;text&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; value=&quot;XAU/USD&quot;&gt;&lt;/label&gt;
         &lt;label&gt;Khung nến gốc&lt;select id=&quot;tdTf&quot; class=&quot;td-sel&quot;&gt;
@@ -475,11 +483,6 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
         &lt;/select&gt;&lt;/label&gt;
         &lt;label&gt;Tự cập nhật (giây, 0 = tắt)&lt;input id=&quot;tdEvery&quot; type=&quot;text&quot; inputmode=&quot;numeric&quot; value=&quot;120&quot;&gt;&lt;/label&gt;
       &lt;/div&gt;
-      &lt;div class=&quot;acct-row&quot;&gt;
-        &lt;button type=&quot;button&quot; id=&quot;tdLoad&quot;&gt;Lưu và tải nến&lt;/button&gt;
-        &lt;button type=&quot;button&quot; id=&quot;tdStop&quot;&gt;Dừng cập nhật&lt;/button&gt;
-      &lt;/div&gt;
-      &lt;p class=&quot;note&quot; id=&quot;tdMsg&quot;&gt;Chưa kết nối nguồn dữ liệu.&lt;/p&gt;
     &lt;/div&gt;
     &lt;div class=&quot;acct&quot; id=&quot;acct&quot;&gt;
       &lt;h3 class=&quot;acct-title&quot;&gt;Tài khoản MT5&lt;/h3&gt;
@@ -2822,7 +2825,7 @@ function applyTz() {
 
 function updateInfo() {
   const live = hasData &amp;&amp; /^Live /.test(baseName);
-  if ($(&#x27;feedCta&#x27;)) $(&#x27;feedCta&#x27;).hidden = live;
+  if ($(&#x27;feedCta&#x27;)) $(&#x27;feedCta&#x27;).hidden = live || !$(&#x27;settings&#x27;).hidden;   // đang mở Cài đặt thì không che biểu đồ
   if ($(&#x27;feedDot&#x27;)) $(&#x27;feedDot&#x27;).classList.toggle(&#x27;live&#x27;, live);
   if (!hasData) {
     $(&#x27;tfinfo&#x27;).textContent = &#x27;Chưa có dữ liệu&#x27;;
@@ -2962,6 +2965,7 @@ function bindUI() {
     setOn(&#x27;bSet&#x27;, !panel.hidden);
     resize();
     acctPanelChanged(acctWanted());
+    updateInfo();
   });
   $(&#x27;bOrd&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; {
     const panel = $(&#x27;trade&#x27;);
@@ -2981,6 +2985,7 @@ function bindUI() {
   $(&#x27;bFeed&#x27;).addEventListener(&#x27;click&#x27;, openFeed);
   $(&#x27;ctaGo&#x27;).addEventListener(&#x27;click&#x27;, openFeed);
   $(&#x27;tdLoad&#x27;).addEventListener(&#x27;click&#x27;, tdLoadClick);
+  for (const id of [&#x27;tdKey&#x27;, &#x27;oaKey&#x27;]) $(id).addEventListener(&#x27;keydown&#x27;, e =&gt; { if (e.key === &#x27;Enter&#x27;) { e.preventDefault(); tdLoadClick(); } });
   $(&#x27;tdStop&#x27;).addEventListener(&#x27;click&#x27;, tdStopClick);
   $(&#x27;bAI&#x27;).addEventListener(&#x27;click&#x27;, aiClick);
   $(&#x27;mtLoginBtn&#x27;).addEventListener(&#x27;click&#x27;, mtLoginClick);
@@ -3245,7 +3250,11 @@ function tdFill() {
   if (v.every !== undefined) $(&#x27;tdEvery&#x27;).value = String(v.every);
   fdShow();
 }
-function tdSay(t) { $(&#x27;tdMsg&#x27;).textContent = t; }
+function tdSay(t, kind) {
+  $(&#x27;tdMsg&#x27;).textContent = t;
+  $(&#x27;tdMsg&#x27;).className = &#x27;note fd-msg&#x27; + (kind ? &#x27; &#x27; + kind : &#x27;&#x27;);
+  say(t);   // hiện thêm ở dòng trạng thái dưới biểu đồ
+}
 // &quot;2026-11-26 09:15:00&quot; hoặc &quot;2026-11-26T09:15:00.000000000Z&quot; (UTC) → giây
 function tdTime(s) {
   const m = String(s || &#x27;&#x27;).match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
@@ -3261,7 +3270,7 @@ async function fdGet(url, headers, who) {
     return { res, data };
   } catch (err) {
     if (err.name === &#x27;AbortError&#x27;) throw new Error(who + &#x27; không trả lời (hết 20 giây).&#x27;);
-    if (err instanceof TypeError) throw new Error(&#x27;Không kết nối được &#x27; + who + &#x27;. Kiểm tra mạng.&#x27;);
+    if (err instanceof TypeError) throw new Error(who + &#x27; không phản hồi (mạng, hoặc app chặn kết nối ra ngoài). Mở &#x27; + (who === &#x27;OANDA&#x27; ? &#x27;oanda.com&#x27; : &#x27;twelvedata.com&#x27;) + &#x27; bằng trình duyệt điện thoại để kiểm tra mạng.&#x27;);
     throw err;
   } finally { clearTimeout(timer); }
 }
@@ -3307,7 +3316,7 @@ const fdReady = cfg =&gt; (cfg.prov === &#x27;oanda&#x27; ? !!cfg.oaKey : !!cfg.
 const fdLabel = cfg =&gt; &#x27;Live &#x27; + FD_NAME[cfg.prov || &#x27;twelve&#x27;] + &#x27; &#x27; + cfg.sym;
 async function tdLoadClick() {
   const cfg = tdRead();
-  if (!fdReady(cfg)) { tdSay(cfg.prov === &#x27;oanda&#x27; ? &#x27;Dán token OANDA trước.&#x27; : &#x27;Dán khoá API Twelve Data trước.&#x27;); return; }
+  if (!fdReady(cfg)) { tdSay(cfg.prov === &#x27;oanda&#x27; ? &#x27;Dán token OANDA trước.&#x27; : &#x27;Dán khoá API Twelve Data trước.&#x27;, &#x27;err&#x27;); return; }
   try { localStorage.setItem(TD_KEY, JSON.stringify(cfg)); } catch (err) { /* không lưu được: vẫn dùng trong phiên */ }
   $(&#x27;tdEvery&#x27;).value = String(cfg.every);
   clearInterval(tdTimer);
@@ -3322,10 +3331,10 @@ async function tdLoadClick() {
     clampAnchor();
     schedule();
     tdSay(FD_NAME[cfg.prov] + &#x27;: đã tải &#x27; + bars.length + &#x27; nến &#x27; + cfg.tf + &#x27; · nến cuối &#x27; + fmtTs(bars[bars.length - 1].t, &#x27;dhm&#x27;) +
-      (cfg.every ? &#x27; · tự cập nhật mỗi &#x27; + cfg.every + &#x27; giây&#x27; : &#x27;&#x27;));
+      (cfg.every ? &#x27; · tự cập nhật mỗi &#x27; + cfg.every + &#x27; giây&#x27; : &#x27;&#x27;), &#x27;ok&#x27;);
     if (cfg.every) tdTimer = setInterval(tdTick, cfg.every * 1000);
   } catch (err) {
-    tdSay(err.message || &#x27;Lỗi không rõ.&#x27;);
+    tdSay(&#x27;Không kết nối được: &#x27; + (err.message || &#x27;Lỗi không rõ.&#x27;), &#x27;err&#x27;);
   } finally { tdBusy = false; }
 }
 // Cập nhật vài nến mới nhất; bỏ qua khi app ẩn hoặc không ở tab Biểu đồ để tiết kiệm lượt gọi
@@ -3354,6 +3363,7 @@ function openFeed() {
     acctPanelChanged(acctWanted());
   }
   fdShow();
+  updateInfo();
   $(&#x27;feed&#x27;).scrollIntoView({ block: &#x27;start&#x27; });
   const k = $(&#x27;fdProv&#x27;).value === &#x27;oanda&#x27; ? $(&#x27;oaKey&#x27;) : $(&#x27;tdKey&#x27;);
   if (!k.value) k.focus();
