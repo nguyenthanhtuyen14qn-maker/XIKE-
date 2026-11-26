@@ -7,8 +7,8 @@
 <style>
 :root {
   --bg: #000000;
-  --surface: #0d0d0d;
-  --raised: #1a1a1a;
+  --surface: #000000;
+  --raised: #000000;
   --line: #262626;
   --text: #e2e8f0;
   --muted: #94a3b8;
@@ -42,7 +42,7 @@ button { cursor: pointer; }
   flex: 1; min-height: 38px; border: 0; border-radius: 10px;
   background: transparent; color: var(--muted); font-weight: 600; font-size: 14px;
 }
-.nav button.on { background: var(--surface); color: var(--gold); }
+.nav button.on { background: var(--surface); color: var(--gold); box-shadow: inset 0 0 0 1px var(--line); }
 
 .view { display: none; flex: 1; min-height: 0; flex-direction: column; }
 .view.on { display: flex; }
@@ -92,7 +92,7 @@ label select { margin-top: 4px; }
 .empty li { margin-bottom: 4px; }
 .empty b { color: var(--text); }
 .msg { max-width: 92%; padding: 10px 12px; border-radius: 14px; font-size: 14.5px; }
-.msg.me { align-self: flex-end; background: #16213a; border-bottom-right-radius: 4px; white-space: pre-wrap; }
+.msg.me { align-self: flex-end; background: #000000; border: 1px solid #2a3a5c; border-bottom-right-radius: 4px; white-space: pre-wrap; }
 .msg.ai { align-self: flex-start; background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
 .msg.err { border-color: rgba(248, 113, 113, .45); color: #fecaca; }
 .msg .thumb {
@@ -240,7 +240,7 @@ body.chart-full #view-chart { position: fixed; top: 0; right: 0; bottom: 0; left
    Chỉ báo chọn ở bảng dưới, kiểu Trung tâm phân tích của TradingView. */
 :root {
   --bg: #000000;
-  --panel: #0b0b0b;
+  --panel: #000000;
   --line: #1f1f1f;
   --text: #dde3ee;
   --muted: #7c8699;
@@ -1367,7 +1367,7 @@ const DEMO_LABEL = &#x27;Demo (mô phỏng, không phải giá thật)&#x27;;
 const LS_KEY = &#x27;xau-chart-drawings-v1&#x27;;
 const IND_KEY = &#x27;xau-chart-indicators-v2&#x27;;
 const COL = {
-  bg: &#x27;#000000&#x27;, panel: &#x27;#0b0b0b&#x27;, line: &#x27;#1f1f1f&#x27;, text: &#x27;#dde3ee&#x27;, muted: &#x27;#7c8699&#x27;,
+  bg: &#x27;#000000&#x27;, panel: &#x27;#000000&#x27;, line: &#x27;#1f1f1f&#x27;, text: &#x27;#dde3ee&#x27;, muted: &#x27;#7c8699&#x27;,
   accent: &#x27;#4f8dff&#x27;, up: &#x27;#2bb39a&#x27;, down: &#x27;#ef6471&#x27;,
   fan: &#x27;#9aa9c7&#x27;, hline: &#x27;#5ad1e6&#x27;, levels: &#x27;#b48cf2&#x27;,
   zoneUp: &#x27;rgba(43,179,154,0.16)&#x27;, zoneDn: &#x27;rgba(239,100,113,0.16)&#x27;,
