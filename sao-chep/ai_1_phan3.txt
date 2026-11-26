@@ -1,3 +1,51 @@
+// Chụp biểu đồ đang xem (kéo về nến mới nhất), kèm thang giá đúng để vẽ chính xác.
+// fit = { lo, hi }: mở rộng thang giá cho đủ các mức cần vẽ.
+function takeShot(fit) {
+  if (!hasData) return null;
+  const N = series(S.tf).bars.length;
+  S.anchor = N - 1 + Math.round(LAY.plotW * 0.28 / S.barW);
+  clampAnchor();
+  // Tạm ẩn Gann Fan tự động (có TP/SL riêng) để không lẫn với kế hoạch của AI
+  const hidden = S.inds.filter(x =&gt; x.id === &#x27;gann_fan&#x27; &amp;&amp; x.on);
+  hidden.forEach(x =&gt; { x.on = false; });
+  indsVer += 1;
+  legendKey = &#x27;&#x27;;
+  XK_FIT = fit &amp;&amp; Number.isFinite(fit.lo) &amp;&amp; Number.isFinite(fit.hi) ? fit : null;
+  render();
+  const r = cv.getBoundingClientRect();
+  let out = null;
+  if (r.width &gt; 0 &amp;&amp; r.height &gt; 0) {
+    const p1 = priceAtY(LAY.candleTop + (LAY.candleBottom - LAY.candleTop) * 0.15);
+    const p2 = priceAtY(LAY.candleTop + (LAY.candleBottom - LAY.candleTop) * 0.85);
+    out = {
+      image: cv.toDataURL(&#x27;image/jpeg&#x27;, 0.92),
+      axis: [{ price: p1, y: yOf(p1) / r.height * 1000 }, { price: p2, y: yOf(p2) / r.height * 1000 }],
+      pane: { top: LAY.candleTop / r.height * 1000, bottom: LAY.candleBottom / r.height * 1000 },
+      last_x: xOf(N - 1) / r.width * 1000
+    };
+  }
+  XK_FIT = null;
+  hidden.forEach(x =&gt; { x.on = true; });
+  indsVer += 1;
+  legendKey = &#x27;&#x27;;
+  schedule();
+  return out;
+}
+// Trang chính xin chụp lại khi AI đã trả các mức giá
+window.addEventListener(&#x27;message&#x27;, e =&gt; {
+  if (e.source !== window.parent || !e.data || e.data.type !== &#x27;xk-shot&#x27;) return;
+  const shot = takeShot({ lo: Number(e.data.lo), hi: Number(e.data.hi) });
+  window.parent.postMessage(Object.assign({ type: &#x27;xk-shot-done&#x27;, id: e.data.id }, shot || { error: &#x27;hidden&#x27; }), &#x27;*&#x27;);
+  if (shot) say(&#x27;AI đã phân tích xong. Xem ở tab Phân tích.&#x27;);
+});
+function aiClick() {
+  const snap = aiSnapshot();
+  if (snap.error) { say(snap.error); return; }
+  if (window.parent === window) { say(&#x27;Nút AI chỉ chạy trong app.&#x27;); return; }
+  window.parent.postMessage(Object.assign({ type: &#x27;xk-analyze&#x27; }, snap), &#x27;*&#x27;);
+  say(&#x27;AI đang phân tích dữ liệu &#x27; + snap.tf + &#x27;… Giữ tab Biểu đồ để AI vẽ lên biểu đồ.&#x27;);
+}
+
 /* ===== Đăng nhập MT5 qua VPS (POST /login, POST /logout). Mật khẩu chỉ gửi đi, không lưu. ===== */
 const MT_KEY = &#x27;xau-chart-mt5-login-v1&#x27;;   // chỉ lưu số tài khoản và server
 let mtHold = 0;   // giữ thông báo đăng nhập vừa xong, không để lần làm mới ghi đè ngay
@@ -282,6 +330,7 @@ function start(st) {
   syncSettings();
   acctFill();
   mtFill();
+  tdFill();
   ordLoad();
   updateIndBadge();
   setMode(&#x27;pan&#x27;);
@@ -294,6 +343,7 @@ function start(st) {
   if (document.fonts &amp;&amp; document.fonts.ready) document.fonts.ready.then(schedule);
   if (!XK_APP) loadDemo();                       // bản artifact: dữ liệu mô phỏng
   else if (!xkLoadBars()) { updateInfo(); say(&#x27;Chưa có nến. Bấm Nạp file để nạp CSV, hoặc Demo.&#x27;); }
+  tdAutoStart();                                  // đã có khoá Twelve Data: tự tải nến thật
 }
 
 /* ===== Phóng to: khung biểu đồ lấp kín màn hình (chỉ trong app). Trang app ẩn thanh chọn, nút nằm ở góc phải thanh trên. ===== */
@@ -559,6 +609,23 @@ const ANALYZE_PROMPT = [
   "last_x: vị trí ngang của nến cuối cùng.",
   "callouts: 2-4 chú thích ngắn (dưới 10 chữ) cho chi tiết đáng chú ý trên ảnh: đường EMA, MACD, TRIX, tín hiệu Buy/Sell, nến đặc biệt. x,y là điểm cần chỉ vào; tx,ty là chỗ đặt chữ, chọn vùng trống không che nến và không trùng nhau.",
   "Chỉ dùng số đọc được trên ảnh, không đoán."
+].join("\n");
+
+// Phân tích từ dữ liệu nến thật (Twelve Data), không dùng ảnh
+const LIVE_PROMPT = [
+  "Phân tích XAUUSD từ dữ liệu nến và chỉ báo dưới đây (số đã tính sẵn từ giá thật), theo đúng các quy tắc tôi đã dạy. Trả lời theo thứ tự:",
+  "1. Khung thời gian và giá hiện tại.",
+  "2. Xu hướng: EMA 34/80, MACD, TRIX (ghi giá trị trong dữ liệu).",
+  "3. Tín hiệu theo quy tắc: đã có hay chưa, thuộc quy tắc nào, còn thiếu điều kiện gì.",
+  "4. Kế hoạch: BUY, SELL hoặc ĐỨNG NGOÀI. Nếu vào lệnh thì ghi vùng entry, SL, TP1, TP2, TP3, mỗi mức ghi khoảng cách bằng giá và pip (10 giá = 100 pip).",
+  "5. Điều kiện huỷ kế hoạch.",
+  "Viết ngắn gọn, khoảng 250 chữ. Chỉ dùng số trong dữ liệu, không đoán.",
+  "",
+  "6. Cuối câu trả lời, thêm khối số liệu để app vẽ lên biểu đồ: dòng <<<VE, một JSON hợp lệ, rồi dòng VE>>>. Không giải thích khối này. Mẫu:",
+  "<<<VE",
+  '{"bias":"SELL","now":3624.63,"resistance":[3695.19],"support":[3600,3500],"entry":3655,"sl":3700,"tp":[3600,3550,3500],"note":"Giảm mạnh dưới dải EMA"}',
+  "VE>>>",
+  "bias: BUY, SELL hoặc SIDEWAY. resistance, support: tối đa 2 mức chính mỗi loại, lấy từ đỉnh/đáy hoặc EMA trong dữ liệu. entry, sl để null và tp để [] nếu ĐỨNG NGOÀI."
 ].join("\n");
 
 const ANALYZE_QUERY = "phân tích biểu đồ XAUUSD, tín hiệu EMA 34/80, MACD, TRIX, entry, SL, TP";
@@ -968,7 +1035,10 @@ async function annotateChart(src, d) {
       yOf = (p) => ((hi.y + (hi.p - p) * k) / 1000) * H;
     }
   }
-  const inside = (y) => y > H * 0.03 && y < H * 0.97;
+  // Vùng nến: khi vẽ lên biểu đồ trong app, chỉ vẽ trong ô giá (không đè xuống ô MACD/TRIX)
+  const pTop = d.pane && Number.isFinite(+d.pane.top) ? +d.pane.top / 1000 * H : H * 0.03;
+  const pBot = d.pane && Number.isFinite(+d.pane.bottom) ? +d.pane.bottom / 1000 * H : H * 0.97;
+  const inside = (y) => y > pTop && y < pBot;
 
   const bias = String(d.bias || "").toUpperCase();
   const now = numOrNull(d.now);
@@ -986,7 +1056,8 @@ async function annotateChart(src, d) {
   // Khung nhận định chỉ ghi xu hướng
   const noteLines = ["NHẬN ĐỊNH: " + (biasText || "—")];
   boxW = Math.min(boxW, cx.measureText(noteLines[0]).width + notePad * 2 + u * 0.2);
-  const box = { x: W - boxW - u * 0.3, y: fy(d.note_y, 100), w: boxW, h: 0 };
+  const boxX = () => W - tagW - boxW - u * 0.4;   // bên trái cột nhãn giá, không che SL/TP
+  const box = { x: boxX(), y: d.pane ? pTop + u * 0.3 : fy(d.note_y, 100), w: boxW, h: 0 };
   box.h = notePad * 2 + noteLh * noteLines.length + u * 0.8 + (yOf ? 0 : noteSz * 1.15 * 3);   // chiều cao dự kiến, gồm dòng chữ nhỏ bên dưới
   const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
   const hits = (r) => overlap(r, box);
@@ -1074,7 +1145,7 @@ async function annotateChart(src, d) {
       const near = (a, b) => Math.abs(a - now) - Math.abs(b - now);
       const cands = (up ? res : sup).filter(ahead).concat(tps.filter(ahead)).sort(near);
       let y1 = cands.length ? yOf(cands[cands.length > 1 ? 1 : 0]) + (up ? -1 : 1) * u * 2 : y0 + (up ? -1 : 1) * H * 0.12;
-      y1 = Math.max(H * 0.06, Math.min(H * 0.94, y1));
+      y1 = Math.max(pTop + u, Math.min(pBot - u, y1));
       const x0 = lastX + u * 1.2, x1 = Math.min(W - tagW - u * 1.5, x0 + W * 0.3);
       if (x1 > x0 + u * 2) arrow(x0, y0 + (up ? -u : u), x1, y1, { width: Math.max(4, u * 0.38), dash: [u * 1.2, u * 0.8], head: u * 1.8 });
     }
@@ -1126,7 +1197,7 @@ async function annotateChart(src, d) {
   if (extraLines.length) {
     boxW = Math.max(boxW, Math.min(W * 0.54, u * 16.5));
     box.w = boxW;
-    box.x = W - boxW - u * 0.3;
+    box.x = boxX();
   }
   box.h = notePad * 2 + noteLh * noteLines.length + noteSz * 1.15 * extraLines.length;
   cx.fillStyle = "rgba(14,19,29,.9)";
@@ -1360,6 +1431,95 @@ async function send(analyze) {
     setChatBusy(false);
   }
 }
+
+// Nhận gói dữ liệu từ biểu đồ (nút 🤖 AI), gửi số liệu cho AI, vẽ kết quả lên ảnh biểu đồ đúng thang giá
+async function sendLive(snap) {
+  if (chatBusy) { show("chat"); hint("AI đang trả lời câu trước, đợi xong rồi bấm lại."); return; }
+  const note = $("msg").value.trim();
+  const text = LIVE_PROMPT + (note ? "\n\nGhi chú của tôi: " + note : "") + "\n\nDỮ LIỆU:\n" + snap.text;
+  let thumb = "";
+  try { thumb = (await shrink(snap.image, 900, 0.8)).dataUrl; } catch (e) { thumb = ""; }
+  const entry = { role: "user", text, display: "📈 Phân tích dữ liệu live " + snap.tf + (note ? " · " + note : ""), thumb, full: snap.image, t: Date.now() };
+  history.push(entry);
+  const bubble = addToLog(messageEl(entry));
+  $("msg").value = "";
+  growComposer();
+  setChatBusy(true);
+  const waiting = addToLog(typingEl("AI đang đọc dữ liệu " + snap.tf + "…"));
+  let extra = "";
+  if ($("withJournal").checked) {
+    try { extra = await journalContext(); } catch (e) { extra = ""; }
+  }
+  const recent = history.slice(-12).map((h) => ({ role: h.role, text: h.text }));
+  while (recent.length && recent[0].role !== "user") recent.shift();
+  try {
+    const r = await api("chat", {
+      history: recent, imageB64: "", imageMime: "", analyze: true,
+      query: note || ANALYZE_QUERY, extraContext: extra
+    });
+    const ex = extractDraw(r.text);
+    const reply = { role: "model", text: ex.clean, model: r.model, rules: r.rules || [], note: r.note || "", t: Date.now() };
+    if (ex.data) {
+      // Chụp lại biểu đồ với thang giá đủ các mức AI đưa ra (nếu tab Biểu đồ còn mở)
+      const now0 = numOrNull(ex.data.now) || snap.now;
+      const lv = [now0].concat(numList(ex.data.resistance), numList(ex.data.support), numList(ex.data.tp),
+        [numOrNull(ex.data.entry), numOrNull(ex.data.sl)].filter((x) => x !== null)).filter((x) => Math.abs(x - now0) / now0 < 0.08);
+      const shot = (await reshoot(Math.min(...lv), Math.max(...lv))) || snap;
+      // Thang giá và vị trí nến cuối lấy từ biểu đồ, không cần AI đọc ảnh
+      const d = Object.assign({}, ex.data, { axis: shot.axis, last_x: shot.last_x, pane: shot.pane, callouts: [] });
+      if (!numOrNull(d.now)) d.now = snap.now;
+      try {
+        const out = await annotateChart(shot.image, d);
+        reply.ann = out.dataUrl;
+        reply.annThumb = (await shrink(out.dataUrl, 900, 0.8)).dataUrl;
+      } catch (err) {
+        reply.note = (reply.note ? reply.note + "\n" : "") + "Không vẽ được lên biểu đồ: " + (err.message || "lỗi không rõ") + ".";
+      }
+    } else {
+      reply.note = (reply.note ? reply.note + "\n" : "") + "AI không trả số liệu để vẽ lên biểu đồ lần này.";
+    }
+    waiting.remove();
+    history.push(reply);
+    addToLog(messageEl(reply));
+    saveChat();
+  } catch (e) {
+    waiting.remove();
+    bubble.remove();
+    history.pop();
+    $("msg").value = note;
+    growComposer();
+    addToLog(errorEl(e.message));
+  } finally {
+    setChatBusy(false);
+    show("chat");
+  }
+}
+
+// Nhờ khung biểu đồ chụp lại với thang giá [lo, hi]; trả null nếu tab Biểu đồ đã đóng hoặc quá 4 giây
+let shotSeq = 0;
+function reshoot(lo, hi) {
+  const f = $("xauFrame");
+  if (!f || !f.contentWindow || !Number.isFinite(lo) || !Number.isFinite(hi)) return Promise.resolve(null);
+  const id = "s" + ++shotSeq;
+  return new Promise((resolve) => {
+    const done = (v) => { window.removeEventListener("message", on); clearTimeout(timer); resolve(v); };
+    const on = (e) => {
+      if (e.source !== f.contentWindow || !e.data || e.data.type !== "xk-shot-done" || e.data.id !== id) return;
+      done(e.data.image && /^data:image\//.test(e.data.image) ? e.data : null);
+    };
+    const timer = setTimeout(() => done(null), 4000);
+    window.addEventListener("message", on);
+    f.contentWindow.postMessage({ type: "xk-shot", id, lo, hi }, "*");
+  });
+}
+
+window.addEventListener("message", (e) => {
+  const f = $("xauFrame");
+  if (!f || e.source !== f.contentWindow || !e.data || e.data.type !== "xk-analyze") return;
+  const d = e.data;
+  if (typeof d.text !== "string" || typeof d.image !== "string" || !/^data:image\//.test(d.image)) return;
+  sendLive(d);
+});
 
 function saveChat() {
   clearTimeout(saveTimer);

@@ -289,6 +289,10 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .acct-sub { margin: 6px 0 0; font: 600 13px/1.2 var(--f-ui); color: var(--text); }
 .acct-pos { display: grid; gap: 4px; max-height: 18vh; overflow-y: auto; }
 .acct-pos-row { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font: 500 12px/1.4 var(--f-num); overflow-wrap: anywhere; }
+/* Nguồn dữ liệu Twelve Data trong Cài đặt */
+#feed { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.ord-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.td-sel { font: 500 14px/1 var(--f-num); color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 8px; width: 100%; }
 /* Khung đặt lệnh ngay dưới biểu đồ: tắt sẵn, phải bật và bấm xác nhận lần hai mới gửi */
 #trade { display: grid; gap: 8px; padding: 8px 10px 10px; background: var(--panel); border-top: 1px solid var(--line); max-height: 46vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 #trade input { font: 500 14px/1 var(--f-num); color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; width: 100%; min-width: 0; }
@@ -385,6 +389,7 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
     &lt;button type=&quot;button&quot; id=&quot;bBlock&quot; class=&quot;on&quot; aria-pressed=&quot;true&quot;&gt;Giờ cấm&lt;/button&gt;
     &lt;button type=&quot;button&quot; id=&quot;bFile&quot;&gt;Nạp file&lt;/button&gt;
     &lt;button type=&quot;button&quot; id=&quot;bDemo&quot;&gt;Demo&lt;/button&gt;
+    &lt;button type=&quot;button&quot; id=&quot;bAI&quot; title=&quot;AI phân tích dữ liệu nến đang xem&quot;&gt;🤖 AI&lt;/button&gt;
     &lt;button type=&quot;button&quot; id=&quot;bOrd&quot; aria-pressed=&quot;false&quot;&gt;Đặt lệnh&lt;/button&gt;
     &lt;button type=&quot;button&quot; id=&quot;bSet&quot; aria-pressed=&quot;false&quot;&gt;Cài đặt&lt;/button&gt;
   &lt;/div&gt;
@@ -425,6 +430,27 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
     &lt;label&gt;Lệch giờ hiển thị (so với UTC)&lt;input id=&quot;iTz&quot; type=&quot;number&quot; inputmode=&quot;numeric&quot; min=&quot;-12&quot; max=&quot;14&quot; value=&quot;7&quot;&gt;&lt;/label&gt;
     &lt;p class=&quot;note&quot; id=&quot;info&quot;&gt;&lt;/p&gt;
     &lt;p class=&quot;note&quot;&gt;Nạp file: CSV hoặc TSV có cột time (hoặc date và time), open, high, low, close, volume. File TradingView xuất theo UTC, để 7 để ra giờ VN. File MT5 theo giờ server của broker, lấy 7 trừ đi lệch giờ đó.&lt;/p&gt;
+    &lt;div class=&quot;acct&quot; id=&quot;feed&quot;&gt;
+      &lt;h3 class=&quot;acct-title&quot;&gt;Nguồn dữ liệu: Twelve Data&lt;/h3&gt;
+      &lt;p class=&quot;note&quot;&gt;Nến XAU/USD thật cho biểu đồ và cho AI phân tích. Lấy khoá miễn phí ở twelvedata.com (gói Basic: 8 lần gọi/phút, 800 lần/ngày). Khoá chỉ dùng để đọc giá, lưu trong máy này.&lt;/p&gt;
+      &lt;label&gt;Khoá API Twelve Data&lt;input id=&quot;tdKey&quot; type=&quot;password&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; placeholder=&quot;Dán khoá API&quot;&gt;&lt;/label&gt;
+      &lt;div class=&quot;ord-grid&quot;&gt;
+        &lt;label&gt;Mã&lt;input id=&quot;tdSym&quot; type=&quot;text&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; value=&quot;XAU/USD&quot;&gt;&lt;/label&gt;
+        &lt;label&gt;Khung nến gốc&lt;select id=&quot;tdTf&quot; class=&quot;td-sel&quot;&gt;
+          &lt;option value=&quot;M1&quot;&gt;M1 (khoảng 3,5 ngày)&lt;/option&gt;
+          &lt;option value=&quot;M5&quot;&gt;M5 (khoảng 17 ngày)&lt;/option&gt;
+          &lt;option value=&quot;M15&quot; selected&gt;M15 (khoảng 52 ngày)&lt;/option&gt;
+          &lt;option value=&quot;M30&quot;&gt;M30 (khoảng 104 ngày)&lt;/option&gt;
+          &lt;option value=&quot;H1&quot;&gt;H1 (khoảng 7 tháng)&lt;/option&gt;
+        &lt;/select&gt;&lt;/label&gt;
+        &lt;label&gt;Tự cập nhật (giây, 0 = tắt)&lt;input id=&quot;tdEvery&quot; type=&quot;text&quot; inputmode=&quot;numeric&quot; value=&quot;120&quot;&gt;&lt;/label&gt;
+      &lt;/div&gt;
+      &lt;div class=&quot;acct-row&quot;&gt;
+        &lt;button type=&quot;button&quot; id=&quot;tdLoad&quot;&gt;Lưu và tải nến&lt;/button&gt;
+        &lt;button type=&quot;button&quot; id=&quot;tdStop&quot;&gt;Dừng cập nhật&lt;/button&gt;
+      &lt;/div&gt;
+      &lt;p class=&quot;note&quot; id=&quot;tdMsg&quot;&gt;Chưa kết nối nguồn dữ liệu.&lt;/p&gt;
+    &lt;/div&gt;
     &lt;div class=&quot;acct&quot; id=&quot;acct&quot;&gt;
       &lt;h3 class=&quot;acct-title&quot;&gt;Tài khoản MT5&lt;/h3&gt;
       &lt;label&gt;Địa chỉ VPS (https)&lt;input id=&quot;acctUrl&quot; type=&quot;url&quot; inputmode=&quot;url&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; placeholder=&quot;https://ten-mien-cua-ban.com&quot;&gt;&lt;/label&gt;
@@ -536,6 +562,7 @@ const S = {
 };
 let BASE = [], baseSec = 60, baseName = &#x27;&#x27;, hasData = false, cache = {}, dataGen = 0, UID = 0;
 let VP = { pMin: 0, pMax: 1 };
+let XK_FIT = null;   // khi chụp cho AI: mở rộng thang giá để đủ các mức AI đưa ra
 let view = { w: 360, h: 600 };
 let LAY = { w: 360, h: 600, axisR: 64, axisB: 22, plotW: 296, totalH: 578, mainH: 578, paneH: 0, nPanes: 0, volH: 0, candleTop: 8, candleBottom: 570 };
 
@@ -1351,5 +1378,101 @@ function snapshotState() {
   for (const k of STATE_KEYS) o[k] = S[k];
   o.inds = S.inds.map(x =&gt; ({ id: x.id, p: x.p, on: x.on }));
   return o;
+}
+
+function applyState(st) {
+  if (!st || typeof st !== &#x27;object&#x27;) return;
+  if (TFS.some(t =&gt; t.id === st.tf)) S.tf = st.tf;
+  if (typeof st.showBlock === &#x27;boolean&#x27;) S.showBlock = st.showBlock;
+  S.tz = clampInt(st.tz, -12, 14, S.tz);
+  if (Array.isArray(st.drawings)) S.drawings = st.drawings;
+  if (Array.isArray(st.inds)) S.inds = sanitizeInds(st.inds);
+}
+&lt;/script&gt;
+&lt;script id=&quot;app-js&quot;&gt;
+/* ===== Giao diện, vẽ và sự kiện ===== */
+const $ = id =&gt; document.getElementById(id);
+const DEMO_LABEL = &#x27;Demo (mô phỏng, không phải giá thật)&#x27;;
+const LS_KEY = &#x27;xau-chart-drawings-v1&#x27;;
+const IND_KEY = &#x27;xau-chart-indicators-v2&#x27;;
+const COL = {
+  bg: &#x27;#0e131d&#x27;, panel: &#x27;#151c2a&#x27;, line: &#x27;#242d3f&#x27;, text: &#x27;#dde3ee&#x27;, muted: &#x27;#7c8699&#x27;,
+  accent: &#x27;#4f8dff&#x27;, up: &#x27;#2bb39a&#x27;, down: &#x27;#ef6471&#x27;,
+  fan: &#x27;#9aa9c7&#x27;, hline: &#x27;#5ad1e6&#x27;, levels: &#x27;#b48cf2&#x27;,
+  zoneUp: &#x27;rgba(43,179,154,0.16)&#x27;, zoneDn: &#x27;rgba(239,100,113,0.16)&#x27;,
+  volUp: &#x27;rgba(43,179,154,0.32)&#x27;, volDn: &#x27;rgba(239,100,113,0.32)&#x27;,
+  grid: &#x27;rgba(124,134,153,0.55)&#x27;, cross: &#x27;#5b6679&#x27;, box: &#x27;#253047&#x27;
+};
+const FONT = {
+  num: &#x27;&quot;IBM Plex Mono&quot;, ui-monospace, Menlo, Consolas, monospace&#x27;,
+  ui: &#x27;&quot;IBM Plex Sans&quot;, system-ui, sans-serif&#x27;
+};
+const GROUPS = [[&#x27;all&#x27;, &#x27;Tất cả&#x27;], [&#x27;trend&#x27;, &#x27;Trên giá&#x27;], [&#x27;osc&#x27;, &#x27;Dao động&#x27;]];
+const ICONS = {
+  plus: &#x27;&lt;path d=&quot;M12 5v14M5 12h14&quot;/&gt;&#x27;,
+  eye: &#x27;&lt;path d=&quot;M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z&quot;/&gt;&lt;circle cx=&quot;12&quot; cy=&quot;12&quot; r=&quot;3&quot;/&gt;&#x27;,
+  eyeO: &#x27;&lt;path d=&quot;M3 3l18 18&quot;/&gt;&lt;path d=&quot;M10.6 6.1A9.8 9.8 0 0 1 12 6c6.5 0 10 6 10 6a17 17 0 0 1-3.2 3.9&quot;/&gt;&lt;path d=&quot;M6.6 6.6A17 17 0 0 0 2 12s3.5 6 10 6a9.8 9.8 0 0 0 5.4-1.6&quot;/&gt;&#x27;,
+  sliders: &#x27;&lt;path d=&quot;M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1&quot;/&gt;&lt;circle cx=&quot;15&quot; cy=&quot;6&quot; r=&quot;2&quot;/&gt;&lt;circle cx=&quot;9&quot; cy=&quot;12&quot; r=&quot;2&quot;/&gt;&lt;circle cx=&quot;17&quot; cy=&quot;18&quot; r=&quot;2&quot;/&gt;&#x27;,
+  x: &#x27;&lt;path d=&quot;M6 6l12 12M18 6L6 18&quot;/&gt;&#x27;,
+  back: &#x27;&lt;path d=&quot;M15 6l-6 6 6 6&quot;/&gt;&#x27;,
+  close: &#x27;&lt;path d=&quot;M6 6l12 12M18 6L6 18&quot;/&gt;&#x27;,
+  expand: &#x27;&lt;path d=&quot;M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5&quot;/&gt;&#x27;,
+  shrink: &#x27;&lt;path d=&quot;M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5&quot;/&gt;&#x27;
+};
+function setIcon(el, name) {
+  el.innerHTML = &#x27;&lt;svg viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot; aria-hidden=&quot;true&quot;&gt;&#x27; + ICONS[name] + &#x27;&lt;/svg&gt;&#x27;;
+}
+function iconBtn(name, label) {
+  const bt = document.createElement(&#x27;button&#x27;);
+  bt.type = &#x27;button&#x27;;
+  bt.className = &#x27;icon-btn&#x27;;
+  bt.title = label;
+  bt.setAttribute(&#x27;aria-label&#x27;, label);
+  setIcon(bt, name);
+  return bt;
+}
+
+let cv = null, cx = null, wrapEl = null, statusEl = null, DPR = 1, raf = 0, blockPat = null;
+let libGroup = &#x27;all&#x27;, libQuery = &#x27;&#x27;, editUid = null, legendKey = &#x27;&#x27;, indsVer = 0;
+
+function say(msg) { if (statusEl) statusEl.textContent = msg; }
+function smallFont() { return &#x27;11px &#x27; + FONT.num; }
+function setOn(id, on) {
+  const el = $(id);
+  el.classList.toggle(&#x27;on&#x27;, !!on);
+  el.setAttribute(&#x27;aria-pressed&#x27;, on ? &#x27;true&#x27; : &#x27;false&#x27;);
+}
+
+function polyline(arr, iA, iB, yfn, color, width) {
+  cx.beginPath();
+  let pen = false;
+  for (let i = iA; i &lt;= iB &amp;&amp; i &lt; arr.length; i++) {
+    const v = arr[i];
+    if (!Number.isFinite(v)) { pen = false; continue; }
+    const x = xOf(i), y = yfn(v);
+    if (pen) cx.lineTo(x, y);
+    else { cx.moveTo(x, y); pen = true; }
+  }
+  cx.strokeStyle = color;
+  cx.lineWidth = width;
+  cx.stroke();
+}
+
+// Dải tô giữa hai đường của chỉ báo (EMA zone, Bollinger, Donchian)
+function drawBand(r, iL, iR) {
+  const bd = r.band, A = r.lines[bd.a].v, B = r.lines[bd.b].v;
+  const last = Math.min(A.length - 1, iR + 1);
+  for (let i = Math.max(0, iL - 1); i &lt; last; i++) {
+    const a1 = A[i], b1 = B[i], a2 = A[i + 1], b2 = B[i + 1];
+    if (!(Number.isFinite(a1) &amp;&amp; Number.isFinite(b1) &amp;&amp; Number.isFinite(a2) &amp;&amp; Number.isFinite(b2))) continue;
+    cx.fillStyle = a2 &gt;= b2 ? bd.up : bd.dn;
+    cx.beginPath();
+    cx.moveTo(xOf(i), yOf(a1));
+    cx.lineTo(xOf(i + 1), yOf(a2));
+    cx.lineTo(xOf(i + 1), yOf(b2));
+    cx.lineTo(xOf(i), yOf(b1));
+    cx.closePath();
+    cx.fill();
+  }
 }
 

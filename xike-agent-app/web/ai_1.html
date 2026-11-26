@@ -289,6 +289,10 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .acct-sub { margin: 6px 0 0; font: 600 13px/1.2 var(--f-ui); color: var(--text); }
 .acct-pos { display: grid; gap: 4px; max-height: 18vh; overflow-y: auto; }
 .acct-pos-row { padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font: 500 12px/1.4 var(--f-num); overflow-wrap: anywhere; }
+/* Nguồn dữ liệu Twelve Data trong Cài đặt */
+#feed { padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.ord-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.td-sel { font: 500 14px/1 var(--f-num); color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 8px; width: 100%; }
 /* Khung đặt lệnh ngay dưới biểu đồ: tắt sẵn, phải bật và bấm xác nhận lần hai mới gửi */
 #trade { display: grid; gap: 8px; padding: 8px 10px 10px; background: var(--panel); border-top: 1px solid var(--line); max-height: 46vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 #trade input { font: 500 14px/1 var(--f-num); color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; width: 100%; min-width: 0; }
@@ -385,6 +389,7 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
     &lt;button type=&quot;button&quot; id=&quot;bBlock&quot; class=&quot;on&quot; aria-pressed=&quot;true&quot;&gt;Giờ cấm&lt;/button&gt;
     &lt;button type=&quot;button&quot; id=&quot;bFile&quot;&gt;Nạp file&lt;/button&gt;
     &lt;button type=&quot;button&quot; id=&quot;bDemo&quot;&gt;Demo&lt;/button&gt;
+    &lt;button type=&quot;button&quot; id=&quot;bAI&quot; title=&quot;AI phân tích dữ liệu nến đang xem&quot;&gt;🤖 AI&lt;/button&gt;
     &lt;button type=&quot;button&quot; id=&quot;bOrd&quot; aria-pressed=&quot;false&quot;&gt;Đặt lệnh&lt;/button&gt;
     &lt;button type=&quot;button&quot; id=&quot;bSet&quot; aria-pressed=&quot;false&quot;&gt;Cài đặt&lt;/button&gt;
   &lt;/div&gt;
@@ -425,6 +430,27 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
     &lt;label&gt;Lệch giờ hiển thị (so với UTC)&lt;input id=&quot;iTz&quot; type=&quot;number&quot; inputmode=&quot;numeric&quot; min=&quot;-12&quot; max=&quot;14&quot; value=&quot;7&quot;&gt;&lt;/label&gt;
     &lt;p class=&quot;note&quot; id=&quot;info&quot;&gt;&lt;/p&gt;
     &lt;p class=&quot;note&quot;&gt;Nạp file: CSV hoặc TSV có cột time (hoặc date và time), open, high, low, close, volume. File TradingView xuất theo UTC, để 7 để ra giờ VN. File MT5 theo giờ server của broker, lấy 7 trừ đi lệch giờ đó.&lt;/p&gt;
+    &lt;div class=&quot;acct&quot; id=&quot;feed&quot;&gt;
+      &lt;h3 class=&quot;acct-title&quot;&gt;Nguồn dữ liệu: Twelve Data&lt;/h3&gt;
+      &lt;p class=&quot;note&quot;&gt;Nến XAU/USD thật cho biểu đồ và cho AI phân tích. Lấy khoá miễn phí ở twelvedata.com (gói Basic: 8 lần gọi/phút, 800 lần/ngày). Khoá chỉ dùng để đọc giá, lưu trong máy này.&lt;/p&gt;
+      &lt;label&gt;Khoá API Twelve Data&lt;input id=&quot;tdKey&quot; type=&quot;password&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; placeholder=&quot;Dán khoá API&quot;&gt;&lt;/label&gt;
+      &lt;div class=&quot;ord-grid&quot;&gt;
+        &lt;label&gt;Mã&lt;input id=&quot;tdSym&quot; type=&quot;text&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; value=&quot;XAU/USD&quot;&gt;&lt;/label&gt;
+        &lt;label&gt;Khung nến gốc&lt;select id=&quot;tdTf&quot; class=&quot;td-sel&quot;&gt;
+          &lt;option value=&quot;M1&quot;&gt;M1 (khoảng 3,5 ngày)&lt;/option&gt;
+          &lt;option value=&quot;M5&quot;&gt;M5 (khoảng 17 ngày)&lt;/option&gt;
+          &lt;option value=&quot;M15&quot; selected&gt;M15 (khoảng 52 ngày)&lt;/option&gt;
+          &lt;option value=&quot;M30&quot;&gt;M30 (khoảng 104 ngày)&lt;/option&gt;
+          &lt;option value=&quot;H1&quot;&gt;H1 (khoảng 7 tháng)&lt;/option&gt;
+        &lt;/select&gt;&lt;/label&gt;
+        &lt;label&gt;Tự cập nhật (giây, 0 = tắt)&lt;input id=&quot;tdEvery&quot; type=&quot;text&quot; inputmode=&quot;numeric&quot; value=&quot;120&quot;&gt;&lt;/label&gt;
+      &lt;/div&gt;
+      &lt;div class=&quot;acct-row&quot;&gt;
+        &lt;button type=&quot;button&quot; id=&quot;tdLoad&quot;&gt;Lưu và tải nến&lt;/button&gt;
+        &lt;button type=&quot;button&quot; id=&quot;tdStop&quot;&gt;Dừng cập nhật&lt;/button&gt;
+      &lt;/div&gt;
+      &lt;p class=&quot;note&quot; id=&quot;tdMsg&quot;&gt;Chưa kết nối nguồn dữ liệu.&lt;/p&gt;
+    &lt;/div&gt;
     &lt;div class=&quot;acct&quot; id=&quot;acct&quot;&gt;
       &lt;h3 class=&quot;acct-title&quot;&gt;Tài khoản MT5&lt;/h3&gt;
       &lt;label&gt;Địa chỉ VPS (https)&lt;input id=&quot;acctUrl&quot; type=&quot;url&quot; inputmode=&quot;url&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; placeholder=&quot;https://ten-mien-cua-ban.com&quot;&gt;&lt;/label&gt;
@@ -536,6 +562,7 @@ const S = {
 };
 let BASE = [], baseSec = 60, baseName = &#x27;&#x27;, hasData = false, cache = {}, dataGen = 0, UID = 0;
 let VP = { pMin: 0, pMax: 1 };
+let XK_FIT = null;   // khi chụp cho AI: mở rộng thang giá để đủ các mức AI đưa ra
 let view = { w: 360, h: 600 };
 let LAY = { w: 360, h: 600, axisR: 64, axisB: 22, plotW: 296, totalH: 578, mainH: 578, paneH: 0, nPanes: 0, volH: 0, candleTop: 8, candleBottom: 570 };
 
@@ -1576,6 +1603,7 @@ function render() {
       }
     }
   }
+  if (XK_FIT) { lo = Math.min(lo, XK_FIT.lo); hi = Math.max(hi, XK_FIT.hi); }
   const pad = hi &gt; lo ? (hi - lo) * 0.08 : 1;
   VP = { pMin: lo - pad, pMax: hi + pad };
 
@@ -2916,6 +2944,9 @@ function bindUI() {
   $(&#x27;iTz&#x27;).addEventListener(&#x27;change&#x27;, applyTz);
   $(&#x27;acctSave&#x27;).addEventListener(&#x27;click&#x27;, acctSaveClick);
   $(&#x27;acctRefresh&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; acctRefresh());
+  $(&#x27;tdLoad&#x27;).addEventListener(&#x27;click&#x27;, tdLoadClick);
+  $(&#x27;tdStop&#x27;).addEventListener(&#x27;click&#x27;, tdStopClick);
+  $(&#x27;bAI&#x27;).addEventListener(&#x27;click&#x27;, aiClick);
   $(&#x27;mtLoginBtn&#x27;).addEventListener(&#x27;click&#x27;, mtLoginClick);
   $(&#x27;mtLogoutBtn&#x27;).addEventListener(&#x27;click&#x27;, mtLogoutClick);
   $(&#x27;mtPass&#x27;).addEventListener(&#x27;keydown&#x27;, e =&gt; { if (e.key === &#x27;Enter&#x27;) mtLoginClick(); });
@@ -3142,6 +3173,194 @@ function acctSaveClick() {
   acctPutStored(base, token);
   $(&#x27;acctUrl&#x27;).value = base;
   acctPanelChanged(true);
+}
+
+/* ===== Nguồn dữ liệu Twelve Data: tải nến XAU/USD thật, tự cập nhật ===== */
+const TD_KEY = &#x27;xau-chart-twelvedata-v1&#x27;;   // khoá API (chỉ đọc giá), mã, khung gốc, chu kỳ cập nhật
+const TD_IV = { M1: &#x27;1min&#x27;, M5: &#x27;5min&#x27;, M15: &#x27;15min&#x27;, M30: &#x27;30min&#x27;, H1: &#x27;1h&#x27; };
+let tdTimer = 0, tdBusy = false;
+
+function tdStored() {
+  try { const v = JSON.parse(localStorage.getItem(TD_KEY) || &#x27;null&#x27;); return v &amp;&amp; typeof v === &#x27;object&#x27; ? v : {}; }
+  catch (err) { return {}; }
+}
+function tdFill() {
+  const v = tdStored();
+  if (v.key) $(&#x27;tdKey&#x27;).value = v.key;
+  if (v.sym) $(&#x27;tdSym&#x27;).value = v.sym;
+  if (v.tf &amp;&amp; TD_IV[v.tf]) $(&#x27;tdTf&#x27;).value = v.tf;
+  if (v.every !== undefined) $(&#x27;tdEvery&#x27;).value = String(v.every);
+}
+function tdSay(t) { $(&#x27;tdMsg&#x27;).textContent = t; }
+// &quot;2026-11-26 09:15:00&quot; (UTC) → giây
+function tdTime(s) {
+  const m = String(s || &#x27;&#x27;).match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if (!m) return NaN;
+  return Math.floor(Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)) / 1000);
+}
+async function tdFetch(cfg, size) {
+  const q = new URLSearchParams({
+    symbol: cfg.sym, interval: TD_IV[cfg.tf], outputsize: String(size), timezone: &#x27;UTC&#x27;, order: &#x27;asc&#x27;, apikey: cfg.key
+  });
+  const ctl = new AbortController();
+  const timer = setTimeout(() =&gt; ctl.abort(), 20000);
+  try {
+    const res = await fetch(&#x27;https://api.twelvedata.com/time_series?&#x27; + q.toString(), { cache: &#x27;no-store&#x27;, signal: ctl.signal });
+    const data = await res.json().catch(() =&gt; ({}));
+    if (data.status === &#x27;error&#x27; || !res.ok) {
+      const code = Number(data.code || res.status);
+      const why = code === 401 ? &#x27;Sai khoá API.&#x27; : code === 429 ? &#x27;Hết lượt gọi (8 lần/phút hoặc 800 lần/ngày). Đợi rồi thử lại, hoặc tăng số giây tự cập nhật.&#x27;
+        : (data.message || (&#x27;Twelve Data trả lỗi &#x27; + code + &#x27;.&#x27;));
+      throw new Error(why);
+    }
+    const vals = Array.isArray(data.values) ? data.values : [];
+    const bars = vals.map(v =&gt; ({ t: tdTime(v.datetime), o: +v.open, h: +v.high, l: +v.low, c: +v.close, v: +v.volume || 0 }))
+      .filter(b =&gt; [b.t, b.o, b.h, b.l, b.c].every(Number.isFinite)).sort((a, b) =&gt; a.t - b.t);
+    return bars;
+  } catch (err) {
+    if (err.name === &#x27;AbortError&#x27;) throw new Error(&#x27;Twelve Data không trả lời (hết 20 giây).&#x27;);
+    if (err instanceof TypeError) throw new Error(&#x27;Không kết nối được Twelve Data. Kiểm tra mạng.&#x27;);
+    throw err;
+  } finally { clearTimeout(timer); }
+}
+function tdRead() {
+  const key = $(&#x27;tdKey&#x27;).value.trim(), sym = $(&#x27;tdSym&#x27;).value.trim() || &#x27;XAU/USD&#x27;, tf = $(&#x27;tdTf&#x27;).value;
+  const every = Math.max(0, Math.round(Number($(&#x27;tdEvery&#x27;).value) || 0));
+  return { key, sym, tf: TD_IV[tf] ? tf : &#x27;M15&#x27;, every: every &amp;&amp; every &lt; 30 ? 30 : every };
+}
+async function tdLoadClick() {
+  const cfg = tdRead();
+  if (!cfg.key) { tdSay(&#x27;Dán khoá API Twelve Data trước.&#x27;); return; }
+  try { localStorage.setItem(TD_KEY, JSON.stringify(cfg)); } catch (err) { /* không lưu được: vẫn dùng trong phiên */ }
+  $(&#x27;tdEvery&#x27;).value = String(cfg.every);
+  clearInterval(tdTimer);
+  tdTimer = 0;
+  tdBusy = true;
+  tdSay(&#x27;Đang tải nến &#x27; + cfg.sym + &#x27; &#x27; + cfg.tf + &#x27;...&#x27;);
+  try {
+    const bars = await tdFetch(cfg, 5000);
+    if (bars.length &lt; 50) throw new Error(&#x27;Chỉ nhận được &#x27; + bars.length + &#x27; nến. Kiểm tra mã (vd XAU/USD).&#x27;);
+    setBase(bars, &#x27;Live Twelve Data &#x27; + cfg.sym);
+    S.anchor = series(S.tf).bars.length - 1 + 6;
+    clampAnchor();
+    schedule();
+    tdSay(&#x27;Đã tải &#x27; + bars.length + &#x27; nến &#x27; + cfg.tf + &#x27; · nến cuối &#x27; + fmtTs(bars[bars.length - 1].t, &#x27;dhm&#x27;) +
+      (cfg.every ? &#x27; · tự cập nhật mỗi &#x27; + cfg.every + &#x27; giây&#x27; : &#x27;&#x27;));
+    if (cfg.every) tdTimer = setInterval(tdTick, cfg.every * 1000);
+  } catch (err) {
+    tdSay(err.message || &#x27;Lỗi không rõ.&#x27;);
+  } finally { tdBusy = false; }
+}
+// Cập nhật vài nến mới nhất; bỏ qua khi app ẩn hoặc không ở tab Biểu đồ để tiết kiệm lượt gọi
+async function tdTick() {
+  if (tdBusy || document.hidden || window.innerWidth &lt; 10 || !/^Live Twelve/.test(baseName)) return;
+  const cfg = tdStored();
+  if (!cfg.key) return;
+  tdBusy = true;
+  try {
+    const bars = await tdFetch(cfg, 3);
+    let n = 0;
+    for (const b of bars) if (xkUpsertBar(Object.assign({ sec: baseSec }, b))) n++;
+    baseName = &#x27;Live Twelve Data &#x27; + cfg.sym;
+    if (n) tdSay(&#x27;Cập nhật &#x27; + acctClock() + &#x27; · giá &#x27; + bars[bars.length - 1].c);
+  } catch (err) {
+    tdSay(err.message + &#x27; (lần cập nhật &#x27; + acctClock() + &#x27;)&#x27;);
+  } finally { tdBusy = false; }
+}
+function tdStopClick() {
+  clearInterval(tdTimer);
+  tdTimer = 0;
+  tdSay(&#x27;Đã dừng tự cập nhật. Bấm Lưu và tải nến để chạy lại.&#x27;);
+}
+function tdAutoStart() {
+  const cfg = tdStored();
+  if (cfg.key &amp;&amp; TD_IV[cfg.tf]) setTimeout(tdLoadClick, 300);
+}
+
+/* ===== Gói dữ liệu cho AI: nến + EMA 34/80 + MACD + TRIX tính từ dữ liệu thật, kèm ảnh biểu đồ đang xem ===== */
+function aiSnapshot() {
+  if (!hasData) return { error: &#x27;Chưa có nến. Kết nối Twelve Data trong Cài đặt, hoặc bấm Demo.&#x27; };
+  const ser = series(S.tf), bars = ser.bars, N = bars.length;
+  if (N &lt; 100) return { error: &#x27;Cần ít nhất 100 nến &#x27; + S.tf + &#x27; (đang có &#x27; + N + &#x27;). Chọn khung nhỏ hơn hoặc tải thêm nến.&#x27; };
+  const c = closesOf(bars), h = highsOf(bars), l = lowsOf(bars);
+  const e34 = ema(c, 34), e80 = ema(c, 80), mac = macdLineArr(c, 12, 26), sig = ema(mac, 9), tr = trixCalc(c, 25, 15);
+  const f = (v, d) =&gt; Number.isFinite(v) ? v.toFixed(d) : &#x27;-&#x27;;
+  const rows = [];
+  for (let i = Math.max(0, N - 40); i &lt; N; i++) {
+    rows.push([fmtTs(bars[i].t, &#x27;dhm&#x27;), f(bars[i].o, 2), f(bars[i].h, 2), f(bars[i].l, 2), f(bars[i].c, 2),
+      f(e34[i], 2), f(e80[i], 2), f(mac[i], 3), f(sig[i], 3), f(mac[i] - sig[i], 3), f(tr.t[i], 3), f(tr.s[i], 3)].join(&#x27; | &#x27;));
+  }
+  // Tín hiệu gần đây theo vùng EMA (BUY/SELL, BUY P/SELL P) và TRIX (Buy/Sell)
+  const marks = [];
+  try {
+    for (const m of zoneMarks(h, l, c, e34, e80, mac, 3, 0.5, 1)) if (m.i &gt;= N - 60) marks.push({ i: m.i, t: m.text });
+    for (const m of trixMarks(tr.t, tr.s)) if (m.i &gt;= N - 60) marks.push({ i: m.i, t: &#x27;TRIX &#x27; + m.text });
+  } catch (err) { /* thiếu hàm đánh dấu: bỏ qua phần tín hiệu */ }
+  marks.sort((a, b) =&gt; a.i - b.i);
+  let hi = -Infinity, lo = Infinity;
+  for (let i = Math.max(0, N - 100); i &lt; N; i++) { hi = Math.max(hi, h[i]); lo = Math.min(lo, l[i]); }
+  const last = bars[N - 1];
+  const text = [
+    &#x27;Mã: &#x27; + (baseName.replace(/^Live Twelve Data /, &#x27;&#x27;) || &#x27;XAUUSD&#x27;) + &#x27; · khung &#x27; + S.tf + &#x27; · giờ VN (UTC&#x27; + (S.tz &gt;= 0 ? &#x27;+&#x27; : &#x27;&#x27;) + S.tz + &#x27;) · nguồn: &#x27; + baseName,
+    &#x27;Giá hiện tại (đóng nến cuối, nến cuối có thể chưa đóng): &#x27; + f(last.c, 2) + &#x27; lúc &#x27; + fmtTs(last.t, &#x27;dhm&#x27;),
+    &#x27;Đỉnh/đáy 100 nến gần nhất: &#x27; + f(hi, 2) + &#x27; / &#x27; + f(lo, 2),
+    &#x27;Tín hiệu trong 60 nến gần nhất: &#x27; + (marks.length ? marks.map(m =&gt; m.t + &#x27; lúc &#x27; + fmtTs(bars[m.i].t, &#x27;dhm&#x27;)).join(&#x27;; &#x27;) : &#x27;không có&#x27;),
+    &#x27;40 nến gần nhất (cũ → mới):&#x27;,
+    &#x27;Giờ | Mở | Cao | Thấp | Đóng | EMA34 | EMA80 | MACD | Signal | Hist | TRIX | TRIX signal&#x27;,
+    rows.join(&#x27;\n&#x27;)
+  ].join(&#x27;\n&#x27;);
+
+  const shot = takeShot(null);
+  if (!shot) return { error: &#x27;Mở tab Biểu đồ để AI chụp biểu đồ.&#x27; };
+  return Object.assign({ tf: S.tf, now: last.c, text }, shot);
+}
+
+// Chụp biểu đồ đang xem (kéo về nến mới nhất), kèm thang giá đúng để vẽ chính xác.
+// fit = { lo, hi }: mở rộng thang giá cho đủ các mức cần vẽ.
+function takeShot(fit) {
+  if (!hasData) return null;
+  const N = series(S.tf).bars.length;
+  S.anchor = N - 1 + Math.round(LAY.plotW * 0.28 / S.barW);
+  clampAnchor();
+  // Tạm ẩn Gann Fan tự động (có TP/SL riêng) để không lẫn với kế hoạch của AI
+  const hidden = S.inds.filter(x =&gt; x.id === &#x27;gann_fan&#x27; &amp;&amp; x.on);
+  hidden.forEach(x =&gt; { x.on = false; });
+  indsVer += 1;
+  legendKey = &#x27;&#x27;;
+  XK_FIT = fit &amp;&amp; Number.isFinite(fit.lo) &amp;&amp; Number.isFinite(fit.hi) ? fit : null;
+  render();
+  const r = cv.getBoundingClientRect();
+  let out = null;
+  if (r.width &gt; 0 &amp;&amp; r.height &gt; 0) {
+    const p1 = priceAtY(LAY.candleTop + (LAY.candleBottom - LAY.candleTop) * 0.15);
+    const p2 = priceAtY(LAY.candleTop + (LAY.candleBottom - LAY.candleTop) * 0.85);
+    out = {
+      image: cv.toDataURL(&#x27;image/jpeg&#x27;, 0.92),
+      axis: [{ price: p1, y: yOf(p1) / r.height * 1000 }, { price: p2, y: yOf(p2) / r.height * 1000 }],
+      pane: { top: LAY.candleTop / r.height * 1000, bottom: LAY.candleBottom / r.height * 1000 },
+      last_x: xOf(N - 1) / r.width * 1000
+    };
+  }
+  XK_FIT = null;
+  hidden.forEach(x =&gt; { x.on = true; });
+  indsVer += 1;
+  legendKey = &#x27;&#x27;;
+  schedule();
+  return out;
+}
+// Trang chính xin chụp lại khi AI đã trả các mức giá
+window.addEventListener(&#x27;message&#x27;, e =&gt; {
+  if (e.source !== window.parent || !e.data || e.data.type !== &#x27;xk-shot&#x27;) return;
+  const shot = takeShot({ lo: Number(e.data.lo), hi: Number(e.data.hi) });
+  window.parent.postMessage(Object.assign({ type: &#x27;xk-shot-done&#x27;, id: e.data.id }, shot || { error: &#x27;hidden&#x27; }), &#x27;*&#x27;);
+  if (shot) say(&#x27;AI đã phân tích xong. Xem ở tab Phân tích.&#x27;);
+});
+function aiClick() {
+  const snap = aiSnapshot();
+  if (snap.error) { say(snap.error); return; }
+  if (window.parent === window) { say(&#x27;Nút AI chỉ chạy trong app.&#x27;); return; }
+  window.parent.postMessage(Object.assign({ type: &#x27;xk-analyze&#x27; }, snap), &#x27;*&#x27;);
+  say(&#x27;AI đang phân tích dữ liệu &#x27; + snap.tf + &#x27;… Giữ tab Biểu đồ để AI vẽ lên biểu đồ.&#x27;);
 }
 
 /* ===== Đăng nhập MT5 qua VPS (POST /login, POST /logout). Mật khẩu chỉ gửi đi, không lưu. ===== */
@@ -3428,6 +3647,7 @@ function start(st) {
   syncSettings();
   acctFill();
   mtFill();
+  tdFill();
   ordLoad();
   updateIndBadge();
   setMode(&#x27;pan&#x27;);
@@ -3440,6 +3660,7 @@ function start(st) {
   if (document.fonts &amp;&amp; document.fonts.ready) document.fonts.ready.then(schedule);
   if (!XK_APP) loadDemo();                       // bản artifact: dữ liệu mô phỏng
   else if (!xkLoadBars()) { updateInfo(); say(&#x27;Chưa có nến. Bấm Nạp file để nạp CSV, hoặc Demo.&#x27;); }
+  tdAutoStart();                                  // đã có khoá Twelve Data: tự tải nến thật
 }
 
 /* ===== Phóng to: khung biểu đồ lấp kín màn hình (chỉ trong app). Trang app ẩn thanh chọn, nút nằm ở góc phải thanh trên. ===== */
@@ -3705,6 +3926,23 @@ const ANALYZE_PROMPT = [
   "last_x: vị trí ngang của nến cuối cùng.",
   "callouts: 2-4 chú thích ngắn (dưới 10 chữ) cho chi tiết đáng chú ý trên ảnh: đường EMA, MACD, TRIX, tín hiệu Buy/Sell, nến đặc biệt. x,y là điểm cần chỉ vào; tx,ty là chỗ đặt chữ, chọn vùng trống không che nến và không trùng nhau.",
   "Chỉ dùng số đọc được trên ảnh, không đoán."
+].join("\n");
+
+// Phân tích từ dữ liệu nến thật (Twelve Data), không dùng ảnh
+const LIVE_PROMPT = [
+  "Phân tích XAUUSD từ dữ liệu nến và chỉ báo dưới đây (số đã tính sẵn từ giá thật), theo đúng các quy tắc tôi đã dạy. Trả lời theo thứ tự:",
+  "1. Khung thời gian và giá hiện tại.",
+  "2. Xu hướng: EMA 34/80, MACD, TRIX (ghi giá trị trong dữ liệu).",
+  "3. Tín hiệu theo quy tắc: đã có hay chưa, thuộc quy tắc nào, còn thiếu điều kiện gì.",
+  "4. Kế hoạch: BUY, SELL hoặc ĐỨNG NGOÀI. Nếu vào lệnh thì ghi vùng entry, SL, TP1, TP2, TP3, mỗi mức ghi khoảng cách bằng giá và pip (10 giá = 100 pip).",
+  "5. Điều kiện huỷ kế hoạch.",
+  "Viết ngắn gọn, khoảng 250 chữ. Chỉ dùng số trong dữ liệu, không đoán.",
+  "",
+  "6. Cuối câu trả lời, thêm khối số liệu để app vẽ lên biểu đồ: dòng <<<VE, một JSON hợp lệ, rồi dòng VE>>>. Không giải thích khối này. Mẫu:",
+  "<<<VE",
+  '{"bias":"SELL","now":3624.63,"resistance":[3695.19],"support":[3600,3500],"entry":3655,"sl":3700,"tp":[3600,3550,3500],"note":"Giảm mạnh dưới dải EMA"}',
+  "VE>>>",
+  "bias: BUY, SELL hoặc SIDEWAY. resistance, support: tối đa 2 mức chính mỗi loại, lấy từ đỉnh/đáy hoặc EMA trong dữ liệu. entry, sl để null và tp để [] nếu ĐỨNG NGOÀI."
 ].join("\n");
 
 const ANALYZE_QUERY = "phân tích biểu đồ XAUUSD, tín hiệu EMA 34/80, MACD, TRIX, entry, SL, TP";
@@ -4114,7 +4352,10 @@ async function annotateChart(src, d) {
       yOf = (p) => ((hi.y + (hi.p - p) * k) / 1000) * H;
     }
   }
-  const inside = (y) => y > H * 0.03 && y < H * 0.97;
+  // Vùng nến: khi vẽ lên biểu đồ trong app, chỉ vẽ trong ô giá (không đè xuống ô MACD/TRIX)
+  const pTop = d.pane && Number.isFinite(+d.pane.top) ? +d.pane.top / 1000 * H : H * 0.03;
+  const pBot = d.pane && Number.isFinite(+d.pane.bottom) ? +d.pane.bottom / 1000 * H : H * 0.97;
+  const inside = (y) => y > pTop && y < pBot;
 
   const bias = String(d.bias || "").toUpperCase();
   const now = numOrNull(d.now);
@@ -4132,7 +4373,8 @@ async function annotateChart(src, d) {
   // Khung nhận định chỉ ghi xu hướng
   const noteLines = ["NHẬN ĐỊNH: " + (biasText || "—")];
   boxW = Math.min(boxW, cx.measureText(noteLines[0]).width + notePad * 2 + u * 0.2);
-  const box = { x: W - boxW - u * 0.3, y: fy(d.note_y, 100), w: boxW, h: 0 };
+  const boxX = () => W - tagW - boxW - u * 0.4;   // bên trái cột nhãn giá, không che SL/TP
+  const box = { x: boxX(), y: d.pane ? pTop + u * 0.3 : fy(d.note_y, 100), w: boxW, h: 0 };
   box.h = notePad * 2 + noteLh * noteLines.length + u * 0.8 + (yOf ? 0 : noteSz * 1.15 * 3);   // chiều cao dự kiến, gồm dòng chữ nhỏ bên dưới
   const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
   const hits = (r) => overlap(r, box);
@@ -4220,7 +4462,7 @@ async function annotateChart(src, d) {
       const near = (a, b) => Math.abs(a - now) - Math.abs(b - now);
       const cands = (up ? res : sup).filter(ahead).concat(tps.filter(ahead)).sort(near);
       let y1 = cands.length ? yOf(cands[cands.length > 1 ? 1 : 0]) + (up ? -1 : 1) * u * 2 : y0 + (up ? -1 : 1) * H * 0.12;
-      y1 = Math.max(H * 0.06, Math.min(H * 0.94, y1));
+      y1 = Math.max(pTop + u, Math.min(pBot - u, y1));
       const x0 = lastX + u * 1.2, x1 = Math.min(W - tagW - u * 1.5, x0 + W * 0.3);
       if (x1 > x0 + u * 2) arrow(x0, y0 + (up ? -u : u), x1, y1, { width: Math.max(4, u * 0.38), dash: [u * 1.2, u * 0.8], head: u * 1.8 });
     }
@@ -4272,7 +4514,7 @@ async function annotateChart(src, d) {
   if (extraLines.length) {
     boxW = Math.max(boxW, Math.min(W * 0.54, u * 16.5));
     box.w = boxW;
-    box.x = W - boxW - u * 0.3;
+    box.x = boxX();
   }
   box.h = notePad * 2 + noteLh * noteLines.length + noteSz * 1.15 * extraLines.length;
   cx.fillStyle = "rgba(14,19,29,.9)";
@@ -4506,6 +4748,95 @@ async function send(analyze) {
     setChatBusy(false);
   }
 }
+
+// Nhận gói dữ liệu từ biểu đồ (nút 🤖 AI), gửi số liệu cho AI, vẽ kết quả lên ảnh biểu đồ đúng thang giá
+async function sendLive(snap) {
+  if (chatBusy) { show("chat"); hint("AI đang trả lời câu trước, đợi xong rồi bấm lại."); return; }
+  const note = $("msg").value.trim();
+  const text = LIVE_PROMPT + (note ? "\n\nGhi chú của tôi: " + note : "") + "\n\nDỮ LIỆU:\n" + snap.text;
+  let thumb = "";
+  try { thumb = (await shrink(snap.image, 900, 0.8)).dataUrl; } catch (e) { thumb = ""; }
+  const entry = { role: "user", text, display: "📈 Phân tích dữ liệu live " + snap.tf + (note ? " · " + note : ""), thumb, full: snap.image, t: Date.now() };
+  history.push(entry);
+  const bubble = addToLog(messageEl(entry));
+  $("msg").value = "";
+  growComposer();
+  setChatBusy(true);
+  const waiting = addToLog(typingEl("AI đang đọc dữ liệu " + snap.tf + "…"));
+  let extra = "";
+  if ($("withJournal").checked) {
+    try { extra = await journalContext(); } catch (e) { extra = ""; }
+  }
+  const recent = history.slice(-12).map((h) => ({ role: h.role, text: h.text }));
+  while (recent.length && recent[0].role !== "user") recent.shift();
+  try {
+    const r = await api("chat", {
+      history: recent, imageB64: "", imageMime: "", analyze: true,
+      query: note || ANALYZE_QUERY, extraContext: extra
+    });
+    const ex = extractDraw(r.text);
+    const reply = { role: "model", text: ex.clean, model: r.model, rules: r.rules || [], note: r.note || "", t: Date.now() };
+    if (ex.data) {
+      // Chụp lại biểu đồ với thang giá đủ các mức AI đưa ra (nếu tab Biểu đồ còn mở)
+      const now0 = numOrNull(ex.data.now) || snap.now;
+      const lv = [now0].concat(numList(ex.data.resistance), numList(ex.data.support), numList(ex.data.tp),
+        [numOrNull(ex.data.entry), numOrNull(ex.data.sl)].filter((x) => x !== null)).filter((x) => Math.abs(x - now0) / now0 < 0.08);
+      const shot = (await reshoot(Math.min(...lv), Math.max(...lv))) || snap;
+      // Thang giá và vị trí nến cuối lấy từ biểu đồ, không cần AI đọc ảnh
+      const d = Object.assign({}, ex.data, { axis: shot.axis, last_x: shot.last_x, pane: shot.pane, callouts: [] });
+      if (!numOrNull(d.now)) d.now = snap.now;
+      try {
+        const out = await annotateChart(shot.image, d);
+        reply.ann = out.dataUrl;
+        reply.annThumb = (await shrink(out.dataUrl, 900, 0.8)).dataUrl;
+      } catch (err) {
+        reply.note = (reply.note ? reply.note + "\n" : "") + "Không vẽ được lên biểu đồ: " + (err.message || "lỗi không rõ") + ".";
+      }
+    } else {
+      reply.note = (reply.note ? reply.note + "\n" : "") + "AI không trả số liệu để vẽ lên biểu đồ lần này.";
+    }
+    waiting.remove();
+    history.push(reply);
+    addToLog(messageEl(reply));
+    saveChat();
+  } catch (e) {
+    waiting.remove();
+    bubble.remove();
+    history.pop();
+    $("msg").value = note;
+    growComposer();
+    addToLog(errorEl(e.message));
+  } finally {
+    setChatBusy(false);
+    show("chat");
+  }
+}
+
+// Nhờ khung biểu đồ chụp lại với thang giá [lo, hi]; trả null nếu tab Biểu đồ đã đóng hoặc quá 4 giây
+let shotSeq = 0;
+function reshoot(lo, hi) {
+  const f = $("xauFrame");
+  if (!f || !f.contentWindow || !Number.isFinite(lo) || !Number.isFinite(hi)) return Promise.resolve(null);
+  const id = "s" + ++shotSeq;
+  return new Promise((resolve) => {
+    const done = (v) => { window.removeEventListener("message", on); clearTimeout(timer); resolve(v); };
+    const on = (e) => {
+      if (e.source !== f.contentWindow || !e.data || e.data.type !== "xk-shot-done" || e.data.id !== id) return;
+      done(e.data.image && /^data:image\//.test(e.data.image) ? e.data : null);
+    };
+    const timer = setTimeout(() => done(null), 4000);
+    window.addEventListener("message", on);
+    f.contentWindow.postMessage({ type: "xk-shot", id, lo, hi }, "*");
+  });
+}
+
+window.addEventListener("message", (e) => {
+  const f = $("xauFrame");
+  if (!f || e.source !== f.contentWindow || !e.data || e.data.type !== "xk-analyze") return;
+  const d = e.data;
+  if (typeof d.text !== "string" || typeof d.image !== "string" || !/^data:image\//.test(d.image)) return;
+  sendLive(d);
+});
 
 function saveChat() {
   clearTimeout(saveTimer);

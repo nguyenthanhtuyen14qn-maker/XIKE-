@@ -1,99 +1,3 @@
-function applyState(st) {
-  if (!st || typeof st !== &#x27;object&#x27;) return;
-  if (TFS.some(t =&gt; t.id === st.tf)) S.tf = st.tf;
-  if (typeof st.showBlock === &#x27;boolean&#x27;) S.showBlock = st.showBlock;
-  S.tz = clampInt(st.tz, -12, 14, S.tz);
-  if (Array.isArray(st.drawings)) S.drawings = st.drawings;
-  if (Array.isArray(st.inds)) S.inds = sanitizeInds(st.inds);
-}
-&lt;/script&gt;
-&lt;script id=&quot;app-js&quot;&gt;
-/* ===== Giao diện, vẽ và sự kiện ===== */
-const $ = id =&gt; document.getElementById(id);
-const DEMO_LABEL = &#x27;Demo (mô phỏng, không phải giá thật)&#x27;;
-const LS_KEY = &#x27;xau-chart-drawings-v1&#x27;;
-const IND_KEY = &#x27;xau-chart-indicators-v2&#x27;;
-const COL = {
-  bg: &#x27;#0e131d&#x27;, panel: &#x27;#151c2a&#x27;, line: &#x27;#242d3f&#x27;, text: &#x27;#dde3ee&#x27;, muted: &#x27;#7c8699&#x27;,
-  accent: &#x27;#4f8dff&#x27;, up: &#x27;#2bb39a&#x27;, down: &#x27;#ef6471&#x27;,
-  fan: &#x27;#9aa9c7&#x27;, hline: &#x27;#5ad1e6&#x27;, levels: &#x27;#b48cf2&#x27;,
-  zoneUp: &#x27;rgba(43,179,154,0.16)&#x27;, zoneDn: &#x27;rgba(239,100,113,0.16)&#x27;,
-  volUp: &#x27;rgba(43,179,154,0.32)&#x27;, volDn: &#x27;rgba(239,100,113,0.32)&#x27;,
-  grid: &#x27;rgba(124,134,153,0.55)&#x27;, cross: &#x27;#5b6679&#x27;, box: &#x27;#253047&#x27;
-};
-const FONT = {
-  num: &#x27;&quot;IBM Plex Mono&quot;, ui-monospace, Menlo, Consolas, monospace&#x27;,
-  ui: &#x27;&quot;IBM Plex Sans&quot;, system-ui, sans-serif&#x27;
-};
-const GROUPS = [[&#x27;all&#x27;, &#x27;Tất cả&#x27;], [&#x27;trend&#x27;, &#x27;Trên giá&#x27;], [&#x27;osc&#x27;, &#x27;Dao động&#x27;]];
-const ICONS = {
-  plus: &#x27;&lt;path d=&quot;M12 5v14M5 12h14&quot;/&gt;&#x27;,
-  eye: &#x27;&lt;path d=&quot;M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z&quot;/&gt;&lt;circle cx=&quot;12&quot; cy=&quot;12&quot; r=&quot;3&quot;/&gt;&#x27;,
-  eyeO: &#x27;&lt;path d=&quot;M3 3l18 18&quot;/&gt;&lt;path d=&quot;M10.6 6.1A9.8 9.8 0 0 1 12 6c6.5 0 10 6 10 6a17 17 0 0 1-3.2 3.9&quot;/&gt;&lt;path d=&quot;M6.6 6.6A17 17 0 0 0 2 12s3.5 6 10 6a9.8 9.8 0 0 0 5.4-1.6&quot;/&gt;&#x27;,
-  sliders: &#x27;&lt;path d=&quot;M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1&quot;/&gt;&lt;circle cx=&quot;15&quot; cy=&quot;6&quot; r=&quot;2&quot;/&gt;&lt;circle cx=&quot;9&quot; cy=&quot;12&quot; r=&quot;2&quot;/&gt;&lt;circle cx=&quot;17&quot; cy=&quot;18&quot; r=&quot;2&quot;/&gt;&#x27;,
-  x: &#x27;&lt;path d=&quot;M6 6l12 12M18 6L6 18&quot;/&gt;&#x27;,
-  back: &#x27;&lt;path d=&quot;M15 6l-6 6 6 6&quot;/&gt;&#x27;,
-  close: &#x27;&lt;path d=&quot;M6 6l12 12M18 6L6 18&quot;/&gt;&#x27;,
-  expand: &#x27;&lt;path d=&quot;M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5&quot;/&gt;&#x27;,
-  shrink: &#x27;&lt;path d=&quot;M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5&quot;/&gt;&#x27;
-};
-function setIcon(el, name) {
-  el.innerHTML = &#x27;&lt;svg viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot; aria-hidden=&quot;true&quot;&gt;&#x27; + ICONS[name] + &#x27;&lt;/svg&gt;&#x27;;
-}
-function iconBtn(name, label) {
-  const bt = document.createElement(&#x27;button&#x27;);
-  bt.type = &#x27;button&#x27;;
-  bt.className = &#x27;icon-btn&#x27;;
-  bt.title = label;
-  bt.setAttribute(&#x27;aria-label&#x27;, label);
-  setIcon(bt, name);
-  return bt;
-}
-
-let cv = null, cx = null, wrapEl = null, statusEl = null, DPR = 1, raf = 0, blockPat = null;
-let libGroup = &#x27;all&#x27;, libQuery = &#x27;&#x27;, editUid = null, legendKey = &#x27;&#x27;, indsVer = 0;
-
-function say(msg) { if (statusEl) statusEl.textContent = msg; }
-function smallFont() { return &#x27;11px &#x27; + FONT.num; }
-function setOn(id, on) {
-  const el = $(id);
-  el.classList.toggle(&#x27;on&#x27;, !!on);
-  el.setAttribute(&#x27;aria-pressed&#x27;, on ? &#x27;true&#x27; : &#x27;false&#x27;);
-}
-
-function polyline(arr, iA, iB, yfn, color, width) {
-  cx.beginPath();
-  let pen = false;
-  for (let i = iA; i &lt;= iB &amp;&amp; i &lt; arr.length; i++) {
-    const v = arr[i];
-    if (!Number.isFinite(v)) { pen = false; continue; }
-    const x = xOf(i), y = yfn(v);
-    if (pen) cx.lineTo(x, y);
-    else { cx.moveTo(x, y); pen = true; }
-  }
-  cx.strokeStyle = color;
-  cx.lineWidth = width;
-  cx.stroke();
-}
-
-// Dải tô giữa hai đường của chỉ báo (EMA zone, Bollinger, Donchian)
-function drawBand(r, iL, iR) {
-  const bd = r.band, A = r.lines[bd.a].v, B = r.lines[bd.b].v;
-  const last = Math.min(A.length - 1, iR + 1);
-  for (let i = Math.max(0, iL - 1); i &lt; last; i++) {
-    const a1 = A[i], b1 = B[i], a2 = A[i + 1], b2 = B[i + 1];
-    if (!(Number.isFinite(a1) &amp;&amp; Number.isFinite(b1) &amp;&amp; Number.isFinite(a2) &amp;&amp; Number.isFinite(b2))) continue;
-    cx.fillStyle = a2 &gt;= b2 ? bd.up : bd.dn;
-    cx.beginPath();
-    cx.moveTo(xOf(i), yOf(a1));
-    cx.lineTo(xOf(i + 1), yOf(a2));
-    cx.lineTo(xOf(i + 1), yOf(b2));
-    cx.lineTo(xOf(i), yOf(b1));
-    cx.closePath();
-    cx.fill();
-  }
-}
-
 // Nhãn tín hiệu: hộp màu có chữ trắng, góc trên trái tại (x, y0), căn giữa theo x.
 function drawMark(x, y0, text, color) {
   cx.font = smallFont();
@@ -221,6 +125,7 @@ function render() {
       }
     }
   }
+  if (XK_FIT) { lo = Math.min(lo, XK_FIT.lo); hi = Math.max(hi, XK_FIT.hi); }
   const pad = hi &gt; lo ? (hi - lo) * 0.08 : 1;
   VP = { pMin: lo - pad, pMax: hi + pad };
 
@@ -1561,6 +1466,9 @@ function bindUI() {
   $(&#x27;iTz&#x27;).addEventListener(&#x27;change&#x27;, applyTz);
   $(&#x27;acctSave&#x27;).addEventListener(&#x27;click&#x27;, acctSaveClick);
   $(&#x27;acctRefresh&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; acctRefresh());
+  $(&#x27;tdLoad&#x27;).addEventListener(&#x27;click&#x27;, tdLoadClick);
+  $(&#x27;tdStop&#x27;).addEventListener(&#x27;click&#x27;, tdStopClick);
+  $(&#x27;bAI&#x27;).addEventListener(&#x27;click&#x27;, aiClick);
   $(&#x27;mtLoginBtn&#x27;).addEventListener(&#x27;click&#x27;, mtLoginClick);
   $(&#x27;mtLogoutBtn&#x27;).addEventListener(&#x27;click&#x27;, mtLogoutClick);
   $(&#x27;mtPass&#x27;).addEventListener(&#x27;keydown&#x27;, e =&gt; { if (e.key === &#x27;Enter&#x27;) mtLoginClick(); });
@@ -1787,5 +1695,145 @@ function acctSaveClick() {
   acctPutStored(base, token);
   $(&#x27;acctUrl&#x27;).value = base;
   acctPanelChanged(true);
+}
+
+/* ===== Nguồn dữ liệu Twelve Data: tải nến XAU/USD thật, tự cập nhật ===== */
+const TD_KEY = &#x27;xau-chart-twelvedata-v1&#x27;;   // khoá API (chỉ đọc giá), mã, khung gốc, chu kỳ cập nhật
+const TD_IV = { M1: &#x27;1min&#x27;, M5: &#x27;5min&#x27;, M15: &#x27;15min&#x27;, M30: &#x27;30min&#x27;, H1: &#x27;1h&#x27; };
+let tdTimer = 0, tdBusy = false;
+
+function tdStored() {
+  try { const v = JSON.parse(localStorage.getItem(TD_KEY) || &#x27;null&#x27;); return v &amp;&amp; typeof v === &#x27;object&#x27; ? v : {}; }
+  catch (err) { return {}; }
+}
+function tdFill() {
+  const v = tdStored();
+  if (v.key) $(&#x27;tdKey&#x27;).value = v.key;
+  if (v.sym) $(&#x27;tdSym&#x27;).value = v.sym;
+  if (v.tf &amp;&amp; TD_IV[v.tf]) $(&#x27;tdTf&#x27;).value = v.tf;
+  if (v.every !== undefined) $(&#x27;tdEvery&#x27;).value = String(v.every);
+}
+function tdSay(t) { $(&#x27;tdMsg&#x27;).textContent = t; }
+// &quot;2026-11-26 09:15:00&quot; (UTC) → giây
+function tdTime(s) {
+  const m = String(s || &#x27;&#x27;).match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if (!m) return NaN;
+  return Math.floor(Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)) / 1000);
+}
+async function tdFetch(cfg, size) {
+  const q = new URLSearchParams({
+    symbol: cfg.sym, interval: TD_IV[cfg.tf], outputsize: String(size), timezone: &#x27;UTC&#x27;, order: &#x27;asc&#x27;, apikey: cfg.key
+  });
+  const ctl = new AbortController();
+  const timer = setTimeout(() =&gt; ctl.abort(), 20000);
+  try {
+    const res = await fetch(&#x27;https://api.twelvedata.com/time_series?&#x27; + q.toString(), { cache: &#x27;no-store&#x27;, signal: ctl.signal });
+    const data = await res.json().catch(() =&gt; ({}));
+    if (data.status === &#x27;error&#x27; || !res.ok) {
+      const code = Number(data.code || res.status);
+      const why = code === 401 ? &#x27;Sai khoá API.&#x27; : code === 429 ? &#x27;Hết lượt gọi (8 lần/phút hoặc 800 lần/ngày). Đợi rồi thử lại, hoặc tăng số giây tự cập nhật.&#x27;
+        : (data.message || (&#x27;Twelve Data trả lỗi &#x27; + code + &#x27;.&#x27;));
+      throw new Error(why);
+    }
+    const vals = Array.isArray(data.values) ? data.values : [];
+    const bars = vals.map(v =&gt; ({ t: tdTime(v.datetime), o: +v.open, h: +v.high, l: +v.low, c: +v.close, v: +v.volume || 0 }))
+      .filter(b =&gt; [b.t, b.o, b.h, b.l, b.c].every(Number.isFinite)).sort((a, b) =&gt; a.t - b.t);
+    return bars;
+  } catch (err) {
+    if (err.name === &#x27;AbortError&#x27;) throw new Error(&#x27;Twelve Data không trả lời (hết 20 giây).&#x27;);
+    if (err instanceof TypeError) throw new Error(&#x27;Không kết nối được Twelve Data. Kiểm tra mạng.&#x27;);
+    throw err;
+  } finally { clearTimeout(timer); }
+}
+function tdRead() {
+  const key = $(&#x27;tdKey&#x27;).value.trim(), sym = $(&#x27;tdSym&#x27;).value.trim() || &#x27;XAU/USD&#x27;, tf = $(&#x27;tdTf&#x27;).value;
+  const every = Math.max(0, Math.round(Number($(&#x27;tdEvery&#x27;).value) || 0));
+  return { key, sym, tf: TD_IV[tf] ? tf : &#x27;M15&#x27;, every: every &amp;&amp; every &lt; 30 ? 30 : every };
+}
+async function tdLoadClick() {
+  const cfg = tdRead();
+  if (!cfg.key) { tdSay(&#x27;Dán khoá API Twelve Data trước.&#x27;); return; }
+  try { localStorage.setItem(TD_KEY, JSON.stringify(cfg)); } catch (err) { /* không lưu được: vẫn dùng trong phiên */ }
+  $(&#x27;tdEvery&#x27;).value = String(cfg.every);
+  clearInterval(tdTimer);
+  tdTimer = 0;
+  tdBusy = true;
+  tdSay(&#x27;Đang tải nến &#x27; + cfg.sym + &#x27; &#x27; + cfg.tf + &#x27;...&#x27;);
+  try {
+    const bars = await tdFetch(cfg, 5000);
+    if (bars.length &lt; 50) throw new Error(&#x27;Chỉ nhận được &#x27; + bars.length + &#x27; nến. Kiểm tra mã (vd XAU/USD).&#x27;);
+    setBase(bars, &#x27;Live Twelve Data &#x27; + cfg.sym);
+    S.anchor = series(S.tf).bars.length - 1 + 6;
+    clampAnchor();
+    schedule();
+    tdSay(&#x27;Đã tải &#x27; + bars.length + &#x27; nến &#x27; + cfg.tf + &#x27; · nến cuối &#x27; + fmtTs(bars[bars.length - 1].t, &#x27;dhm&#x27;) +
+      (cfg.every ? &#x27; · tự cập nhật mỗi &#x27; + cfg.every + &#x27; giây&#x27; : &#x27;&#x27;));
+    if (cfg.every) tdTimer = setInterval(tdTick, cfg.every * 1000);
+  } catch (err) {
+    tdSay(err.message || &#x27;Lỗi không rõ.&#x27;);
+  } finally { tdBusy = false; }
+}
+// Cập nhật vài nến mới nhất; bỏ qua khi app ẩn hoặc không ở tab Biểu đồ để tiết kiệm lượt gọi
+async function tdTick() {
+  if (tdBusy || document.hidden || window.innerWidth &lt; 10 || !/^Live Twelve/.test(baseName)) return;
+  const cfg = tdStored();
+  if (!cfg.key) return;
+  tdBusy = true;
+  try {
+    const bars = await tdFetch(cfg, 3);
+    let n = 0;
+    for (const b of bars) if (xkUpsertBar(Object.assign({ sec: baseSec }, b))) n++;
+    baseName = &#x27;Live Twelve Data &#x27; + cfg.sym;
+    if (n) tdSay(&#x27;Cập nhật &#x27; + acctClock() + &#x27; · giá &#x27; + bars[bars.length - 1].c);
+  } catch (err) {
+    tdSay(err.message + &#x27; (lần cập nhật &#x27; + acctClock() + &#x27;)&#x27;);
+  } finally { tdBusy = false; }
+}
+function tdStopClick() {
+  clearInterval(tdTimer);
+  tdTimer = 0;
+  tdSay(&#x27;Đã dừng tự cập nhật. Bấm Lưu và tải nến để chạy lại.&#x27;);
+}
+function tdAutoStart() {
+  const cfg = tdStored();
+  if (cfg.key &amp;&amp; TD_IV[cfg.tf]) setTimeout(tdLoadClick, 300);
+}
+
+/* ===== Gói dữ liệu cho AI: nến + EMA 34/80 + MACD + TRIX tính từ dữ liệu thật, kèm ảnh biểu đồ đang xem ===== */
+function aiSnapshot() {
+  if (!hasData) return { error: &#x27;Chưa có nến. Kết nối Twelve Data trong Cài đặt, hoặc bấm Demo.&#x27; };
+  const ser = series(S.tf), bars = ser.bars, N = bars.length;
+  if (N &lt; 100) return { error: &#x27;Cần ít nhất 100 nến &#x27; + S.tf + &#x27; (đang có &#x27; + N + &#x27;). Chọn khung nhỏ hơn hoặc tải thêm nến.&#x27; };
+  const c = closesOf(bars), h = highsOf(bars), l = lowsOf(bars);
+  const e34 = ema(c, 34), e80 = ema(c, 80), mac = macdLineArr(c, 12, 26), sig = ema(mac, 9), tr = trixCalc(c, 25, 15);
+  const f = (v, d) =&gt; Number.isFinite(v) ? v.toFixed(d) : &#x27;-&#x27;;
+  const rows = [];
+  for (let i = Math.max(0, N - 40); i &lt; N; i++) {
+    rows.push([fmtTs(bars[i].t, &#x27;dhm&#x27;), f(bars[i].o, 2), f(bars[i].h, 2), f(bars[i].l, 2), f(bars[i].c, 2),
+      f(e34[i], 2), f(e80[i], 2), f(mac[i], 3), f(sig[i], 3), f(mac[i] - sig[i], 3), f(tr.t[i], 3), f(tr.s[i], 3)].join(&#x27; | &#x27;));
+  }
+  // Tín hiệu gần đây theo vùng EMA (BUY/SELL, BUY P/SELL P) và TRIX (Buy/Sell)
+  const marks = [];
+  try {
+    for (const m of zoneMarks(h, l, c, e34, e80, mac, 3, 0.5, 1)) if (m.i &gt;= N - 60) marks.push({ i: m.i, t: m.text });
+    for (const m of trixMarks(tr.t, tr.s)) if (m.i &gt;= N - 60) marks.push({ i: m.i, t: &#x27;TRIX &#x27; + m.text });
+  } catch (err) { /* thiếu hàm đánh dấu: bỏ qua phần tín hiệu */ }
+  marks.sort((a, b) =&gt; a.i - b.i);
+  let hi = -Infinity, lo = Infinity;
+  for (let i = Math.max(0, N - 100); i &lt; N; i++) { hi = Math.max(hi, h[i]); lo = Math.min(lo, l[i]); }
+  const last = bars[N - 1];
+  const text = [
+    &#x27;Mã: &#x27; + (baseName.replace(/^Live Twelve Data /, &#x27;&#x27;) || &#x27;XAUUSD&#x27;) + &#x27; · khung &#x27; + S.tf + &#x27; · giờ VN (UTC&#x27; + (S.tz &gt;= 0 ? &#x27;+&#x27; : &#x27;&#x27;) + S.tz + &#x27;) · nguồn: &#x27; + baseName,
+    &#x27;Giá hiện tại (đóng nến cuối, nến cuối có thể chưa đóng): &#x27; + f(last.c, 2) + &#x27; lúc &#x27; + fmtTs(last.t, &#x27;dhm&#x27;),
+    &#x27;Đỉnh/đáy 100 nến gần nhất: &#x27; + f(hi, 2) + &#x27; / &#x27; + f(lo, 2),
+    &#x27;Tín hiệu trong 60 nến gần nhất: &#x27; + (marks.length ? marks.map(m =&gt; m.t + &#x27; lúc &#x27; + fmtTs(bars[m.i].t, &#x27;dhm&#x27;)).join(&#x27;; &#x27;) : &#x27;không có&#x27;),
+    &#x27;40 nến gần nhất (cũ → mới):&#x27;,
+    &#x27;Giờ | Mở | Cao | Thấp | Đóng | EMA34 | EMA80 | MACD | Signal | Hist | TRIX | TRIX signal&#x27;,
+    rows.join(&#x27;\n&#x27;)
+  ].join(&#x27;\n&#x27;);
+
+  const shot = takeShot(null);
+  if (!shot) return { error: &#x27;Mở tab Biểu đồ để AI chụp biểu đồ.&#x27; };
+  return Object.assign({ tf: S.tf, now: last.c, text }, shot);
 }
 
