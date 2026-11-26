@@ -1257,7 +1257,7 @@ async function annotateChart(src, d) {
     box.x = boxX();
   }
   box.h = notePad * 2 + noteLh * noteLines.length + noteSz * 1.15 * extraLines.length;
-  cx.fillStyle = "rgba(14,19,29,.9)";
+  cx.fillStyle = "rgba(0,0,0,.85)";
   roundRect(cx, box.x, box.y, box.w, box.h, u * 0.3);
   cx.fill();
   cx.strokeStyle = "rgba(255,255,255,.85)";

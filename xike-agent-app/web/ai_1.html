@@ -6,10 +6,10 @@
 <title>AI Cloud</title>
 <style>
 :root {
-  --bg: #0f172a;
-  --surface: #1e293b;
-  --raised: #273449;
-  --line: #334155;
+  --bg: #000000;
+  --surface: #0d0d0d;
+  --raised: #1a1a1a;
+  --line: #262626;
   --text: #e2e8f0;
   --muted: #94a3b8;
   --gold: #e8b84a;
@@ -92,7 +92,7 @@ label select { margin-top: 4px; }
 .empty li { margin-bottom: 4px; }
 .empty b { color: var(--text); }
 .msg { max-width: 92%; padding: 10px 12px; border-radius: 14px; font-size: 14.5px; }
-.msg.me { align-self: flex-end; background: #2b3b55; border-bottom-right-radius: 4px; white-space: pre-wrap; }
+.msg.me { align-self: flex-end; background: #16213a; border-bottom-right-radius: 4px; white-space: pre-wrap; }
 .msg.ai { align-self: flex-start; background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
 .msg.err { border-color: rgba(248, 113, 113, .45); color: #fecaca; }
 .msg .thumb {
@@ -186,13 +186,13 @@ details.models summary { color: var(--info); font-weight: 600; font-size: 14px; 
 .viewer-scroll.zoom { display: block; }
 .viewer-scroll.zoom img { max-width: none; max-height: none; height: auto; display: block; }
 /* Biểu đồ XAUUSD: khung nhúng lấp đầy phần mục */
-.xau-frame { flex: 1 1 auto; min-height: 0; width: 100%; height: 100%; border: 0; display: block; background: #0e131d; }
+.xau-frame { flex: 1 1 auto; min-height: 0; width: 100%; height: 100%; border: 0; display: block; background: #000000; }
 /* Bốn mục trên thanh chọn: chữ không xuống dòng */
 .nav { gap: 4px; }
 .nav button { flex: 1 1 auto; font-size: 13px; padding: 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Biểu đồ phóng to: khung biểu đồ lấp kín màn hình, ẩn thanh chọn và các mục khác */
 body.chart-full > *:not(#view-chart):not(#viewer) { display: none !important; }
-body.chart-full #view-chart { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 30; display: flex !important; flex-direction: column; padding: 0; margin: 0; border: 0; background: #0e131d; }
+body.chart-full #view-chart { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 30; display: flex !important; flex-direction: column; padding: 0; margin: 0; border: 0; background: #000000; }
 </style>
 </head>
 <body>
@@ -239,9 +239,9 @@ body.chart-full #view-chart { position: fixed; top: 0; right: 0; bottom: 0; left
 /* Terminal giao dịch toàn màn hình: một biểu đồ nến, số giá lớn là thứ duy nhất nổi bật.
    Chỉ báo chọn ở bảng dưới, kiểu Trung tâm phân tích của TradingView. */
 :root {
-  --bg: #0e131d;
-  --panel: #151c2a;
-  --line: #242d3f;
+  --bg: #000000;
+  --panel: #0b0b0b;
+  --line: #1f1f1f;
   --text: #dde3ee;
   --muted: #7c8699;
   --accent: #4f8dff;
@@ -350,7 +350,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #picker { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
 /* Bảng chỉ báo kiểu bottom sheet */
-.scrim { position: fixed; inset: 0; z-index: 20; background: rgba(5, 8, 14, .55); }
+.scrim { position: fixed; inset: 0; z-index: 20; background: rgba(0, 0, 0, .6); }
 .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; display: flex; flex-direction: column; max-height: 82vh; background: var(--panel); border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; box-shadow: 0 -10px 30px rgba(0, 0, 0, .45); }
 .grip { flex: 0 0 auto; width: 40px; height: 4px; margin: 8px auto 0; border-radius: 2px; background: var(--line); }
 .sheet-head { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; padding: 8px 12px 10px; border-bottom: 1px solid var(--line); }
@@ -1367,7 +1367,7 @@ const DEMO_LABEL = &#x27;Demo (mô phỏng, không phải giá thật)&#x27;;
 const LS_KEY = &#x27;xau-chart-drawings-v1&#x27;;
 const IND_KEY = &#x27;xau-chart-indicators-v2&#x27;;
 const COL = {
-  bg: &#x27;#0e131d&#x27;, panel: &#x27;#151c2a&#x27;, line: &#x27;#242d3f&#x27;, text: &#x27;#dde3ee&#x27;, muted: &#x27;#7c8699&#x27;,
+  bg: &#x27;#000000&#x27;, panel: &#x27;#0b0b0b&#x27;, line: &#x27;#1f1f1f&#x27;, text: &#x27;#dde3ee&#x27;, muted: &#x27;#7c8699&#x27;,
   accent: &#x27;#4f8dff&#x27;, up: &#x27;#2bb39a&#x27;, down: &#x27;#ef6471&#x27;,
   fan: &#x27;#9aa9c7&#x27;, hline: &#x27;#5ad1e6&#x27;, levels: &#x27;#b48cf2&#x27;,
   zoneUp: &#x27;rgba(43,179,154,0.16)&#x27;, zoneDn: &#x27;rgba(239,100,113,0.16)&#x27;,
@@ -4645,7 +4645,7 @@ async function annotateChart(src, d) {
     box.x = boxX();
   }
   box.h = notePad * 2 + noteLh * noteLines.length + noteSz * 1.15 * extraLines.length;
-  cx.fillStyle = "rgba(14,19,29,.9)";
+  cx.fillStyle = "rgba(0,0,0,.85)";
   roundRect(cx, box.x, box.y, box.w, box.h, u * 0.3);
   cx.fill();
   cx.strokeStyle = "rgba(255,255,255,.85)";
