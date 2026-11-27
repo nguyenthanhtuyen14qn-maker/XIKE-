@@ -1,0 +1,1842 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Nhật Ký Gấp Thếp Vàng XIKE GOLD · 10 Bậc</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800;900&family=JetBrains+Mono:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-deep: #030712;
+    --card-surface: rgba(13, 22, 41, 0.85);
+    --card-border: rgba(255, 255, 255, 0.09);
+    --card-border-gold: rgba(255, 215, 0, 0.4);
+
+    --gold: #ffd700;
+    --gold-bright: #fff066;
+    --gold-glow: rgba(255, 215, 0, 0.45);
+    --gold-gradient: linear-gradient(135deg, #fff275 0%, #ffd700 50%, #cca100 100%);
+
+    --green: #00e676;
+    --green-glow: rgba(0, 230, 118, 0.45);
+    --green-bg: rgba(0, 230, 118, 0.16);
+    --green-border: #00e676;
+
+    --red: #ff1744;
+    --red-glow: rgba(255, 23, 68, 0.45);
+    --red-bg: rgba(255, 23, 68, 0.16);
+    --red-border: #ff1744;
+
+    --cyan: #00e5ff;
+    --cyan-glow: rgba(0, 229, 255, 0.35);
+
+    --gray-col: #1e293b;
+    --text-main: #f8fafc;
+    --text-sub: #94a3b8;
+    --text-dim: #64748b;
+
+    --warn-bg: linear-gradient(135deg, rgba(88, 14, 25, 0.95), rgba(45, 6, 12, 0.98));
+    --warn-border: rgba(255, 23, 68, 0.55);
+    --warn-text: #fecdd3;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; margin: 0; padding: 0; }
+  html, body { width: 100%; max-width: 100%; overflow-x: hidden; background-color: var(--bg-deep); }
+
+  body {
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-left: 8px;
+    padding-right: 8px;
+    padding-bottom: 115px;
+    font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+    background: radial-gradient(circle at 50% 0%, #15274d 0%, #030712 65%);
+    background-attachment: fixed;
+    color: var(--text-main);
+    min-height: 100vh;
+  }
+
+  .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* Top Control Row */
+  .control-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 6px 12px 6px;
+  }
+  .live-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    font-weight: 800;
+    color: var(--green);
+    letter-spacing: 0.6px;
+    background: rgba(0, 230, 118, 0.12);
+    padding: 5px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(0, 230, 118, 0.35);
+    box-shadow: 0 0 12px var(--green-glow);
+  }
+  .pulse-dot {
+    width: 7px;
+    height: 7px;
+    background: var(--green);
+    border-radius: 50%;
+    box-shadow: 0 0 10px var(--green);
+    animation: livePulse 1.8s infinite;
+  }
+  @keyframes livePulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.35; transform: scale(0.8); }
+  }
+
+  .quick-btns { display: flex; gap: 8px; }
+  .mini-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--card-border);
+    color: var(--text-sub);
+    border-radius: 10px;
+    padding: 6px 12px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .mini-btn:hover { background: rgba(255, 255, 255, 0.12); color: #fff; }
+  .mini-btn:active { transform: scale(0.95); }
+
+  /* App Title */
+  .app-header { text-align: center; margin: 2px 0 14px 0; }
+  h1.app-title {
+    font-size: 19px;
+    font-weight: 900;
+    background: var(--gold-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    filter: drop-shadow(0 2px 12px var(--gold-glow));
+    line-height: 1.3;
+  }
+  .app-sub-title {
+    font-size: 14px;
+    font-weight: 900;
+    color: var(--cyan);
+    text-shadow: 0 0 12px var(--cyan-glow);
+    letter-spacing: 2px;
+    margin-top: 3px;
+  }
+
+  /* Full-bleed Glass Card */
+  .card {
+    background: var(--card-surface);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid var(--card-border);
+    border-radius: 20px;
+    padding: 14px 12px;
+    margin-bottom: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 1.5px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.22), transparent);
+  }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .input-group { display: flex; flex-direction: column; gap: 5px; }
+  .input-group label { font-size: 11px; font-weight: 700; color: var(--text-sub); }
+  .input-group input {
+    background: rgba(3, 7, 18, 0.75);
+    border: 1px solid var(--card-border);
+    border-radius: 12px;
+    padding: 11px 10px;
+    color: #fff;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13.5px;
+    font-weight: 800;
+    outline: none;
+    width: 100%;
+    transition: all 0.2s ease;
+  }
+  .input-group input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.28);
+    background: rgba(5, 12, 30, 0.95);
+  }
+
+  .warn-box {
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    color: var(--warn-text);
+    border-radius: 16px;
+    padding: 12px 14px;
+    font-size: 12px;
+    line-height: 1.5;
+    margin-bottom: 12px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    box-shadow: 0 4px 25px rgba(255, 23, 68, 0.25);
+  }
+  .warn-box .warn-icon { font-size: 18px; flex-shrink: 0; filter: drop-shadow(0 0 8px var(--red-glow)); }
+
+  /* 10-Bar Chart */
+  .chart-wrapper { width: 100%; overflow-x: auto; padding-bottom: 6px; scrollbar-width: none; }
+  .chart-wrapper::-webkit-scrollbar { display: none; }
+  .chart-container {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    height: 160px;
+    padding: 26px 2px 4px 2px;
+    gap: 3px;
+    min-width: 100%;
+  }
+  .bar-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1 1 0;
+    min-width: 0;
+    height: 100%;
+    justify-content: flex-end;
+    cursor: pointer;
+    padding: 2px 1px;
+    border-radius: 10px;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .bar-col:active { transform: scale(0.93); }
+
+  .bar-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8.5px;
+    font-weight: 800;
+    color: var(--text-dim);
+    white-space: nowrap;
+    text-align: center;
+    margin-bottom: 5px;
+  }
+  .bar {
+    width: 100%;
+    max-width: 22px;
+    border-radius: 6px 6px 0 0;
+    transition: height 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.3s ease;
+  }
+  .bar-idx {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9.5px;
+    color: var(--text-dim);
+    margin-top: 6px;
+    font-weight: 700;
+  }
+  .bar-idx.on { color: var(--gold); font-weight: 900; transform: scale(1.25); text-shadow: 0 0 8px var(--gold-glow); }
+
+  .legend-row {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: var(--text-sub);
+    margin: 12px 0 10px 0;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  .progress-bg {
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 999px;
+    height: 7px;
+    overflow: hidden;
+    margin-top: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+  }
+  .progress-fill {
+    background: var(--gold-gradient);
+    box-shadow: 0 0 14px var(--gold-glow);
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    transition: width 0.4s ease;
+  }
+
+  /* Tier Detail */
+  .tier-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .tier-nav-wrap { display: flex; align-items: center; gap: 8px; }
+  .nav-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--card-border);
+    color: var(--text-main);
+    border-radius: 10px;
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .nav-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.15); border-color: var(--gold); }
+  .nav-btn:disabled { opacity: 0.2; cursor: not-allowed; }
+  .tier-title { font-size: 17px; font-weight: 900; color: var(--gold); text-shadow: 0 0 10px var(--gold-glow); }
+  .tier-sub { font-size: 11px; font-weight: 600; color: var(--text-sub); }
+
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  .stat {
+    background: rgba(4, 9, 22, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 14px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .stat.wide {
+    grid-column: span 2;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    background: rgba(255, 215, 0, 0.06);
+    border-color: rgba(255, 215, 0, 0.25);
+    box-shadow: inset 0 0 15px rgba(255, 215, 0, 0.05);
+  }
+  .stat .k { font-size: 11px; font-weight: 700; color: var(--text-sub); }
+  .stat .v { font-family: 'JetBrains Mono', monospace; font-size: 14.5px; font-weight: 800; }
+
+  .section-subtitle {
+    font-size: 11px;
+    font-weight: 900;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* 20 Days Heatmap */
+  .days-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .day {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    aspect-ratio: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    padding: 2px;
+    position: relative;
+    overflow: hidden;
+    background-size: cover;
+    background-position: center;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .day:active { transform: scale(0.92); }
+
+  .day .overlay {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(3, 7, 18, 0.7);
+    backdrop-filter: blur(2px);
+    -webkit-backdrop-filter: blur(2px);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    z-index: 1; width: 100%; height: 100%;
+  }
+  .day .symbol { font-size: 14px; line-height: 1; z-index: 2; font-weight: 900; }
+  .day .amount-sub { font-family: 'JetBrains Mono', monospace; font-size: 9px; margin-top: 3px; z-index: 2; font-weight: 800; }
+  .day .date-sub { font-size: 7.5px; font-weight: 600; margin-top: 2px; color: var(--text-dim); line-height: 1; text-align: center; z-index: 2; }
+
+  /* Current Active Day Glowing */
+  .day.current-day-pulse {
+    border-color: var(--gold);
+    animation: goldPulse 2s infinite ease-in-out;
+  }
+  @keyframes goldPulse {
+    0%, 100% { box-shadow: 0 0 8px var(--gold-glow), inset 0 0 8px var(--gold-glow); }
+    50% { box-shadow: 0 0 16px var(--gold-glow), inset 0 0 12px var(--gold-glow); }
+  }
+
+  .day.win {
+    border-color: var(--green-border);
+    box-shadow: 0 0 12px var(--green-glow), inset 0 0 12px var(--green-glow);
+  }
+  .day.win .symbol { color: var(--green); text-shadow: 0 0 8px var(--green); }
+  .day.win .overlay { background: var(--green-bg); }
+  .day.win .amount-sub { color: #fff; text-shadow: 0 0 6px var(--green); }
+  .day.win .date-sub { color: rgba(255,255,255,0.85); font-weight: 700; }
+
+  .day.loss {
+    border-color: var(--red-border);
+    box-shadow: 0 0 12px var(--red-glow), inset 0 0 12px var(--red-glow);
+  }
+  .day.loss .symbol { color: var(--red); text-shadow: 0 0 8px var(--red); }
+  .day.loss .overlay { background: var(--red-bg); }
+  .day.loss .amount-sub { color: #fff; text-shadow: 0 0 6px var(--red); }
+  .day.loss .date-sub { color: rgba(255,255,255,0.85); font-weight: 700; }
+
+  /* Icon Camera trên từng ô ngày - Nhấp vào để xem ảnh phóng to ngay */
+  .day .cam-ic {
+    position: absolute;
+    top: 3px;
+    right: 3px;
+    font-size: 10px;
+    z-index: 3;
+    background: rgba(255, 215, 0, 0.25);
+    border: 1px solid var(--gold);
+    border-radius: 4px;
+    padding: 1px 2px;
+    line-height: 1;
+    cursor: pointer;
+    filter: drop-shadow(0 0 4px rgba(0,0,0,0.8));
+    transition: transform 0.2s;
+  }
+  .day .cam-ic:hover { transform: scale(1.2); }
+
+  /* Finance Summary */
+  .fin-summary { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+  .fin { flex: 1; background: rgba(4, 9, 22, 0.65); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 14px; padding: 11px 12px; }
+  .fin.pos .v { color: var(--green); text-shadow: 0 0 12px var(--green-glow); }
+  .fin.neg .v { color: var(--red); text-shadow: 0 0 12px var(--red-glow); }
+
+  .btn-reset {
+    background: transparent; border: 1px solid rgba(255, 23, 68, 0.35); color: var(--red);
+    padding: 11px; border-radius: 12px; font-size: 11.5px; font-weight: 800; width: 100%; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-reset:hover { background: rgba(255, 23, 68, 0.12); }
+
+  /* Bottom Bar */
+  .bottom-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: rgba(3, 7, 18, 0.94);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 12px 14px env(safe-area-inset-bottom, 12px) 14px;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px; z-index: 100;
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.7);
+  }
+  .bottom-btn {
+    background: var(--gold-gradient); color: #050811; font-weight: 900; font-size: 14px;
+    letter-spacing: 0.3px;
+    border: none; border-radius: 14px; padding: 13px 22px; cursor: pointer;
+    box-shadow: 0 4px 22px var(--gold-glow);
+    transition: all 0.2s;
+  }
+  .bottom-btn:active { transform: scale(0.96); filter: brightness(1.1); }
+
+  /* Dialog Nhập Kết Quả Nâng Cấp */
+  .dialog-overlay {
+    display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0, 0, 0, 0.82); backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px); z-index: 999;
+    align-items: center; justify-content: center; padding: 12px;
+  }
+  .dialog-card {
+    background: #0d1527; border: 1px solid var(--card-border-gold); border-radius: 24px;
+    padding: 18px 16px; width: 100%; max-width: 340px; box-shadow: 0 20px 50px rgba(0,0,0,0.85);
+    max-height: 92vh; overflow-y: auto;
+  }
+  .dialog-title { font-size: 16px; font-weight: 900; color: var(--gold); text-align: center; margin-bottom: 14px; }
+  .type-selector { display: flex; gap: 8px; margin-bottom: 12px; }
+  .type-btn {
+    flex: 1; padding: 12px 6px; border-radius: 12px; border: 1px solid var(--card-border);
+    background: rgba(255,255,255,0.04); color: var(--text-sub); font-weight: 800; font-size: 13px;
+    cursor: pointer; text-align: center;
+    transition: all 0.2s;
+  }
+  .type-btn.active-win { background: var(--green-bg); border-color: var(--green); color: var(--green); box-shadow: 0 0 14px var(--green-glow); }
+  .type-btn.active-loss { background: var(--red-bg); border-color: var(--red); color: var(--red); box-shadow: 0 0 14px var(--red-glow); }
+
+  /* Khu Vực Quản Lý Ảnh Bằng Chứng Trong Dialog */
+  .dlg-image-box {
+    margin-top: 12px;
+    background: rgba(3, 7, 18, 0.65);
+    border: 1.5px dashed var(--card-border-gold);
+    border-radius: 16px;
+    padding: 12px;
+  }
+  .dlg-image-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 11.5px;
+    font-weight: 800;
+    margin-bottom: 8px;
+  }
+  .dlg-image-preview-wrap {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #000;
+    border: 1px solid var(--card-border);
+    margin-bottom: 8px;
+    cursor: pointer;
+  }
+  .dlg-image-preview-wrap img {
+    width: 100%;
+    height: 140px;
+    object-fit: cover;
+    display: block;
+    transition: opacity 0.2s;
+  }
+  .dlg-image-preview-wrap:hover img { opacity: 0.85; }
+  .dlg-image-preview-hint {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: linear-gradient(0deg, rgba(0,0,0,0.85) 0%, transparent 100%);
+    color: var(--gold);
+    font-size: 10.5px;
+    font-weight: 700;
+    text-align: center;
+    padding: 6px 4px;
+    pointer-events: none;
+  }
+  .dlg-img-actions {
+    display: flex;
+    gap: 6px;
+  }
+  .dlg-img-btn {
+    flex: 1;
+    padding: 8px 6px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid var(--card-border);
+    text-align: center;
+    transition: all 0.2s;
+  }
+  .dlg-img-btn.primary {
+    background: rgba(255, 215, 0, 0.12);
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+  .dlg-img-btn.danger {
+    background: rgba(255, 23, 68, 0.15);
+    border-color: var(--red);
+    color: var(--red);
+  }
+  .dlg-img-upload-btn {
+    width: 100%;
+    background: rgba(255, 215, 0, 0.08);
+    border: 1.5px dashed var(--gold);
+    color: var(--gold);
+    padding: 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 800;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  .dialog-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .btn-confirm { flex: 1; background: var(--gold-gradient); color: #080c14; font-weight: 900; border: none; padding: 12px; border-radius: 12px; cursor: pointer; }
+  .btn-cancel { background: rgba(255,255,255,0.06); border: 1px solid var(--card-border); color: var(--text-sub); padding: 12px 14px; border-radius: 12px; font-weight: 700; cursor: pointer; }
+  .btn-clear { background: rgba(255, 23, 68, 0.12); border: 1px solid var(--red); color: var(--red); padding: 12px 12px; border-radius: 12px; font-weight: 700; cursor: pointer; }
+
+  /* Modal Image Viewer Phóng To Toàn Màn Hình Cực Nét */
+  .modal-viewer {
+    display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+    background: rgba(0, 0, 0, 0.96); z-index: 99999;
+    flex-direction: column; align-items: center; justify-content: center; padding: 14px;
+    backdrop-filter: blur(14px);
+  }
+  .modal-viewer-header {
+    width: 100%;
+    max-width: 500px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  .modal-viewer-title {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--gold);
+  }
+  .modal-close {
+    font-size: 24px; color: #fff;
+    background: rgba(255,255,255,0.18); width: 38px; height: 38px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; cursor: pointer;
+  }
+  .modal-viewer img {
+    max-width: 98%; max-height: 82vh; border-radius: 14px; border: 1.5px solid var(--gold);
+    object-fit: contain; box-shadow: 0 15px 50px rgba(0,0,0,0.9);
+  }
+
+  /* Confetti Canvas */
+  #confettiCanvas { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 9999; }
+
+  /* ===== Bổ sung khi đưa vào app AI XIKE (các kiểu ở trên giữ nguyên bản gốc) ===== */
+  [hidden] { display: none !important; }
+  .backup-row { display: flex; gap: 8px; margin-bottom: 6px; }
+  .backup-row .mini-btn { flex: 1; padding: 10px 8px; font-size: 12px; }
+  .backup-note { font-size: 10.5px; font-weight: 600; color: var(--text-dim); line-height: 1.45; text-align: center; margin-bottom: 12px; }
+  .bottom-bar { padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  .btn-confirm:disabled, .mini-btn:disabled { opacity: 0.6; }
+  @media (max-width: 345px) {
+    .bottom-btn { padding: 12px 14px; font-size: 13px; white-space: nowrap; }
+  }
+  .dialog-text { font-size: 13px; color: var(--text-main); line-height: 1.55; }
+  .chk-row { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 700; color: var(--text-sub); margin-top: 12px; }
+  .chk-row input { width: 18px; height: 18px; accent-color: #ffd700; }
+  .viewer-scroll { width: 100%; max-width: 500px; max-height: 84vh; overflow: auto; display: flex; align-items: center; justify-content: center; }
+  .viewer-scroll.zoom { display: block; max-width: none; }
+  .viewer-scroll.zoom img { max-width: none; max-height: none; border-radius: 0; }
+  .viewer-hint { color: var(--text-sub); font-size: 11px; font-weight: 600; margin-top: 10px; text-align: center; }
+  .toast {
+    position: fixed; left: 50%; bottom: 92px; z-index: 100000; max-width: 92vw; width: max-content;
+    transform: translate(-50%, 12px); opacity: 0; pointer-events: none;
+    background: rgba(13, 21, 39, 0.97); border: 1px solid var(--card-border-gold); color: var(--text-main);
+    border-radius: 14px; padding: 10px 14px; font-size: 12.5px; font-weight: 700; line-height: 1.45; text-align: center;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6); transition: opacity 0.2s, transform 0.2s;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast.top { top: 14px; bottom: auto; }
+  .toast.err { border-color: var(--warn-border); color: var(--warn-text); }
+
+  /* ===== NỀN ĐEN TUYỀN (thêm sau, ghi đè màu nền xanh đậm ở trên; giữ màu vàng, xanh thắng, đỏ thua) ===== */
+  :root {
+    --bg-deep: #000000;
+    --card-surface: #000000;
+    --gray-col: #333333;
+    --card-border: rgba(255, 255, 255, 0.12);
+    --warn-bg: #000000;
+  }
+  html, body { background: #000000 !important; background-image: none !important; }
+  .card { background: #000000; backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none; }
+  .card::before { display: none; }
+  .input-group input, .input-group input:focus { background: #000000; }
+  .stat, .fin, .stat.wide { background: #000000; box-shadow: none; }
+  .mini-btn, .nav-btn, .type-btn, .btn-cancel, .btn-reset { background: #000000; }
+  .day { background-color: #000000; }
+  .day .overlay { background: rgba(0, 0, 0, 0.7); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .day.win .overlay { background: var(--green-bg); }
+  .day.loss .overlay { background: var(--red-bg); }
+  .warn-box { background: #000000; box-shadow: none; }
+  .bottom-bar { background: #000000; backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none; }
+  .dialog-overlay { background: rgba(0, 0, 0, 0.92); }
+  .dialog-card, .dlg-image-box { background: #000000; }
+  .modal-viewer { background: #000000; }
+  .progress-bg { background: #161616; }
+  .toast { background: #000000; }
+</style>
+</head>
+<body>
+
+  <canvas id="confettiCanvas"></canvas>
+
+  <!-- Top Action Bar -->
+  <div class="control-row">
+    <div class="live-tag">
+      <div class="pulse-dot"></div> LIVE MODE
+    </div>
+    <div class="quick-btns">
+      <button class="mini-btn" id="btnCopySignal">📋 Copy Lệnh</button>
+      <button class="mini-btn" id="btnTopReset">🔄 Reset</button>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <div class="app-header">
+    <h1 class="app-title">NHẬT KÝ GẤP THẾP VÀNG</h1>
+    <div class="app-sub-title">XIKE GOLD · 10 BẬC</div>
+  </div>
+
+  <div class="card">
+    <div class="grid-2">
+      <div class="input-group"><label>Ngày bắt đầu</label><input type="date" id="inStartDate"></div>
+      <div class="input-group"><label>Vốn ban đầu ($)</label><input type="number" id="inCapital" value="1000"></div>
+      <div class="input-group"><label>% Vốn / lệnh</label><input type="number" id="inPercent" value="5" step="0.5"></div>
+      <div class="input-group"><label>TP (Giá Vàng)</label><input type="number" id="inTpPrices" value="10" step="1"></div>
+      <div class="input-group" style="grid-column: span 2;"><label>Số ngày / bậc</label><input type="number" id="inDaysPerTier" value="20"></div>
+    </div>
+  </div>
+
+  <div class="warn-box" id="warnBox"></div>
+
+  <div class="card">
+    <div class="chart-wrapper"><div class="chart-container" id="chart"></div></div>
+    <div class="legend-row">
+      <div class="legend-item"><div class="dot" style="background:var(--green)"></div> Completed</div>
+      <div class="legend-item"><div class="dot" style="background:var(--gold)"></div> Current</div>
+      <div class="legend-item"><div class="dot" style="background:var(--gray-col)"></div> Not Yet</div>
+      <div class="legend-item"><div class="dot" style="background:var(--red)"></div> High Risk</div>
+    </div>
+    <div style="font-size: 11px; text-align: center; color: var(--text-sub); font-weight: 700;" id="progressLabel"></div>
+    <div class="progress-bg"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+
+  <div class="card">
+    <div class="tier-header">
+      <div class="tier-nav-wrap">
+        <button class="nav-btn" id="prevTierBtn">◀</button>
+        <div class="tier-title" id="tierTitle">Bậc 1</div>
+        <button class="nav-btn" id="nextTierBtn">▶</button>
+      </div>
+      <div class="tier-sub" id="tierSub">0/20 ngày · 0% hoàn thành</div>
+    </div>
+    <div class="stats-grid" id="tierStats"></div>
+    <div class="section-subtitle" id="daysTitle">CHI TIẾT KẾT QUẢ NGÀY — BẬC 1</div>
+    <div class="days-grid" id="daysGrid"></div>
+  </div>
+
+  <div class="card">
+    <div class="section-subtitle">📊 TỔNG HỢP TÀI CHÍNH TẤT CẢ CÁC BẬC</div>
+    <div class="fin-summary">
+      <div class="fin" id="finProfit">
+        <div style="font-size:11px; color:var(--text-sub); font-weight:700">Lợi Nhuận Tích Lũy</div>
+        <div class="v font-mono" style="font-size:15px; font-weight:800; margin-top:3px;">+$ 0</div>
+      </div>
+      <div class="fin" id="finLoss">
+        <div style="font-size:11px; color:var(--text-sub); font-weight:700">Thua Lỗ Lớn Nhất</div>
+        <div class="v font-mono" style="font-size:15px; font-weight:800; margin-top:3px;">—</div>
+      </div>
+    </div>
+    <div class="backup-row">
+      <button class="mini-btn" id="btnBackup">💾 Sao lưu</button>
+      <button class="mini-btn" id="btnRestore">📂 Khôi phục</button>
+    </div>
+    <div class="backup-note" id="backupNote">Sao lưu tạo một file .zip gồm kết quả và ảnh trong thư mục Download/AIXIKE. Cài lại app hoặc đổi máy thì bấm Khôi phục và chọn file đó.</div>
+    <button class="btn-reset" id="resetBtn">🔄 Reset Lịch Sử Về Ban Đầu</button>
+  </div>
+
+  <div class="bottom-bar">
+    <div>
+      <div id="bottomDayLbl" style="font-weight:900; font-size:13.5px; color:var(--gold)">Ngày 1 (Bậc 1)</div>
+      <input type="date" id="bottomDate" style="background:transparent; border:none; color:var(--text-sub); font-size:11.5px; outline:none; font-family:'JetBrains Mono'; font-weight:700;">
+    </div>
+    <button class="bottom-btn" id="bottomOk">XÁC NHẬN KẾT QUẢ</button>
+  </div>
+
+  <!-- Dialog Nhập Kết Quả Nâng Cấp -->
+  <div class="dialog-overlay" id="resultDialog">
+    <div class="dialog-card">
+      <div class="dialog-title" id="dlgTitle">Cập Nhật Ngày</div>
+
+      <div class="type-selector">
+        <div class="type-btn active-win" id="btnTypeWin" onclick="selectType(1)">Thắng (Win)</div>
+        <div class="type-btn" id="btnTypeLoss" onclick="selectType(-1)">Thua (Loss)</div>
+      </div>
+
+      <div class="input-group" style="margin-bottom: 10px;">
+        <label>Số tiền ($):</label>
+        <input type="number" id="dlgAmount" step="1" placeholder="Nhập số tiền">
+      </div>
+
+      <div class="input-group">
+        <label>Ngày thực hiện:</label>
+        <input type="date" id="dlgDate">
+      </div>
+
+      <!-- Khu vực ảnh trong Dialog -->
+      <div class="dlg-image-box">
+        <div class="dlg-image-header">
+          <span style="color:var(--text-sub)">📷 Ảnh Chart / Lệnh</span>
+          <span id="dlgImgStatus" style="color:var(--text-dim); font-size:10.5px;">Chưa có ảnh</span>
+        </div>
+
+        <div id="dlgImgPreviewContainer" style="display:none;">
+          <div class="dlg-image-preview-wrap" onclick="viewCurrentImageFullscreen()">
+            <img id="dlgImgPreview" src="" alt="Bằng chứng">
+            <div class="dlg-image-preview-hint">🔍 Chạm vào ảnh để phóng to toàn màn hình</div>
+          </div>
+          <div class="dlg-img-actions">
+            <div class="dlg-img-btn primary" onclick="viewCurrentImageFullscreen()">🔍 Xem Lớn</div>
+            <div class="dlg-img-btn" onclick="triggerPickDayImage()">🔄 Đổi Ảnh</div>
+            <div class="dlg-img-btn danger" onclick="removeCurrentImage()">🗑️ Xóa</div>
+          </div>
+        </div>
+
+        <div id="dlgImgUploadContainer">
+          <button type="button" class="dlg-img-upload-btn" onclick="triggerPickDayImage()">
+            <span>➕ Chọn Hoặc Chụp Ảnh Sàn</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="dialog-actions">
+        <button class="btn-clear" id="dlgClearBtn" onclick="clearDayResult()">Reset</button>
+        <button class="btn-cancel" onclick="closeDialog()">Hủy</button>
+        <button class="btn-confirm" id="dlgSaveBtn" onclick="confirmDialog()">Lưu</button>
+      </div>
+    </div>
+  </div>
+
+  <input type="file" id="dayFileInput" accept="image/*" style="display:none">
+
+  <!-- Modal Phóng To Ảnh Nét Cao Cấp -->
+  <div class="modal-viewer" id="imgModal" onclick="closeModal()">
+    <div class="modal-viewer-header" onclick="event.stopPropagation()">
+      <div class="modal-viewer-title" id="modalImgTitle">BẰNG CHỨNG GIAO DỊCH</div>
+      <div class="modal-close" onclick="closeModal()">&times;</div>
+    </div>
+    <div class="viewer-scroll" id="modalScroll" onclick="event.stopPropagation()"><img id="modalImg" alt=""></div>
+    <div class="viewer-hint" id="modalHint" onclick="event.stopPropagation()"></div>
+  </div>
+
+  <!-- Thêm cho app: hộp hỏi lại trước khi xoá, thông báo nhỏ -->
+  <div class="dialog-overlay" id="ask">
+    <div class="dialog-card">
+      <div class="dialog-title" id="askTitle"></div>
+      <div class="dialog-text" id="askText"></div>
+      <label class="chk-row" id="askChkRow" hidden><input type="checkbox" id="askChk"><span id="askChkLabel"></span></label>
+      <div class="dialog-actions">
+        <button class="btn-cancel" id="askCancel">Hủy</button>
+        <button class="btn-confirm" id="askOk"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  'use strict';
+  var TIER_COUNT = 10;
+  // Tên cũ trong bộ nhớ trình duyệt, chỉ dùng khi mở trang ngoài app
+  var STORAGE_KEY = 'xike_gold_journal_app_data_10tiers';
+  var IMG_BASE = 'https://aixike.local/img/';
+  var MAX_DAYS = 60;
+
+  var currentEditDayIdx = null;
+  var currentEditTier = null;
+  var selectedResultType = 1;
+  // Ảnh trong hộp nhập: ref là file đã lưu, data là ảnh mới chọn chưa lưu
+  var dlgImage = { ref: '', data: null, removed: false };
+  var bottomIdx = 0;
+  var ready = false;
+  var loadFailed = false;
+  var busy = false;
+
+  function $(id){ return document.getElementById(id); }
+  function pad(n){ return n < 10 ? '0'+n : ''+n; }
+  function todayISO(){
+    var d = new Date();
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+  }
+  function isISO(s){
+    return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !isNaN(new Date(s + 'T00:00:00').getTime());
+  }
+
+  function defaultState(){
+    return {
+      startDate: todayISO(),
+      capital: 1000,
+      percent: 5,
+      tpPrices: 10,
+      daysPerTier: 20,
+      currentTier: 1,
+      viewTier: 1,
+      tierDays: {}, tierDayAmt: {}, tierDayDate: {},
+      // Tên file ảnh của từng ngày, khoá "bậc_ngày" giống khoá ảnh của bản gốc
+      images: {}
+    };
+  }
+  var state = defaultState();
+
+  // ===== CẦU NỐI VỚI APP =====
+  // Trang gọi AndroidBridge.call(tên, dữ liệu, mã); app làm xong gọi lại window.__resolve(mã, kết quả)
+  var HAS_BRIDGE = !!window.AndroidBridge;
+  var pending = {};
+  var seq = 0;
+
+  function api(method, args){
+    return new Promise(function(resolve, reject){
+      if(!window.AndroidBridge){ reject(new Error('Chức năng này chỉ chạy trong app AI XIKE.')); return; }
+      var id = 'g' + (++seq);
+      pending[id] = { resolve: resolve, reject: reject };
+      try {
+        window.AndroidBridge.call(method, JSON.stringify(args || {}), id);
+      } catch(e) {
+        delete pending[id];
+        reject(new Error('Không gọi được app: ' + e.message));
+      }
+    });
+  }
+
+  window.__resolve = function(id, raw){
+    var p = pending[id];
+    if(!p) return;
+    delete pending[id];
+    var r;
+    try { r = JSON.parse(raw); } catch(e) { p.reject(new Error('Không đọc được phản hồi.')); return; }
+    if(r.ok) p.resolve(r.data);
+    else p.reject(new Error(r.error || 'Lỗi không rõ'));
+  };
+
+  // ===== LƯU TRỮ =====
+  // Trong app: dữ liệu ở file gapthep.json, mỗi ảnh là một file riêng (thay cho localStorage và IndexedDB của bản gốc)
+  var Store = {
+    load: async function(){
+      if(HAS_BRIDGE) return (await api('load', { name: 'gapthep' })) || '';
+      try { return localStorage.getItem(STORAGE_KEY) || ''; } catch(e) { return ''; }
+    },
+    loadBak: async function(){
+      if(!HAS_BRIDGE) return '';
+      return (await api('loadBak', { name: 'gapthep' })) || '';
+    },
+    save: async function(text){
+      if(HAS_BRIDGE){ await api('save', { name: 'gapthep', data: text }); return; }
+      localStorage.setItem(STORAGE_KEY, text);
+    },
+    putImage: async function(dataUrl, base){
+      if(!HAS_BRIDGE) return dataUrl;
+      var name = base + '.jpg';
+      await api('imgSave', { name: name, b64: dataUrl.slice(dataUrl.indexOf(',') + 1) });
+      return name;
+    },
+    url: function(ref){
+      if(!ref) return '';
+      return ref.indexOf('data:') === 0 ? ref : IMG_BASE + encodeURIComponent(ref);
+    },
+    delImage: function(ref){
+      if(HAS_BRIDGE && ref && ref.indexOf('data:') !== 0) api('imgDelete', { name: ref }).catch(function(){});
+    }
+  };
+
+  // Lưu lần lượt, lần sau chờ lần trước xong
+  var saveChain = Promise.resolve();
+  function saveState(){
+    if(loadFailed) return Promise.reject(new Error('Chưa đọc được dữ liệu cũ nên tạm khoá ghi. Hãy đóng app rồi mở lại.'));
+    var text = JSON.stringify(state);
+    var p = saveChain.then(function(){ return Store.save(text); });
+    saveChain = p.catch(function(){});
+    return p;
+  }
+
+  function saveQuiet(){
+    saveState().catch(function(e){ toast('Không lưu được: ' + e.message, 4000, true); });
+  }
+
+  function imgKey(t, idx){ return t + '_' + idx; }
+
+  function imageNames(){
+    return Object.keys(state.images).map(function(k){ return state.images[k]; })
+      .filter(function(v){ return v && v.indexOf('data:') !== 0; });
+  }
+
+  // ===== ĐỌC DỮ LIỆU ĐÃ LƯU =====
+  function posNum(v, d){ v = Number(v); return isFinite(v) && v > 0 ? v : d; }
+  function clampTier(v){ v = parseInt(v, 10); return v >= 1 && v <= TIER_COUNT ? v : 1; }
+  function clampDays(v, d){ v = parseInt(v, 10); return v >= 1 ? Math.min(MAX_DAYS, v) : d; }
+  function fit(list, n, clean){
+    var out = [];
+    for(var i=0; i<n; i++) out.push(clean(Array.isArray(list) ? list[i] : undefined));
+    return out;
+  }
+
+  function ensureTierIn(s, t){
+    if(!s.tierDays[t]){
+      s.tierDays[t] = new Array(s.daysPerTier).fill(0);
+      s.tierDayAmt[t] = new Array(s.daysPerTier).fill(0);
+      s.tierDayDate[t] = new Array(s.daysPerTier).fill(null);
+    }
+  }
+  function ensureTier(t){ ensureTierIn(state, t); }
+
+  // Bậc hiện tại = bậc đầu tiên chưa ghi đủ ngày (giống checkTierCompletion của bản gốc)
+  function highestTierOf(s){
+    var highest = 1;
+    for(var t = 1; t <= TIER_COUNT; t++){
+      ensureTierIn(s, t);
+      if(s.tierDays[t].every(function(v){ return v !== 0; }) && t < TIER_COUNT) highest = t + 1;
+      else break;
+    }
+    return highest;
+  }
+
+  function normalizeState(src){
+    if(src && src.cfg && Array.isArray(src.results)) return fromV4(src);
+    var s = defaultState();
+    if(!src || typeof src !== 'object') return s;
+    if(isISO(src.startDate)) s.startDate = src.startDate;
+    s.capital = posNum(src.capital, s.capital);
+    s.percent = posNum(src.percent, s.percent);
+    s.tpPrices = posNum(src.tpPrices, s.tpPrices);
+    s.daysPerTier = clampDays(src.daysPerTier, s.daysPerTier);
+    s.currentTier = clampTier(src.currentTier);
+    s.viewTier = clampTier(src.viewTier || s.currentTier);
+    var n = s.daysPerTier;
+    for(var t=1; t<=TIER_COUNT; t++){
+      var days = src.tierDays && src.tierDays[t];
+      if(!Array.isArray(days)) continue;
+      s.tierDays[t] = fit(days, n, function(v){ return v === 1 || v === -1 ? v : 0; });
+      s.tierDayAmt[t] = fit(src.tierDayAmt && src.tierDayAmt[t], n, function(v){ return typeof v === 'number' && isFinite(v) ? v : 0; });
+      s.tierDayDate[t] = fit(src.tierDayDate && src.tierDayDate[t], n, function(v){ return isISO(v) ? v : null; });
+    }
+    if(src.images && typeof src.images === 'object'){
+      Object.keys(src.images).forEach(function(k){
+        var v = src.images[k];
+        if(/^\d+_\d+$/.test(k) && typeof v === 'string' && v) s.images[k] = v;
+      });
+    }
+    return s;
+  }
+
+  // Dữ liệu của bản v4 trước (dạng cfg/results) đổi về dạng của bảng gốc
+  function fromV4(src){
+    var c = src.cfg || {};
+    var s = defaultState();
+    if(isISO(c.start)) s.startDate = c.start;
+    s.capital = posNum(c.capital, s.capital);
+    s.percent = posNum(c.pct, s.percent);
+    s.tpPrices = posNum(c.tp, s.tpPrices);
+    s.daysPerTier = clampDays(c.days, s.daysPerTier);
+    var n = s.daysPerTier;
+    src.results.forEach(function(r, i){
+      if(!r || (r.r !== 'win' && r.r !== 'loss')) return;
+      var t = Math.floor(i / n) + 1, idx = i % n;
+      if(t > TIER_COUNT) return;
+      ensureTierIn(s, t);
+      s.tierDays[t][idx] = r.r === 'win' ? 1 : -1;
+      s.tierDayAmt[t][idx] = Number(r.pnl) || 0;
+      s.tierDayDate[t][idx] = isISO(r.date) ? r.date : null;
+      if(typeof r.img === 'string' && r.img) s.images[imgKey(t, idx)] = r.img;
+    });
+    s.currentTier = highestTierOf(s);
+    s.viewTier = s.currentTier;
+    return s;
+  }
+
+  // ===== TÍNH TOÁN (giữ nguyên công thức bản gốc) =====
+  function fmtFullDate(isoStr){
+    if(!isoStr) return '';
+    var parts = isoStr.split('-');
+    if(parts.length === 3) return parts[2] + '/' + parts[1] + '/' + parts[0];
+    return '';
+  }
+
+  function totalDaysLimit(){ return TIER_COUNT * state.daysPerTier; }
+  function vonTier(t){ return state.capital * Math.pow(2, t-1); }
+  function winTier(t){ return vonTier(t) * state.percent / 100; }
+
+  function lotTier(t){
+    var winAmt = winTier(t);
+    var tp = state.tpPrices || 10;
+    var lot = winAmt / (tp * 100);
+    return Math.max(0.01, Math.round(lot * 100) / 100);
+  }
+
+  function fmtVND(n){ return Math.round(n).toLocaleString('vi-VN'); }
+  function fmtLot(n){ return n.toLocaleString('vi-VN', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+  function fmtShort(n){
+    if(n >= 1e6) return (Math.round((n/1e6)*10)/10) + 'M';
+    if(n >= 1e3) return (Math.round((n/1e3)*10)/10).toString().replace('.0','') + 'K';
+    return Math.round(n).toString();
+  }
+
+  function addDays(iso, n){
+    if(!iso) iso = todayISO();
+    var d = new Date(iso + 'T00:00:00');
+    if(isNaN(d.getTime())) d = new Date();
+    d.setDate(d.getDate() + n);
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+  }
+
+  function totalCompletedDays(){
+    var sum = 0;
+    for(var t=1; t<=TIER_COUNT; t++){
+      ensureTier(t);
+      state.tierDays[t].forEach(function(v){ if(v !== 0) sum++; });
+    }
+    return sum;
+  }
+
+  function computeTotals(){
+    var profit = 0, maxLoss = 0;
+    Object.keys(state.tierDayAmt).forEach(function(t){
+      if(state.tierDayAmt[t] && parseInt(t, 10) <= TIER_COUNT){
+        state.tierDayAmt[t].forEach(function(a){
+          profit += a;
+          if(a < 0 && Math.abs(a) > maxLoss) maxLoss = Math.abs(a);
+        });
+      }
+    });
+    return { profit: profit, maxLoss: maxLoss };
+  }
+
+  // ===== Ô CÀI ĐẶT =====
+  function writeInputs(){
+    $('inStartDate').value = state.startDate;
+    $('inCapital').value = state.capital;
+    $('inPercent').value = state.percent;
+    $('inTpPrices').value = state.tpPrices || 10;
+    $('inDaysPerTier').value = state.daysPerTier;
+  }
+
+  function onSettingChange(id){
+    if(!ready) return;
+    var v = $(id).value;
+    if(id === 'inStartDate'){ if(isISO(v)) state.startDate = v; }
+    if(id === 'inCapital') state.capital = posNum(parseFloat(v), 1);
+    if(id === 'inPercent') state.percent = posNum(parseFloat(v), 0.1);
+    if(id === 'inTpPrices') state.tpPrices = posNum(parseFloat(v), 10);
+    saveQuiet();
+    writeInputs();
+    renderAll();
+  }
+
+  // Bản gốc đổi số ngày / bậc là xoá hết kết quả. Giữ cách đó nhưng hỏi lại trước khi xoá.
+  function onDaysChange(){
+    if(!ready) return;
+    var input = $('inDaysPerTier');
+    var v = parseInt(input.value, 10) || 1;
+    if(v < 1) v = 1;
+    if(v > MAX_DAYS){ v = MAX_DAYS; toast('Số ngày / bậc tối đa ' + MAX_DAYS + '.', 3000, true); }
+    if(v === state.daysPerTier){ input.value = v; return; }
+    if(totalCompletedDays() === 0){ applyDays(v); return; }
+    ask({
+      title: '⚠️ Đổi số ngày / bậc',
+      text: 'Đổi từ ' + state.daysPerTier + ' sang ' + v + ' ngày sẽ xoá toàn bộ kết quả và ảnh đã ghi, bắt đầu lại từ Bậc 1. Nên bấm 💾 Sao lưu trước.',
+      ok: 'Đổi và xoá',
+      danger: true,
+      action: function(){ applyDays(v); },
+      cancel: function(){ input.value = state.daysPerTier; }
+    });
+  }
+
+  async function applyDays(v){
+    var snapshot = JSON.stringify(state);
+    state.daysPerTier = v;
+    state.tierDays = {}; state.tierDayAmt = {}; state.tierDayDate = {}; state.images = {};
+    state.currentTier = 1; state.viewTier = 1;
+    try {
+      await saveState();
+    } catch(e) {
+      state = JSON.parse(snapshot);
+      toast('Không lưu được: ' + e.message, 4000, true);
+      writeInputs(); renderAll();
+      return;
+    }
+    if(HAS_BRIDGE) api('imgPrune', { keep: [] }).catch(function(){});
+    writeInputs(); renderAll();
+  }
+
+  // ===== VẼ GIAO DIỆN =====
+  function renderWarning(){
+    var totDays = totalDaysLimit();
+    $('warnBox').innerHTML = '<div class="warn-icon">⚠️</div> <div>Cứ ' + state.daysPerTier + ' ngày vốn gấp đôi. Bảng đủ ' + totDays + ' ngày (' + TIER_COUNT + ' bậc). Đến bậc 10 vốn > $' + fmtShort(vonTier(10)) + ', bậc 10 cần $' + fmtVND(vonTier(10)) + '.</div>';
+  }
+
+  function renderChart(){
+    var maxVal = vonTier(TIER_COUNT), minVal = vonTier(1);
+    var chart = $('chart');
+    chart.innerHTML = '';
+    for(var t=1; t<=TIER_COUNT; t++){
+      var val = vonTier(t);
+      var frac = (Math.log(val) - Math.log(minVal)) / (Math.log(maxVal) - Math.log(minVal) || 1);
+      var h = 14 + frac * 85;
+      var risky = t >= TIER_COUNT - 1;
+      var color = t < state.currentTier ? 'var(--green)' : (t === state.currentTier ? 'var(--gold)' : (risky ? 'var(--red)' : 'var(--gray-col)'));
+      var isViewing = (t === state.viewTier);
+
+      var col = document.createElement('div');
+      col.className = 'bar-col';
+      col.style.border = isViewing ? '1px solid var(--gold)' : '1px solid transparent';
+      col.style.background = isViewing ? 'rgba(255, 215, 0, 0.15)' : 'transparent';
+
+      var glowStyle = (t === state.currentTier) ? 'box-shadow: 0 0 12px var(--gold-glow);' : (risky && t > state.currentTier ? 'box-shadow: 0 0 10px var(--red-glow);' : '');
+
+      col.innerHTML = '<div class="bar-val font-mono" style="' + (isViewing ? 'color:var(--gold);font-weight:900;' : '') + '">' + fmtShort(val) + '</div>' +
+                      '<div class="bar" style="height:' + h + 'px;background:' + color + ';' + glowStyle + '"></div>' +
+                      '<div class="bar-idx' + (t===state.currentTier ? ' on' : '') + '">' + t + '</div>';
+      (function(idx){ col.addEventListener('click', function(){ state.viewTier = idx; saveQuiet(); renderAll(); }); })(t);
+      chart.appendChild(col);
+    }
+    $('progressLabel').textContent = 'Bậc ' + state.viewTier + ' / ' + TIER_COUNT + ' · Đang xem chi tiết';
+    $('progressFill').style.width = Math.min(100, totalCompletedDays()/totalDaysLimit()*100) + '%';
+  }
+
+  function renderTierCard(){
+    var t = state.viewTier || state.currentTier;
+    var von = vonTier(t), win = winTier(t);
+    $('prevTierBtn').disabled = (t <= 1);
+    $('nextTierBtn').disabled = (t >= TIER_COUNT);
+    $('tierTitle').textContent = 'Bậc ' + t + (t === state.currentTier ? '' : (t < state.currentTier ? ' (Đã qua)' : ' (Chưa tới)'));
+
+    var doneInTier = 0;
+    ensureTier(t);
+    var totalProfitInTier = 0;
+    state.tierDays[t].forEach(function(v, idx){
+      if(v !== 0){
+        doneInTier++;
+        totalProfitInTier += (state.tierDayAmt[t][idx] || 0);
+      }
+    });
+
+    $('tierSub').textContent = doneInTier + '/' + state.daysPerTier + ' ngày · ' + Math.round(doneInTier/state.daysPerTier*100) + '% hoàn thành';
+    var pipsVal = (state.tpPrices || 10) * 10;
+    // Bản gốc hiện vốn + 1 ngày thắng khi bậc chưa có ngày nào; ở đây hiện đúng vốn bậc
+    var currentRealCap = von + totalProfitInTier;
+
+    $('tierStats').innerHTML =
+      '<div class="stat wide"><span class="k">Bậc ' + t + ' — Vốn ban đầu</span><span class="v" style="color:var(--gold)">$ ' + fmtVND(von) + '</span></div>' +
+      '<div class="stat"><div class="k">%Vốn</div><div class="v">' + state.percent.toFixed(1) + '%</div></div>' +
+      '<div class="stat"><div class="k">Lô</div><div class="v" style="color:var(--gold)">' + fmtLot(lotTier(t)) + '</div></div>' +
+      '<div class="stat"><div class="k">TP (Giá Vàng)</div><div class="v" style="color:var(--gold)">' + state.tpPrices + ' giá (' + pipsVal + ' pips)</div></div>' +
+      '<div class="stat"><div class="k">Win / ngày</div><div class="v" style="color:var(--green)">$ ' + fmtVND(win) + '</div></div>' +
+      '<div class="stat wide"><span class="k">Vốn hiện tại (Thực tế)</span><span class="v" style="color:' + (currentRealCap >= von ? 'var(--gold)' : 'var(--red)') + '">$ ' + fmtVND(currentRealCap) + '</span></div>';
+
+    $('daysTitle').textContent = 'CHI TIẾT KẾT QUẢ NGÀY — BẬC ' + t;
+  }
+
+  function renderDays(){
+    var t = state.viewTier || state.currentTier;
+    ensureTier(t);
+    var grid = $('daysGrid');
+    grid.innerHTML = '';
+
+    var currentPendingIdx = state.tierDays[t].findIndex(function(v){ return v === 0; });
+    var prevDaysCount = 0;
+    for(var p = 1; p < t; p++){
+      ensureTier(p);
+      state.tierDays[p].forEach(function(val){ if(val !== 0) prevDaysCount++; });
+    }
+
+    for(var i=0; i<state.daysPerTier; i++){
+      var v = state.tierDays[t][i];
+      var amt = state.tierDayAmt[t][i] || 0;
+      var computedDateISO = addDays(state.startDate, prevDaysCount + i);
+      var dateISO = state.tierDayDate[t][i] || computedDateISO;
+      var dateFormatted = fmtFullDate(dateISO);
+
+      var isCurrentActive = (t === state.currentTier && i === currentPendingIdx);
+      var el = document.createElement('div');
+      el.className = 'day' + (v===1 ? ' win' : v===-1 ? ' loss' : '') + (isCurrentActive ? ' current-day-pulse' : '');
+
+      var symHtml = '<span class="symbol">' + (v===1 ? '✓' : v===-1 ? '✕' : (i+1)) + '</span>';
+      var amtHtml = v !== 0 ? '<span class="amount-sub font-mono">' + (v===1 ? '+' : '-') + '$' + Math.abs(Math.round(amt)) + '</span>' : '';
+      var dateHtml = dateFormatted ? '<span class="date-sub font-mono">' + dateFormatted + '</span>' : '';
+
+      el.innerHTML = '<div class="overlay">' + symHtml + amtHtml + dateHtml + '</div>';
+
+      var ref = state.images[imgKey(t, i)];
+      if(ref){
+        el.style.backgroundImage = 'url("' + Store.url(ref) + '")';
+        var cam = document.createElement('div');
+        cam.className = 'cam-ic';
+        cam.textContent = '📷';
+        cam.title = 'Xem ảnh lớn';
+        // Chạm vào biểu tượng máy ảnh để xem phóng to ngay
+        (function(r, idx){
+          cam.onclick = function(e){
+            e.stopPropagation();
+            openModal(Store.url(r), 'BẬC ' + t + ' — NGÀY ' + (idx + 1));
+          };
+        })(ref, i);
+        el.appendChild(cam);
+      }
+
+      (function(idx){ el.onclick = function(){ openResultDialog(idx); }; })(i);
+      grid.appendChild(el);
+    }
+  }
+
+  function renderFinance(){
+    var totals = computeTotals();
+    $('finProfit').className = 'fin' + (totals.profit >= 0 ? ' pos' : ' neg');
+    $('finProfit').querySelector('.v').textContent = (totals.profit >= 0 ? '+' : '-') + '$ ' + fmtVND(Math.abs(totals.profit));
+    $('finLoss').querySelector('.v').textContent = totals.maxLoss > 0 ? '-$ ' + fmtVND(totals.maxLoss) : '—';
+  }
+
+  function renderBottomBar(){
+    var t = state.viewTier || state.currentTier;
+    ensureTier(t);
+    var idx = state.tierDays[t].findIndex(function(v){ return v === 0; });
+    if(idx === -1) idx = state.daysPerTier - 1;
+    $('bottomDayLbl').textContent = 'Ngày ' + (idx+1) + ' (Bậc ' + t + ')';
+    var existing = state.tierDayDate[t] ? state.tierDayDate[t][idx] : null;
+    $('bottomDate').value = existing || todayISO();
+    bottomIdx = idx;
+  }
+
+  function renderAll(){
+    renderWarning(); renderChart(); renderTierCard(); renderDays();
+    renderFinance(); renderBottomBar();
+  }
+
+  // ===== HỘP NHẬP KẾT QUẢ NGÀY & ẢNH =====
+  window.openResultDialog = function(idx){
+    if(!ready) return;
+    var t = state.viewTier || state.currentTier;
+    ensureTier(t);
+    currentEditDayIdx = idx;
+    currentEditTier = t;
+
+    var curStatus = state.tierDays[t][idx];
+    var curAmt = state.tierDayAmt[t][idx];
+    // Ngày mặc định: ngày đã ghi, hoặc ngày đang chọn ở thanh dưới, hoặc hôm nay
+    var bottomDate = $('bottomDate').value;
+    var curDate = state.tierDayDate[t][idx] || (idx === bottomIdx && isISO(bottomDate) ? bottomDate : todayISO());
+
+    $('dlgTitle').textContent = 'BẬC ' + t + ' — NGÀY ' + (idx + 1);
+    $('dlgDate').value = curDate;
+
+    if (curStatus === -1) {
+      selectType(-1);
+      $('dlgAmount').value = Math.abs(curAmt);
+    } else {
+      selectType(1);
+      $('dlgAmount').value = curAmt ? Math.abs(curAmt) : Math.round(winTier(t));
+    }
+
+    dlgImage = { ref: state.images[imgKey(t, idx)] || '', data: null, removed: false };
+    updateDlgImageUI();
+    disarm($('dlgClearBtn'));
+    hideToast();
+    $('resultDialog').style.display = 'flex';
+  };
+
+  function dlgImageSrc(){
+    if(dlgImage.data) return dlgImage.data;
+    if(dlgImage.ref && !dlgImage.removed) return Store.url(dlgImage.ref);
+    return '';
+  }
+
+  function updateDlgImageUI(){
+    var src = dlgImageSrc();
+    var previewWrap = $('dlgImgPreviewContainer');
+    var uploadWrap = $('dlgImgUploadContainer');
+    var statusText = $('dlgImgStatus');
+    var previewImg = $('dlgImgPreview');
+
+    if(src){
+      previewImg.src = src;
+      previewWrap.style.display = 'block';
+      uploadWrap.style.display = 'none';
+      statusText.textContent = 'Đã có ảnh đính kèm';
+      statusText.style.color = 'var(--green)';
+    } else {
+      previewImg.removeAttribute('src');
+      previewWrap.style.display = 'none';
+      uploadWrap.style.display = 'block';
+      statusText.textContent = 'Chưa có ảnh';
+      statusText.style.color = 'var(--text-dim)';
+    }
+  }
+
+  window.triggerPickDayImage = function(){
+    $('dayFileInput').click();
+  };
+
+  // Đổi ảnh về JPEG (cạnh dài tối đa 2600 điểm ảnh, vẫn nét để đọc chữ trên ảnh chụp sàn)
+  function readFile(file){
+    return new Promise(function(resolve, reject){
+      var reader = new FileReader();
+      reader.onload = function(){ resolve(reader.result); };
+      reader.onerror = function(){ reject(new Error('Không đọc được ảnh.')); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function loadImage(src){
+    return new Promise(function(resolve, reject){
+      var img = new Image();
+      img.onload = function(){ resolve(img); };
+      img.onerror = function(){ reject(new Error('Không mở được ảnh này. Hãy chọn ảnh khác.')); };
+      img.src = src;
+    });
+  }
+
+  async function shrink(src, maxSide, quality){
+    var img = await loadImage(src);
+    var scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+    var canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', quality);
+  }
+
+  $('dayFileInput').addEventListener('change', async function(e){
+    var file = e.target.files[0];
+    e.target.value = '';
+    if(!file || currentEditDayIdx === null) return;
+    var session = currentEditTier + '_' + currentEditDayIdx;
+    $('dlgImgStatus').textContent = 'Đang xử lý ảnh…';
+    try {
+      var dataUrl = await shrink(await readFile(file), 2600, 0.9);
+      if(session !== currentEditTier + '_' + currentEditDayIdx) return;
+      dlgImage.data = dataUrl;
+      dlgImage.removed = false;
+    } catch(err) {
+      toast(err.message, 3500, true);
+    }
+    updateDlgImageUI();
+  });
+
+  window.removeCurrentImage = function(){
+    dlgImage.data = null;
+    dlgImage.removed = true;
+    updateDlgImageUI();
+  };
+
+  window.viewCurrentImageFullscreen = function(){
+    var src = dlgImageSrc();
+    if(src) openModal(src, 'BẬC ' + currentEditTier + ' — NGÀY ' + (currentEditDayIdx + 1));
+  };
+
+  window.selectType = function(type){
+    selectedResultType = type;
+    var btnWin = $('btnTypeWin');
+    var btnLoss = $('btnTypeLoss');
+    var t = currentEditTier || state.viewTier || state.currentTier;
+
+    if (type === 1) {
+      btnWin.className = 'type-btn active-win';
+      btnLoss.className = 'type-btn';
+      $('dlgAmount').value = Math.round(winTier(t));
+    } else {
+      btnWin.className = 'type-btn';
+      btnLoss.className = 'type-btn active-loss';
+      $('dlgAmount').value = Math.round(vonTier(t));
+    }
+  };
+
+  window.closeDialog = function(){
+    if(busy) return;
+    $('resultDialog').style.display = 'none';
+    $('dlgImgPreview').removeAttribute('src');
+    currentEditDayIdx = null;
+  };
+
+  window.confirmDialog = async function(){
+    if (currentEditDayIdx === null || busy) return;
+    var t = currentEditTier, idx = currentEditDayIdx;
+    ensureTier(t);
+
+    var amtVal = parseFloat($('dlgAmount').value) || 0;
+    var dateVal = isISO($('dlgDate').value) ? $('dlgDate').value : todayISO();
+    var key = imgKey(t, idx);
+    var oldRef = state.images[key] || '';
+    var snapshot = JSON.stringify(state);
+    var type = selectedResultType;
+    var btn = $('dlgSaveBtn');
+    busy = true;
+    btn.disabled = true;
+    btn.textContent = 'Đang lưu…';
+    var newRef = '';
+    var advanced = false;
+    try {
+      // Lưu ảnh trước, xong mới ghi kết quả, để không có kết quả trỏ tới ảnh chưa lưu
+      if(dlgImage.data) newRef = await Store.putImage(dlgImage.data, 't' + t + 'd' + idx + '-' + Date.now());
+      state.tierDays[t][idx] = type;
+      state.tierDayAmt[t][idx] = type === 1 ? Math.abs(amtVal) : -Math.abs(amtVal);
+      state.tierDayDate[t][idx] = dateVal;
+      if(newRef) state.images[key] = newRef;
+      else if(dlgImage.removed) delete state.images[key];
+      advanced = checkTierCompletion();
+      await saveState();
+    } catch(e) {
+      state = JSON.parse(snapshot);
+      if(newRef) Store.delImage(newRef);
+      toast('Không lưu được: ' + e.message, 4000, true);
+      return;
+    } finally {
+      busy = false;
+      btn.disabled = false;
+      btn.textContent = 'Lưu';
+    }
+    // Ảnh cũ chỉ xoá sau khi kết quả mới đã lưu xong
+    if(oldRef && oldRef !== (state.images[key] || '')) Store.delImage(oldRef);
+    closeDialog();
+    renderAll();
+    if(advanced){
+      launchConfetti();
+      var from = state.currentTier - 1;
+      toast('🎉 Hoàn thành Bậc ' + from + '! Lên Bậc ' + state.currentTier + ': vốn $' + fmtVND(vonTier(state.currentTier)) + ', lô ' + fmtLot(lotTier(state.currentTier)) + '.', 6000);
+    } else if(type === 1) {
+      launchConfetti();
+    }
+  };
+
+  window.clearDayResult = async function(){
+    if (currentEditDayIdx === null || busy) return;
+    var t = currentEditTier, idx = currentEditDayIdx;
+    ensureTier(t);
+    var key = imgKey(t, idx);
+    var oldRef = state.images[key] || '';
+    var btn = $('dlgClearBtn');
+    // Ngày đã có kết quả hoặc ảnh thì bấm hai lần mới xoá
+    if((state.tierDays[t][idx] !== 0 || oldRef) && !arm(btn, 'Bấm lần nữa')) return;
+    disarm(btn);
+    var snapshot = JSON.stringify(state);
+
+    state.tierDays[t][idx] = 0;
+    state.tierDayAmt[t][idx] = 0;
+    state.tierDayDate[t][idx] = null;
+    delete state.images[key];
+    checkTierCompletion();
+    try {
+      await saveState();
+    } catch(e) {
+      state = JSON.parse(snapshot);
+      toast('Không xoá được: ' + e.message, 4000, true);
+      return;
+    }
+    if(oldRef) Store.delImage(oldRef);
+    closeDialog();
+    renderAll();
+  };
+
+  // Trả về true khi vừa lên bậc mới
+  function checkTierCompletion(){
+    var highest = highestTierOf(state);
+    if(highest > state.currentTier){
+      state.currentTier = highest;
+      state.viewTier = highest;
+      return true;
+    }
+    return false;
+  }
+
+  // ===== XEM ẢNH TOÀN MÀN HÌNH =====
+  window.openModal = function(url, title){
+    var img = $('modalImg');
+    img.onerror = function(){ $('modalHint').textContent = 'Không mở được ảnh này.'; };
+    img.src = url;
+    img.style.width = '';
+    $('modalScroll').classList.remove('zoom');
+    $('modalImgTitle').textContent = title || 'BẰNG CHỨNG GIAO DỊCH';
+    $('modalHint').textContent = 'Chạm vào ảnh để phóng to';
+    hideToast();
+    $('imgModal').style.display = 'flex';
+  };
+
+  window.closeModal = function(){
+    $('imgModal').style.display = 'none';
+    $('modalImg').removeAttribute('src');
+  };
+
+  function toggleZoom(ev){
+    ev.stopPropagation();
+    var box = $('modalScroll');
+    var img = $('modalImg');
+    if(box.classList.contains('zoom')){
+      box.classList.remove('zoom');
+      img.style.width = '';
+      $('modalHint').textContent = 'Chạm vào ảnh để phóng to';
+      return;
+    }
+    var rect = img.getBoundingClientRect();
+    var fx = rect.width ? (ev.clientX - rect.left) / rect.width : 0.5;
+    var fy = rect.height ? (ev.clientY - rect.top) / rect.height : 0.5;
+    box.classList.add('zoom');
+    img.style.width = Math.round(Math.max(img.naturalWidth, box.clientWidth * 2.2)) + 'px';
+    // Giữ chỗ vừa chạm ở giữa màn hình
+    requestAnimationFrame(function(){
+      box.scrollLeft = fx * img.offsetWidth - box.clientWidth / 2;
+      box.scrollTop = fy * img.offsetHeight - box.clientHeight / 2;
+    });
+    $('modalHint').textContent = 'Vuốt để xem, chạm lần nữa để thu nhỏ';
+  }
+  $('modalImg').addEventListener('click', toggleZoom);
+
+  // ===== THÔNG BÁO NHỎ (thay cho alert) =====
+  var toastTimer = null;
+  function toast(msg, ms, isErr){
+    var t = $('toast');
+    var overlay = ['resultDialog', 'ask', 'imgModal'].some(function(id){ return $(id).style.display === 'flex'; });
+    var cls = 'toast' + (isErr ? ' err' : '') + (overlay ? ' top' : '');
+    t.textContent = msg;
+    t.className = cls + ' show';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ t.className = cls; }, ms || 2600);
+  }
+
+  function hideToast(){
+    clearTimeout(toastTimer);
+    $('toast').className = 'toast';
+  }
+
+  // Bấm hai lần để xác nhận
+  function arm(btn, label){
+    if(btn.dataset.armed === '1') return true;
+    btn.dataset.idle = btn.textContent;
+    btn.dataset.armed = '1';
+    btn.textContent = label;
+    btn._timer = setTimeout(function(){ disarm(btn); }, 3000);
+    return false;
+  }
+
+  function disarm(btn){
+    clearTimeout(btn._timer);
+    if(btn.dataset.armed === '1') btn.textContent = btn.dataset.idle;
+    btn.dataset.armed = '';
+  }
+
+  // ===== HỘP HỎI LẠI (thay cho confirm) =====
+  var askAction = null;
+  var askCancelAction = null;
+
+  function ask(opts){
+    $('askTitle').textContent = opts.title;
+    $('askText').textContent = opts.text;
+    $('askChkRow').hidden = !opts.checkbox;
+    if(opts.checkbox){
+      $('askChkLabel').textContent = opts.checkbox.label;
+      $('askChk').checked = !!opts.checkbox.checked;
+    }
+    var ok = $('askOk');
+    ok.textContent = opts.ok;
+    ok.className = opts.danger ? 'btn-clear' : 'btn-confirm';
+    ok.style.flex = '1';
+    askAction = opts.action || null;
+    askCancelAction = opts.cancel || null;
+    hideToast();
+    $('ask').style.display = 'flex';
+  }
+
+  function closeAsk(runCancel){
+    var cancel = askCancelAction;
+    $('ask').style.display = 'none';
+    askAction = null;
+    askCancelAction = null;
+    if(runCancel && cancel) cancel();
+  }
+
+  $('askCancel').addEventListener('click', function(){ closeAsk(true); });
+  $('ask').addEventListener('click', function(ev){ if(ev.target === $('ask')) closeAsk(true); });
+  $('askOk').addEventListener('click', function(){
+    var action = askAction;
+    var checked = $('askChk').checked;
+    closeAsk(false);
+    if(action) action(checked);
+  });
+
+  // ===== RESET =====
+  function handleReset(){
+    if(!ready) return;
+    ask({
+      title: '🔄 Reset Lịch Sử',
+      text: 'Xóa toàn bộ lịch sử và ảnh? Không hoàn tác được. Nên bấm 💾 Sao lưu trước. Vốn, % vốn, TP và số ngày / bậc được giữ lại.',
+      ok: 'Xóa hết',
+      danger: true,
+      checkbox: { label: 'Đặt ngày bắt đầu là hôm nay', checked: true },
+      action: doReset
+    });
+  }
+
+  async function doReset(startToday){
+    var snapshot = JSON.stringify(state);
+    var keep = {
+      startDate: startToday ? todayISO() : state.startDate,
+      capital: state.capital, percent: state.percent, tpPrices: state.tpPrices, daysPerTier: state.daysPerTier
+    };
+    state = defaultState();
+    Object.keys(keep).forEach(function(k){ state[k] = keep[k]; });
+    try {
+      await saveState();
+    } catch(e) {
+      state = JSON.parse(snapshot);
+      toast('Không xóa được: ' + e.message, 4000, true);
+      return;
+    }
+    if(HAS_BRIDGE) api('imgPrune', { keep: [] }).catch(function(){});
+    writeInputs();
+    renderAll();
+    toast('Đã xóa lịch sử. Bắt đầu lại từ Ngày 1 · Bậc 1.');
+  }
+  $('resetBtn').onclick = handleReset;
+  $('btnTopReset').onclick = handleReset;
+
+  // ===== SAO LƯU VÀ KHÔI PHỤC =====
+  async function doBackup(){
+    if(!ready) return;
+    if(!HAS_BRIDGE){ toast('Sao lưu chỉ chạy trong app.', 3000, true); return; }
+    var btn = $('btnBackup');
+    btn.disabled = true;
+    btn.textContent = 'Đang sao lưu…';
+    try {
+      await saveState();
+      var r = await api('backup', { images: imageNames() });
+      $('backupNote').textContent = 'Đã lưu ' + r.name + ' vào ' + r.folder + ' (' + r.images + ' ảnh).';
+      toast('💾 Đã sao lưu vào ' + r.folder);
+    } catch(e) {
+      toast('Không sao lưu được: ' + e.message, 4500, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '💾 Sao lưu';
+    }
+  }
+
+  function askRestore(){
+    if(!ready) return;
+    if(!HAS_BRIDGE){ toast('Khôi phục chỉ chạy trong app.', 3000, true); return; }
+    ask({
+      title: '📂 Khôi phục',
+      text: 'Toàn bộ kết quả và ảnh hiện tại sẽ được thay bằng bản sao lưu. Bấm Chọn file rồi chọn file .zip trong Download/AIXIKE.',
+      ok: 'Chọn file',
+      danger: false,
+      action: doRestore
+    });
+  }
+
+  async function doRestore(){
+    var btn = $('btnRestore');
+    btn.disabled = true;
+    btn.textContent = 'Đang khôi phục…';
+    try {
+      var r = await api('restore', {});
+      state = normalizeState(JSON.parse(r.data));
+      loadFailed = false;
+      writeInputs();
+      renderAll();
+      // Dọn ảnh cũ không còn dùng
+      api('imgPrune', { keep: imageNames() }).catch(function(){});
+      toast('📂 Đã khôi phục ' + totalCompletedDays() + ' ngày, ' + r.images + ' ảnh.', 4000);
+    } catch(e) {
+      if(!/huỷ|hủy/i.test(e.message)) toast('Không khôi phục được: ' + e.message, 4500, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '📂 Khôi phục';
+    }
+  }
+  $('btnBackup').onclick = doBackup;
+  $('btnRestore').onclick = askRestore;
+
+  // ===== CÀI ĐẶT, CHUYỂN BẬC, THANH DƯỚI =====
+  ['inStartDate','inCapital','inPercent','inTpPrices'].forEach(function(id){
+    $(id).addEventListener('change', function(){ onSettingChange(id); });
+  });
+  $('inDaysPerTier').addEventListener('change', onDaysChange);
+
+  $('prevTierBtn').onclick = function(){ if(state.viewTier > 1){ state.viewTier--; saveQuiet(); renderAll(); } };
+  $('nextTierBtn').onclick = function(){ if(state.viewTier < TIER_COUNT){ state.viewTier++; saveQuiet(); renderAll(); } };
+
+  $('bottomOk').onclick = function(){
+    if(bottomIdx !== undefined && bottomIdx !== -1) openResultDialog(bottomIdx);
+  };
+
+  $('btnCopySignal').onclick = async function(){
+    if(!ready) return;
+    var t = state.viewTier || state.currentTier;
+    var lot = fmtLot(lotTier(t));
+    var tpVal = state.tpPrices || 10;
+    var text = 'XIKE GOLD | Bậc ' + t + ' | Khối lượng: ' + lot + ' lot | Target: ' + tpVal + ' giá (' + tpVal * 10 + ' pips)';
+    try {
+      if(HAS_BRIDGE) await api('copy', { text: text });
+      else await navigator.clipboard.writeText(text);
+      toast('Đã sao chép: ' + text, 3500);
+    } catch(e) {
+      toast('Lệnh: ' + text, 6000);
+    }
+  };
+
+  // ===== PHÁO HOA (giữ nguyên bản gốc) =====
+  function launchConfetti(){
+    var canvas = $('confettiCanvas');
+    var ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    var pieces = [];
+    var count = 75;
+    var colors = ['#ffd700', '#00e676', '#00e5ff', '#ff1744', '#ffffff'];
+
+    for(var i=0; i<count; i++){
+      pieces.push({
+        x: canvas.width / 2,
+        y: canvas.height / 2,
+        vx: (Math.random() - 0.5) * 15,
+        vy: (Math.random() - 0.7) * 18,
+        size: Math.random() * 6 + 4,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        rotation: Math.random() * 360,
+        rSpeed: (Math.random() - 0.5) * 8,
+        life: 1
+      });
+    }
+
+    function animate(){
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      var alive = false;
+      pieces.forEach(function(p){
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.45;
+        p.rotation += p.rSpeed;
+        p.life -= 0.015;
+
+        if(p.life > 0){
+          alive = true;
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate((p.rotation * Math.PI) / 180);
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = p.life;
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+          ctx.restore();
+        }
+      });
+
+      if(alive) requestAnimationFrame(animate);
+      else ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    requestAnimationFrame(animate);
+  }
+
+  // ===== NÚT QUAY LẠI CỦA ĐIỆN THOẠI =====
+  window.onBack = function(){
+    if($('imgModal').style.display === 'flex'){ closeModal(); return true; }
+    if($('ask').style.display === 'flex'){ closeAsk(true); return true; }
+    if($('resultDialog').style.display === 'flex'){ closeDialog(); return true; }
+    return false;
+  };
+
+  // ===== KHỞI ĐỘNG =====
+  async function init(){
+    var raw = '', note = '', parsed = null;
+    try {
+      raw = await Store.load();
+    } catch(e) {
+      loadFailed = true;
+      note = 'Không đọc được dữ liệu: ' + e.message;
+    }
+    if(raw){
+      try {
+        parsed = JSON.parse(raw);
+      } catch(e) {
+        var bak = '';
+        try { bak = await Store.loadBak(); } catch(e2) { bak = ''; }
+        try {
+          parsed = JSON.parse(bak);
+          note = 'File dữ liệu bị lỗi, đã mở bản lưu dự phòng gần nhất.';
+        } catch(e3) {
+          parsed = null;
+          note = 'File dữ liệu bị lỗi và không có bản dự phòng, đang mở bảng trống.';
+        }
+      }
+    }
+    state = normalizeState(parsed);
+    ready = true;
+    writeInputs();
+    renderAll();
+    // Dữ liệu dạng v4 trước đã đổi sang dạng gốc: ghi lại ngay
+    if(parsed && parsed.cfg) saveQuiet();
+    if(note) toast(note, 6000, true);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
