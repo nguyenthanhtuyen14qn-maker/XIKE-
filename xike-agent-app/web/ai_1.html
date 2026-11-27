@@ -289,6 +289,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #legend .blk { color: var(--down); }
 #legend .sw { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 2px; }
 #legend [data-uid] { pointer-events: auto; cursor: pointer; }
+/* Nút thu gọn / mở thông số chỉ báo, kiểu TradingView */
+#legend .lg-tog { pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 24px; margin-top: 3px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: rgba(0, 0, 0, .55); color: var(--text); cursor: pointer; }
+#legend .lg-tog svg { display: block; }
 
 #settings { display: grid; gap: 10px; padding: 12px; background: var(--panel); border-top: 1px solid var(--line); }
 /* Cài đặt có khung cuộn: phần tài khoản MT5 không làm biểu đồ quá thấp */
@@ -1556,6 +1559,14 @@ function yAuto() {
   say(&#x27;Thang giá: tự co giãn theo nến.&#x27;);
   schedule();
 }
+function toggleLegendInds() {
+  VIEW.inds = !VIEW.inds;
+  saveView();
+  syncSettings();
+  syncLegendBtn();
+  legendKey = &#x27;&#x27;;
+  schedule();
+}
 function syncLegendBtn() {
   setOn(&#x27;bLegend&#x27;, VIEW.inds);
   $(&#x27;bLegend&#x27;).setAttribute(&#x27;aria-pressed&#x27;, String(VIEW.inds));
@@ -1925,6 +1936,12 @@ function updateLegend(li) {
     }
     parts.push(&#x27;&lt;div class=&quot;lg&quot; data-uid=&quot;&#x27; + inst.uid + &#x27;&quot;&gt;&lt;i class=&quot;sw&quot; style=&quot;background:&#x27; + def.color +
       &#x27;&quot;&gt;&lt;/i&gt;&lt;b&gt;&#x27; + def.label(inst.p) + &#x27;&lt;/b&gt; &#x27; + vals + &#x27;&lt;/div&gt;&#x27;);
+  }
+  // Mũi tên thu gọn / mở thông số chỉ báo (chỉ hiện khi đang bật ít nhất một chỉ báo)
+  if (S.inds.some(x =&gt; x.on)) {
+    const chev = VIEW.inds ? &#x27;M4 10 L8 6 L12 10&#x27; : &#x27;M4 6 L8 10 L12 6&#x27;;
+    parts.push(&#x27;&lt;button type=&quot;button&quot; class=&quot;lg-tog&quot; data-tog=&quot;1&quot; aria-label=&quot;&#x27; + (VIEW.inds ? &#x27;Thu gọn thông số chỉ báo&#x27; : &#x27;Hiện thông số chỉ báo&#x27;) +
+      &#x27;&quot;&gt;&lt;svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 16 16&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;1.8&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;&gt;&lt;path d=&quot;&#x27; + chev + &#x27;&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&#x27;);
   }
   box.innerHTML = parts.join(&#x27;&#x27;);
 }
@@ -2974,15 +2991,7 @@ function bindUI() {
   for (const [id, k] of [[&#x27;vInds&#x27;, &#x27;inds&#x27;], [&#x27;vOhlc&#x27;, &#x27;ohlc&#x27;]]) {
     $(id).addEventListener(&#x27;change&#x27;, () =&gt; { VIEW[k] = $(id).checked; saveView(); syncLegendBtn(); legendKey = &#x27;&#x27;; schedule(); });
   }
-  $(&#x27;bLegend&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; {
-    VIEW.inds = !VIEW.inds;
-    saveView();
-    syncSettings();
-    syncLegendBtn();
-    legendKey = &#x27;&#x27;;
-    say(VIEW.inds ? &#x27;Đang hiện thông số chỉ báo.&#x27; : &#x27;Đã ẩn thông số chỉ báo.&#x27;);
-    schedule();
-  });
+  $(&#x27;bLegend&#x27;).addEventListener(&#x27;click&#x27;, toggleLegendInds);
   $(&#x27;bAuto&#x27;).addEventListener(&#x27;click&#x27;, yAuto);
   $(&#x27;acctSave&#x27;).addEventListener(&#x27;click&#x27;, acctSaveClick);
   $(&#x27;acctRefresh&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; acctRefresh());
@@ -3012,6 +3021,7 @@ function bindUI() {
   $(&#x27;edReset&#x27;).addEventListener(&#x27;click&#x27;, resetEditor);
   $(&#x27;edRemove&#x27;).addEventListener(&#x27;click&#x27;, removeEditing);
   $(&#x27;legend&#x27;).addEventListener(&#x27;click&#x27;, e =&gt; {
+    if (e.target.closest &amp;&amp; e.target.closest(&#x27;[data-tog]&#x27;)) { toggleLegendInds(); return; }
     const row = e.target.closest ? e.target.closest(&#x27;[data-uid]&#x27;) : null;
     if (row) openEditorSheet(Number(row.dataset.uid));
   });

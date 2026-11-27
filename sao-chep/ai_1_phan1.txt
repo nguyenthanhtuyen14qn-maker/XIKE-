@@ -289,6 +289,9 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #legend .blk { color: var(--down); }
 #legend .sw { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 2px; }
 #legend [data-uid] { pointer-events: auto; cursor: pointer; }
+/* Nút thu gọn / mở thông số chỉ báo, kiểu TradingView */
+#legend .lg-tog { pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 24px; margin-top: 3px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: rgba(0, 0, 0, .55); color: var(--text); cursor: pointer; }
+#legend .lg-tog svg { display: block; }
 
 #settings { display: grid; gap: 10px; padding: 12px; background: var(--panel); border-top: 1px solid var(--line); }
 /* Cài đặt có khung cuộn: phần tài khoản MT5 không làm biểu đồ quá thấp */

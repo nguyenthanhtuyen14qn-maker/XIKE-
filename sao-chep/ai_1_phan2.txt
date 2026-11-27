@@ -9,6 +9,14 @@ function yAuto() {
   say(&#x27;Thang giá: tự co giãn theo nến.&#x27;);
   schedule();
 }
+function toggleLegendInds() {
+  VIEW.inds = !VIEW.inds;
+  saveView();
+  syncSettings();
+  syncLegendBtn();
+  legendKey = &#x27;&#x27;;
+  schedule();
+}
 function syncLegendBtn() {
   setOn(&#x27;bLegend&#x27;, VIEW.inds);
   $(&#x27;bLegend&#x27;).setAttribute(&#x27;aria-pressed&#x27;, String(VIEW.inds));
@@ -378,6 +386,12 @@ function updateLegend(li) {
     }
     parts.push(&#x27;&lt;div class=&quot;lg&quot; data-uid=&quot;&#x27; + inst.uid + &#x27;&quot;&gt;&lt;i class=&quot;sw&quot; style=&quot;background:&#x27; + def.color +
       &#x27;&quot;&gt;&lt;/i&gt;&lt;b&gt;&#x27; + def.label(inst.p) + &#x27;&lt;/b&gt; &#x27; + vals + &#x27;&lt;/div&gt;&#x27;);
+  }
+  // Mũi tên thu gọn / mở thông số chỉ báo (chỉ hiện khi đang bật ít nhất một chỉ báo)
+  if (S.inds.some(x =&gt; x.on)) {
+    const chev = VIEW.inds ? &#x27;M4 10 L8 6 L12 10&#x27; : &#x27;M4 6 L8 10 L12 6&#x27;;
+    parts.push(&#x27;&lt;button type=&quot;button&quot; class=&quot;lg-tog&quot; data-tog=&quot;1&quot; aria-label=&quot;&#x27; + (VIEW.inds ? &#x27;Thu gọn thông số chỉ báo&#x27; : &#x27;Hiện thông số chỉ báo&#x27;) +
+      &#x27;&quot;&gt;&lt;svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 16 16&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;1.8&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;&gt;&lt;path d=&quot;&#x27; + chev + &#x27;&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&#x27;);
   }
   box.innerHTML = parts.join(&#x27;&#x27;);
 }
@@ -1427,15 +1441,7 @@ function bindUI() {
   for (const [id, k] of [[&#x27;vInds&#x27;, &#x27;inds&#x27;], [&#x27;vOhlc&#x27;, &#x27;ohlc&#x27;]]) {
     $(id).addEventListener(&#x27;change&#x27;, () =&gt; { VIEW[k] = $(id).checked; saveView(); syncLegendBtn(); legendKey = &#x27;&#x27;; schedule(); });
   }
-  $(&#x27;bLegend&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; {
-    VIEW.inds = !VIEW.inds;
-    saveView();
-    syncSettings();
-    syncLegendBtn();
-    legendKey = &#x27;&#x27;;
-    say(VIEW.inds ? &#x27;Đang hiện thông số chỉ báo.&#x27; : &#x27;Đã ẩn thông số chỉ báo.&#x27;);
-    schedule();
-  });
+  $(&#x27;bLegend&#x27;).addEventListener(&#x27;click&#x27;, toggleLegendInds);
   $(&#x27;bAuto&#x27;).addEventListener(&#x27;click&#x27;, yAuto);
   $(&#x27;acctSave&#x27;).addEventListener(&#x27;click&#x27;, acctSaveClick);
   $(&#x27;acctRefresh&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; acctRefresh());
@@ -1465,6 +1471,7 @@ function bindUI() {
   $(&#x27;edReset&#x27;).addEventListener(&#x27;click&#x27;, resetEditor);
   $(&#x27;edRemove&#x27;).addEventListener(&#x27;click&#x27;, removeEditing);
   $(&#x27;legend&#x27;).addEventListener(&#x27;click&#x27;, e =&gt; {
+    if (e.target.closest &amp;&amp; e.target.closest(&#x27;[data-tog]&#x27;)) { toggleLegendInds(); return; }
     const row = e.target.closest ? e.target.closest(&#x27;[data-uid]&#x27;) : null;
     if (row) openEditorSheet(Number(row.dataset.uid));
   });
@@ -1859,53 +1866,5 @@ function aiSnapshot() {
   const shot = takeShot(null);
   if (!shot) return { error: &#x27;Mở tab Biểu đồ để AI chụp biểu đồ.&#x27; };
   return Object.assign({ tf: S.tf, now: last.c, text }, shot);
-}
-
-// Chụp biểu đồ đang xem (kéo về nến mới nhất), kèm thang giá đúng để vẽ chính xác.
-// fit = { lo, hi }: mở rộng thang giá cho đủ các mức cần vẽ.
-function takeShot(fit) {
-  if (!hasData) return null;
-  const N = series(S.tf).bars.length;
-  S.anchor = N - 1 + Math.round(LAY.plotW * 0.28 / S.barW);
-  clampAnchor();
-  // Tạm ẩn Gann Fan tự động (có TP/SL riêng) để không lẫn với kế hoạch của AI
-  const hidden = S.inds.filter(x =&gt; x.id === &#x27;gann_fan&#x27; &amp;&amp; x.on);
-  hidden.forEach(x =&gt; { x.on = false; });
-  indsVer += 1;
-  legendKey = &#x27;&#x27;;
-  XK_FIT = fit &amp;&amp; Number.isFinite(fit.lo) &amp;&amp; Number.isFinite(fit.hi) ? fit : null;
-  render();
-  const r = cv.getBoundingClientRect();
-  let out = null;
-  if (r.width &gt; 0 &amp;&amp; r.height &gt; 0) {
-    const p1 = priceAtY(LAY.candleTop + (LAY.candleBottom - LAY.candleTop) * 0.15);
-    const p2 = priceAtY(LAY.candleTop + (LAY.candleBottom - LAY.candleTop) * 0.85);
-    out = {
-      image: cv.toDataURL(&#x27;image/jpeg&#x27;, 0.92),
-      axis: [{ price: p1, y: yOf(p1) / r.height * 1000 }, { price: p2, y: yOf(p2) / r.height * 1000 }],
-      pane: { top: LAY.candleTop / r.height * 1000, bottom: LAY.candleBottom / r.height * 1000 },
-      last_x: xOf(N - 1) / r.width * 1000
-    };
-  }
-  XK_FIT = null;
-  hidden.forEach(x =&gt; { x.on = true; });
-  indsVer += 1;
-  legendKey = &#x27;&#x27;;
-  schedule();
-  return out;
-}
-// Trang chính xin chụp lại khi AI đã trả các mức giá
-window.addEventListener(&#x27;message&#x27;, e =&gt; {
-  if (e.source !== window.parent || !e.data || e.data.type !== &#x27;xk-shot&#x27;) return;
-  const shot = takeShot({ lo: Number(e.data.lo), hi: Number(e.data.hi) });
-  window.parent.postMessage(Object.assign({ type: &#x27;xk-shot-done&#x27;, id: e.data.id }, shot || { error: &#x27;hidden&#x27; }), &#x27;*&#x27;);
-  if (shot) say(&#x27;AI đã phân tích xong. Xem ở tab Phân tích.&#x27;);
-});
-function aiClick() {
-  const snap = aiSnapshot();
-  if (snap.error) { say(snap.error); return; }
-  if (window.parent === window) { say(&#x27;Nút AI chỉ chạy trong app.&#x27;); return; }
-  window.parent.postMessage(Object.assign({ type: &#x27;xk-analyze&#x27; }, snap), &#x27;*&#x27;);
-  say(&#x27;AI đang phân tích dữ liệu &#x27; + snap.tf + &#x27;… Giữ tab Biểu đồ để AI vẽ lên biểu đồ.&#x27;);
 }
 
