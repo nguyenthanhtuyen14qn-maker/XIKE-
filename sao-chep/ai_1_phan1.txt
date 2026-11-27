@@ -404,6 +404,8 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
     &lt;div class=&quot;seg&quot; id=&quot;tfs&quot; role=&quot;group&quot; aria-label=&quot;Khung thời gian&quot;&gt;&lt;/div&gt;
     &lt;span class=&quot;sep&quot;&gt;&lt;/span&gt;
     &lt;button type=&quot;button&quot; id=&quot;bInd&quot; class=&quot;ind-btn&quot; aria-haspopup=&quot;dialog&quot;&gt;Chỉ báo &lt;span class=&quot;badge&quot; id=&quot;indCount&quot; hidden&gt;0&lt;/span&gt;&lt;/button&gt;
+    &lt;button type=&quot;button&quot; id=&quot;bLegend&quot; aria-pressed=&quot;true&quot; title=&quot;Ẩn/hiện thông số chỉ báo trên biểu đồ&quot;&gt;Thông số&lt;/button&gt;
+    &lt;button type=&quot;button&quot; id=&quot;bAuto&quot; title=&quot;Trở lại tự co giãn thang giá&quot; hidden&gt;↕ Tự động&lt;/button&gt;
     &lt;span class=&quot;sep&quot;&gt;&lt;/span&gt;
     &lt;button type=&quot;button&quot; id=&quot;bFan&quot; aria-pressed=&quot;false&quot;&gt;Gann Fan&lt;/button&gt;
     &lt;button type=&quot;button&quot; id=&quot;bHl&quot; aria-pressed=&quot;false&quot;&gt;Ngang&lt;/button&gt;

@@ -404,6 +404,8 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
     &lt;div class=&quot;seg&quot; id=&quot;tfs&quot; role=&quot;group&quot; aria-label=&quot;Khung thời gian&quot;&gt;&lt;/div&gt;
     &lt;span class=&quot;sep&quot;&gt;&lt;/span&gt;
     &lt;button type=&quot;button&quot; id=&quot;bInd&quot; class=&quot;ind-btn&quot; aria-haspopup=&quot;dialog&quot;&gt;Chỉ báo &lt;span class=&quot;badge&quot; id=&quot;indCount&quot; hidden&gt;0&lt;/span&gt;&lt;/button&gt;
+    &lt;button type=&quot;button&quot; id=&quot;bLegend&quot; aria-pressed=&quot;true&quot; title=&quot;Ẩn/hiện thông số chỉ báo trên biểu đồ&quot;&gt;Thông số&lt;/button&gt;
+    &lt;button type=&quot;button&quot; id=&quot;bAuto&quot; title=&quot;Trở lại tự co giãn thang giá&quot; hidden&gt;↕ Tự động&lt;/button&gt;
     &lt;span class=&quot;sep&quot;&gt;&lt;/span&gt;
     &lt;button type=&quot;button&quot; id=&quot;bFan&quot; aria-pressed=&quot;false&quot;&gt;Gann Fan&lt;/button&gt;
     &lt;button type=&quot;button&quot; id=&quot;bHl&quot; aria-pressed=&quot;false&quot;&gt;Ngang&lt;/button&gt;
@@ -1543,7 +1545,23 @@ function makeHatch() {
   }
 }
 
+// Nút ↕ Tự động chỉ hiện khi đã kéo thang giá bằng tay
+function syncAutoBtn() {
+  const b = $(&#x27;bAuto&#x27;);
+  if (b &amp;&amp; b.hidden !== !Y_LOCK) b.hidden = !Y_LOCK;
+}
+function yAuto() {
+  Y_LOCK = null;
+  syncAutoBtn();
+  say(&#x27;Thang giá: tự co giãn theo nến.&#x27;);
+  schedule();
+}
+function syncLegendBtn() {
+  setOn(&#x27;bLegend&#x27;, VIEW.inds);
+  $(&#x27;bLegend&#x27;).setAttribute(&#x27;aria-pressed&#x27;, String(VIEW.inds));
+}
 function render() {
+  syncAutoBtn();
   if (!cx) return;
   LAY = layout();
   const L = LAY;
@@ -2738,7 +2756,7 @@ function bindPointer() {
         } else {
           S.anchor = drag.a0 - dx / S.barW;
           clampAnchor();
-          if (drag.inMain &amp;&amp; (drag.vert || Math.abs(dy) &gt; 10)) {
+          if (drag.inMain &amp;&amp; (drag.vert || Math.abs(dy) &gt; 6)) {
             drag.vert = true;
             Y_LOCK = { pMin: drag.vp0.pMin + dy * ppx, pMax: drag.vp0.pMax + dy * ppx };
           }
@@ -2758,7 +2776,7 @@ function bindPointer() {
       if (!cancelled &amp;&amp; hasData &amp;&amp; (S.mode !== &#x27;pan&#x27; || !drag.moved)) {
         const q = S.mode === &#x27;pan&#x27; ? { x: drag.x0, y: drag.y0 } : rel(e);
         // Chạm vào cột giá khi đang chỉnh tay: trở lại tự co giãn
-        if (drag.onAxis &amp;&amp; Y_LOCK) { Y_LOCK = null; say(&#x27;Thang giá: tự co giãn theo nến.&#x27;); }
+        if (drag.onAxis &amp;&amp; Y_LOCK) yAuto();
         else onTap(q.x, q.y);
       }
       drag = null;
@@ -2789,6 +2807,7 @@ function syncSettings() {
   $(&#x27;iTz&#x27;).value = String(S.tz);
   $(&#x27;vInds&#x27;).checked = VIEW.inds;
   $(&#x27;vOhlc&#x27;).checked = VIEW.ohlc;
+  if ($(&#x27;bLegend&#x27;)) syncLegendBtn();
 }
 
 function applyTz() {
@@ -2953,8 +2972,18 @@ function bindUI() {
   $(&#x27;ordLotUp&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; ordStep(1));
   $(&#x27;iTz&#x27;).addEventListener(&#x27;change&#x27;, applyTz);
   for (const [id, k] of [[&#x27;vInds&#x27;, &#x27;inds&#x27;], [&#x27;vOhlc&#x27;, &#x27;ohlc&#x27;]]) {
-    $(id).addEventListener(&#x27;change&#x27;, () =&gt; { VIEW[k] = $(id).checked; saveView(); legendKey = &#x27;&#x27;; schedule(); });
+    $(id).addEventListener(&#x27;change&#x27;, () =&gt; { VIEW[k] = $(id).checked; saveView(); syncLegendBtn(); legendKey = &#x27;&#x27;; schedule(); });
   }
+  $(&#x27;bLegend&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; {
+    VIEW.inds = !VIEW.inds;
+    saveView();
+    syncSettings();
+    syncLegendBtn();
+    legendKey = &#x27;&#x27;;
+    say(VIEW.inds ? &#x27;Đang hiện thông số chỉ báo.&#x27; : &#x27;Đã ẩn thông số chỉ báo.&#x27;);
+    schedule();
+  });
+  $(&#x27;bAuto&#x27;).addEventListener(&#x27;click&#x27;, yAuto);
   $(&#x27;acctSave&#x27;).addEventListener(&#x27;click&#x27;, acctSaveClick);
   $(&#x27;acctRefresh&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; acctRefresh());
   $(&#x27;fdProv&#x27;).addEventListener(&#x27;change&#x27;, fdProvChange);
