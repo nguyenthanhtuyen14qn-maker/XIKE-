@@ -1,0 +1,26 @@
+<style>
+  /* ===== NỀN ĐEN TUYỀN: dán khối này ngay trước dòng </head> (giữ nguyên các kiểu khác) ===== */
+  :root {
+    --bg-deep: #000000;
+    --card-surface: #000000;
+    --gray-col: #111111;
+    --card-border: rgba(255, 255, 255, 0.12);
+    --warn-bg: #000000;
+  }
+  html, body { background: #000000 !important; background-image: none !important; }
+  .card { background: #000000; backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none; }
+  .card::before { display: none; }
+  .input-group input, .input-group input:focus { background: #000000; }
+  .stat, .fin, .stat.wide { background: #000000; box-shadow: none; }
+  .mini-btn, .nav-btn, .type-btn, .btn-cancel, .btn-reset { background: #000000; }
+  .day { background-color: #000000; }
+  .day .overlay { background: rgba(0, 0, 0, 0.7); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .day.win .overlay { background: var(--green-bg); }
+  .day.loss .overlay { background: var(--red-bg); }
+  .warn-box { background: #000000; box-shadow: none; }
+  .bottom-bar { background: #000000; backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none; }
+  .dialog-overlay { background: rgba(0, 0, 0, 0.92); }
+  .dialog-card, .dlg-image-box { background: #000000; }
+  .modal-viewer { background: #000000; }
+  .progress-bg { background: #161616; }
+</style>
