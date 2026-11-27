@@ -272,6 +272,7 @@ function start(st) {
   readTokens();
   blockPat = makeHatch();
   applyState(st || {});
+  loadView();
   if (!st || !Array.isArray(st.drawings)) loadDrawings();
   if (!st || !Array.isArray(st.inds)) loadInds();
   setIcon($(&#x27;sheetBack&#x27;), &#x27;back&#x27;);

@@ -314,6 +314,8 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .fd-msg { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); }
 .fd-msg.err { border-color: rgba(239, 100, 113, .6); color: #fecaca; }
 .fd-msg.ok { border-color: rgba(43, 179, 154, .6); color: #bbf7d0; }
+.vchk { flex-direction: row !important; align-items: center; gap: 8px !important; color: var(--text) !important; font-size: 13px !important; }
+.vchk input { width: 18px !important; height: 18px; margin: 0; padding: 0 !important; }
 .td-sel { font: 500 14px/1 var(--f-num); color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 8px; width: 100%; }
 /* Khung đặt lệnh ngay dưới biểu đồ: tắt sẵn, phải bật và bấm xác nhận lần hai mới gửi */
 #trade { display: grid; gap: 8px; padding: 8px 10px 10px; background: var(--panel); border-top: 1px solid var(--line); max-height: 46vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
@@ -450,6 +452,9 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
   &lt;/div&gt;
   &lt;div id=&quot;settings&quot; hidden&gt;
     &lt;label&gt;Lệch giờ hiển thị (so với UTC)&lt;input id=&quot;iTz&quot; type=&quot;number&quot; inputmode=&quot;numeric&quot; min=&quot;-12&quot; max=&quot;14&quot; value=&quot;7&quot;&gt;&lt;/label&gt;
+    &lt;label class=&quot;vchk&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;vInds&quot;&gt; Hiện thông số chỉ báo trên biểu đồ&lt;/label&gt;
+    &lt;label class=&quot;vchk&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;vOhlc&quot;&gt; Hiện giờ nến và giá O / H / L / C&lt;/label&gt;
+    &lt;p class=&quot;note&quot;&gt;Kéo dọc trên biểu đồ để dời lên xuống. Kéo trên cột giá bên phải để co giãn. Chạm cột giá để trở lại tự co giãn.&lt;/p&gt;
     &lt;p class=&quot;note&quot; id=&quot;info&quot;&gt;&lt;/p&gt;
     &lt;p class=&quot;note&quot;&gt;Nạp file: CSV hoặc TSV có cột time (hoặc date và time), open, high, low, close, volume. File TradingView xuất theo UTC, để 7 để ra giờ VN. File MT5 theo giờ server của broker, lấy 7 trừ đi lệch giờ đó.&lt;/p&gt;
     &lt;p class=&quot;note&quot;&gt;Nguồn dữ liệu (Twelve Data, OANDA) và tài khoản MT5 nằm ở tab ⚙️ Cài đặt của app.&lt;/p&gt;
@@ -531,7 +536,17 @@ const S = {
 };
 let BASE = [], baseSec = 60, baseName = &#x27;&#x27;, hasData = false, cache = {}, dataGen = 0, UID = 0;
 let VP = { pMin: 0, pMax: 1 };
-let XK_FIT = null;   // khi chụp cho AI: mở rộng thang giá để đủ các mức AI đưa ra
+let XK_FIT = null;
+// Thang giá chỉnh tay: null = tự co giãn theo nến; { pMin, pMax } = đã kéo lên/xuống hoặc co giãn trục giá
+let Y_LOCK = null;
+// Hiển thị thông số trên biểu đồ (lưu trong máy)
+const VIEW_KEY = &#x27;xau-chart-view-v1&#x27;;
+const VIEW = { ohlc: true, inds: true };
+function loadView() {
+  try { const v = JSON.parse(localStorage.getItem(VIEW_KEY) || &#x27;null&#x27;); if (v) { VIEW.ohlc = v.ohlc !== false; VIEW.inds = v.inds !== false; } }
+  catch (err) { /* bỏ qua */ }
+}
+function saveView() { try { localStorage.setItem(VIEW_KEY, JSON.stringify(VIEW)); } catch (err) { /* bỏ qua */ } }   // khi chụp cho AI: mở rộng thang giá để đủ các mức AI đưa ra
 let view = { w: 360, h: 600 };
 let LAY = { w: 360, h: 600, axisR: 64, axisB: 22, plotW: 296, totalH: 578, mainH: 578, paneH: 0, nPanes: 0, volH: 0, candleTop: 8, candleBottom: 570 };
 
@@ -1328,6 +1343,7 @@ function clampAnchor() {
 }
 
 function fitView() {
+  Y_LOCK = null;
   LAY = layout();
   const n = series(S.tf).bars.length;
   S.barW = clamp(LAY.plotW / 72, 4, 16);

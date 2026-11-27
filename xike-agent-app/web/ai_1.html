@@ -314,6 +314,8 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .fd-msg { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); }
 .fd-msg.err { border-color: rgba(239, 100, 113, .6); color: #fecaca; }
 .fd-msg.ok { border-color: rgba(43, 179, 154, .6); color: #bbf7d0; }
+.vchk { flex-direction: row !important; align-items: center; gap: 8px !important; color: var(--text) !important; font-size: 13px !important; }
+.vchk input { width: 18px !important; height: 18px; margin: 0; padding: 0 !important; }
 .td-sel { font: 500 14px/1 var(--f-num); color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 8px; width: 100%; }
 /* Khung đặt lệnh ngay dưới biểu đồ: tắt sẵn, phải bật và bấm xác nhận lần hai mới gửi */
 #trade { display: grid; gap: 8px; padding: 8px 10px 10px; background: var(--panel); border-top: 1px solid var(--line); max-height: 46vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
@@ -450,6 +452,9 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
   &lt;/div&gt;
   &lt;div id=&quot;settings&quot; hidden&gt;
     &lt;label&gt;Lệch giờ hiển thị (so với UTC)&lt;input id=&quot;iTz&quot; type=&quot;number&quot; inputmode=&quot;numeric&quot; min=&quot;-12&quot; max=&quot;14&quot; value=&quot;7&quot;&gt;&lt;/label&gt;
+    &lt;label class=&quot;vchk&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;vInds&quot;&gt; Hiện thông số chỉ báo trên biểu đồ&lt;/label&gt;
+    &lt;label class=&quot;vchk&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;vOhlc&quot;&gt; Hiện giờ nến và giá O / H / L / C&lt;/label&gt;
+    &lt;p class=&quot;note&quot;&gt;Kéo dọc trên biểu đồ để dời lên xuống. Kéo trên cột giá bên phải để co giãn. Chạm cột giá để trở lại tự co giãn.&lt;/p&gt;
     &lt;p class=&quot;note&quot; id=&quot;info&quot;&gt;&lt;/p&gt;
     &lt;p class=&quot;note&quot;&gt;Nạp file: CSV hoặc TSV có cột time (hoặc date và time), open, high, low, close, volume. File TradingView xuất theo UTC, để 7 để ra giờ VN. File MT5 theo giờ server của broker, lấy 7 trừ đi lệch giờ đó.&lt;/p&gt;
     &lt;p class=&quot;note&quot;&gt;Nguồn dữ liệu (Twelve Data, OANDA) và tài khoản MT5 nằm ở tab ⚙️ Cài đặt của app.&lt;/p&gt;
@@ -531,7 +536,17 @@ const S = {
 };
 let BASE = [], baseSec = 60, baseName = &#x27;&#x27;, hasData = false, cache = {}, dataGen = 0, UID = 0;
 let VP = { pMin: 0, pMax: 1 };
-let XK_FIT = null;   // khi chụp cho AI: mở rộng thang giá để đủ các mức AI đưa ra
+let XK_FIT = null;
+// Thang giá chỉnh tay: null = tự co giãn theo nến; { pMin, pMax } = đã kéo lên/xuống hoặc co giãn trục giá
+let Y_LOCK = null;
+// Hiển thị thông số trên biểu đồ (lưu trong máy)
+const VIEW_KEY = &#x27;xau-chart-view-v1&#x27;;
+const VIEW = { ohlc: true, inds: true };
+function loadView() {
+  try { const v = JSON.parse(localStorage.getItem(VIEW_KEY) || &#x27;null&#x27;); if (v) { VIEW.ohlc = v.ohlc !== false; VIEW.inds = v.inds !== false; } }
+  catch (err) { /* bỏ qua */ }
+}
+function saveView() { try { localStorage.setItem(VIEW_KEY, JSON.stringify(VIEW)); } catch (err) { /* bỏ qua */ } }   // khi chụp cho AI: mở rộng thang giá để đủ các mức AI đưa ra
 let view = { w: 360, h: 600 };
 let LAY = { w: 360, h: 600, axisR: 64, axisB: 22, plotW: 296, totalH: 578, mainH: 578, paneH: 0, nPanes: 0, volH: 0, candleTop: 8, candleBottom: 570 };
 
@@ -1328,6 +1343,7 @@ function clampAnchor() {
 }
 
 function fitView() {
+  Y_LOCK = null;
   LAY = layout();
   const n = series(S.tf).bars.length;
   S.barW = clamp(LAY.plotW / 72, 4, 16);
@@ -1576,7 +1592,7 @@ function render() {
   }
   if (XK_FIT) { lo = Math.min(lo, XK_FIT.lo); hi = Math.max(hi, XK_FIT.hi); }
   const pad = hi &gt; lo ? (hi - lo) * 0.08 : 1;
-  VP = { pMin: lo - pad, pMax: hi + pad };
+  VP = (Y_LOCK &amp;&amp; !XK_FIT) ? { pMin: Y_LOCK.pMin, pMax: Y_LOCK.pMax } : { pMin: lo - pad, pMax: hi + pad };
 
   const cr = S.cross;
   const crInPlot = !!cr &amp;&amp; cr.x &gt;= 0 &amp;&amp; cr.x &lt;= L.plotW;
@@ -1866,19 +1882,19 @@ function updateLegend(li) {
     if (legendKey !== &#x27;empty&#x27;) { box.textContent = &#x27;&#x27;; legendKey = &#x27;empty&#x27;; }
     return;
   }
-  const key = [li, S.tf, dataGen, indsVer, S.showBlock, S.tz].join(&#x27;|&#x27;);
+  const key = [li, S.tf, dataGen, indsVer, S.showBlock, S.tz, VIEW.ohlc, VIEW.inds].join(&#x27;|&#x27;);
   if (key === legendKey) return;
   legendKey = key;
   const b = series(S.tf).bars[li];
   const up = b.c &gt;= b.o;
   const parts = [];
-  parts.push(&#x27;&lt;div class=&quot;lg&quot;&gt;&lt;b&gt;&#x27; + S.tf + &#x27;&lt;/b&gt; &#x27; + fmtTs(b.t, &#x27;dhm&#x27;) +
+  if (VIEW.ohlc) parts.push(&#x27;&lt;div class=&quot;lg&quot;&gt;&lt;b&gt;&#x27; + S.tf + &#x27;&lt;/b&gt; &#x27; + fmtTs(b.t, &#x27;dhm&#x27;) +
     (S.showBlock &amp;&amp; inBlock(b.t) ? &#x27; &lt;span class=&quot;blk&quot;&gt;Giờ cấm 18–22h VN&lt;/span&gt;&#x27; : &#x27;&#x27;) + &#x27;&lt;/div&gt;&#x27;);
-  parts.push(&#x27;&lt;div class=&quot;lg&quot;&gt;O &lt;b&gt;&#x27; + b.o.toFixed(2) + &#x27;&lt;/b&gt; H &lt;b&gt;&#x27; + b.h.toFixed(2) +
+  if (VIEW.ohlc) parts.push(&#x27;&lt;div class=&quot;lg&quot;&gt;O &lt;b&gt;&#x27; + b.o.toFixed(2) + &#x27;&lt;/b&gt; H &lt;b&gt;&#x27; + b.h.toFixed(2) +
     &#x27;&lt;/b&gt; L &lt;b&gt;&#x27; + b.l.toFixed(2) + &#x27;&lt;/b&gt; C &lt;b style=&quot;color:&#x27; + (up ? COL.up : COL.down) + &#x27;&quot;&gt;&#x27; +
     b.c.toFixed(2) + &#x27;&lt;/b&gt;&lt;/div&gt;&#x27;);
   for (const inst of S.inds) {
-    if (!inst.on) continue;
+    if (!inst.on || !VIEW.inds) continue;
     const def = IND_BY_ID[inst.id];
     let vals = &#x27;&#x27;;
     if (def.volume) {
@@ -2662,7 +2678,12 @@ function bindPointer() {
     const p = rel(e);
     pts.set(e.pointerId, p);
     if (pts.size === 1) {
-      drag = { x0: p.x, y0: p.y, a0: S.anchor, moved: false };
+      drag = {
+        x0: p.x, y0: p.y, a0: S.anchor, moved: false,
+        // Kéo trong ô giá: dọc = dời thang giá; kéo trên cột giá bên phải = co giãn thang giá
+        inMain: p.y &lt; LAY.candleBottom + 6, onAxis: p.x &gt; LAY.plotW &amp;&amp; p.y &lt; LAY.candleBottom + 6,
+        vp0: { pMin: VP.pMin, pMax: VP.pMax }, vert: false
+      };
       pinch = null;
       S.cross = p;
     } else {
@@ -2709,8 +2730,19 @@ function bindPointer() {
       const dx = p.x - drag.x0, dy = p.y - drag.y0;
       if (!drag.moved &amp;&amp; Math.hypot(dx, dy) &gt; 6) drag.moved = true;
       if (drag.moved &amp;&amp; S.mode === &#x27;pan&#x27;) {
-        S.anchor = drag.a0 - dx / S.barW;
-        clampAnchor();
+        const ppx = (drag.vp0.pMax - drag.vp0.pMin) / Math.max(1, LAY.candleBottom - LAY.candleTop);
+        if (drag.onAxis) {
+          // Cột giá: kéo lên = giãn nến (thu hẹp khoảng giá), kéo xuống = co lại
+          const k = Math.exp(dy * 0.006), mid = (drag.vp0.pMin + drag.vp0.pMax) / 2, half = (drag.vp0.pMax - drag.vp0.pMin) / 2 * k;
+          Y_LOCK = { pMin: mid - half, pMax: mid + half };
+        } else {
+          S.anchor = drag.a0 - dx / S.barW;
+          clampAnchor();
+          if (drag.inMain &amp;&amp; (drag.vert || Math.abs(dy) &gt; 10)) {
+            drag.vert = true;
+            Y_LOCK = { pMin: drag.vp0.pMin + dy * ppx, pMax: drag.vp0.pMax + dy * ppx };
+          }
+        }
       }
       S.cross = p;
     } else if (e.pointerType === &#x27;mouse&#x27;) {
@@ -2725,7 +2757,9 @@ function bindPointer() {
       // Chế độ vẽ: điểm đặt ở chỗ nhấc ngón; dấu thập đã theo ngón tay lúc đang giữ
       if (!cancelled &amp;&amp; hasData &amp;&amp; (S.mode !== &#x27;pan&#x27; || !drag.moved)) {
         const q = S.mode === &#x27;pan&#x27; ? { x: drag.x0, y: drag.y0 } : rel(e);
-        onTap(q.x, q.y);
+        // Chạm vào cột giá khi đang chỉnh tay: trở lại tự co giãn
+        if (drag.onAxis &amp;&amp; Y_LOCK) { Y_LOCK = null; say(&#x27;Thang giá: tự co giãn theo nến.&#x27;); }
+        else onTap(q.x, q.y);
       }
       drag = null;
     }
@@ -2751,7 +2785,11 @@ function bindPointer() {
   }, { passive: false });
 }
 
-function syncSettings() { $(&#x27;iTz&#x27;).value = String(S.tz); }
+function syncSettings() {
+  $(&#x27;iTz&#x27;).value = String(S.tz);
+  $(&#x27;vInds&#x27;).checked = VIEW.inds;
+  $(&#x27;vOhlc&#x27;).checked = VIEW.ohlc;
+}
 
 function applyTz() {
   S.tz = clampInt($(&#x27;iTz&#x27;).value, -12, 14, 7);
@@ -2914,6 +2952,9 @@ function bindUI() {
   $(&#x27;ordLotDn&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; ordStep(-1));
   $(&#x27;ordLotUp&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; ordStep(1));
   $(&#x27;iTz&#x27;).addEventListener(&#x27;change&#x27;, applyTz);
+  for (const [id, k] of [[&#x27;vInds&#x27;, &#x27;inds&#x27;], [&#x27;vOhlc&#x27;, &#x27;ohlc&#x27;]]) {
+    $(id).addEventListener(&#x27;change&#x27;, () =&gt; { VIEW[k] = $(id).checked; saveView(); legendKey = &#x27;&#x27;; schedule(); });
+  }
   $(&#x27;acctSave&#x27;).addEventListener(&#x27;click&#x27;, acctSaveClick);
   $(&#x27;acctRefresh&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; acctRefresh());
   $(&#x27;fdProv&#x27;).addEventListener(&#x27;change&#x27;, fdProvChange);
@@ -3660,6 +3701,7 @@ function start(st) {
   readTokens();
   blockPat = makeHatch();
   applyState(st || {});
+  loadView();
   if (!st || !Array.isArray(st.drawings)) loadDrawings();
   if (!st || !Array.isArray(st.inds)) loadInds();
   setIcon($(&#x27;sheetBack&#x27;), &#x27;back&#x27;);

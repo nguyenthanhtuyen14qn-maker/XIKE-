@@ -47,7 +47,7 @@ function render() {
   }
   if (XK_FIT) { lo = Math.min(lo, XK_FIT.lo); hi = Math.max(hi, XK_FIT.hi); }
   const pad = hi &gt; lo ? (hi - lo) * 0.08 : 1;
-  VP = { pMin: lo - pad, pMax: hi + pad };
+  VP = (Y_LOCK &amp;&amp; !XK_FIT) ? { pMin: Y_LOCK.pMin, pMax: Y_LOCK.pMax } : { pMin: lo - pad, pMax: hi + pad };
 
   const cr = S.cross;
   const crInPlot = !!cr &amp;&amp; cr.x &gt;= 0 &amp;&amp; cr.x &lt;= L.plotW;
@@ -337,19 +337,19 @@ function updateLegend(li) {
     if (legendKey !== &#x27;empty&#x27;) { box.textContent = &#x27;&#x27;; legendKey = &#x27;empty&#x27;; }
     return;
   }
-  const key = [li, S.tf, dataGen, indsVer, S.showBlock, S.tz].join(&#x27;|&#x27;);
+  const key = [li, S.tf, dataGen, indsVer, S.showBlock, S.tz, VIEW.ohlc, VIEW.inds].join(&#x27;|&#x27;);
   if (key === legendKey) return;
   legendKey = key;
   const b = series(S.tf).bars[li];
   const up = b.c &gt;= b.o;
   const parts = [];
-  parts.push(&#x27;&lt;div class=&quot;lg&quot;&gt;&lt;b&gt;&#x27; + S.tf + &#x27;&lt;/b&gt; &#x27; + fmtTs(b.t, &#x27;dhm&#x27;) +
+  if (VIEW.ohlc) parts.push(&#x27;&lt;div class=&quot;lg&quot;&gt;&lt;b&gt;&#x27; + S.tf + &#x27;&lt;/b&gt; &#x27; + fmtTs(b.t, &#x27;dhm&#x27;) +
     (S.showBlock &amp;&amp; inBlock(b.t) ? &#x27; &lt;span class=&quot;blk&quot;&gt;Giờ cấm 18–22h VN&lt;/span&gt;&#x27; : &#x27;&#x27;) + &#x27;&lt;/div&gt;&#x27;);
-  parts.push(&#x27;&lt;div class=&quot;lg&quot;&gt;O &lt;b&gt;&#x27; + b.o.toFixed(2) + &#x27;&lt;/b&gt; H &lt;b&gt;&#x27; + b.h.toFixed(2) +
+  if (VIEW.ohlc) parts.push(&#x27;&lt;div class=&quot;lg&quot;&gt;O &lt;b&gt;&#x27; + b.o.toFixed(2) + &#x27;&lt;/b&gt; H &lt;b&gt;&#x27; + b.h.toFixed(2) +
     &#x27;&lt;/b&gt; L &lt;b&gt;&#x27; + b.l.toFixed(2) + &#x27;&lt;/b&gt; C &lt;b style=&quot;color:&#x27; + (up ? COL.up : COL.down) + &#x27;&quot;&gt;&#x27; +
     b.c.toFixed(2) + &#x27;&lt;/b&gt;&lt;/div&gt;&#x27;);
   for (const inst of S.inds) {
-    if (!inst.on) continue;
+    if (!inst.on || !VIEW.inds) continue;
     const def = IND_BY_ID[inst.id];
     let vals = &#x27;&#x27;;
     if (def.volume) {
@@ -1133,7 +1133,12 @@ function bindPointer() {
     const p = rel(e);
     pts.set(e.pointerId, p);
     if (pts.size === 1) {
-      drag = { x0: p.x, y0: p.y, a0: S.anchor, moved: false };
+      drag = {
+        x0: p.x, y0: p.y, a0: S.anchor, moved: false,
+        // Kéo trong ô giá: dọc = dời thang giá; kéo trên cột giá bên phải = co giãn thang giá
+        inMain: p.y &lt; LAY.candleBottom + 6, onAxis: p.x &gt; LAY.plotW &amp;&amp; p.y &lt; LAY.candleBottom + 6,
+        vp0: { pMin: VP.pMin, pMax: VP.pMax }, vert: false
+      };
       pinch = null;
       S.cross = p;
     } else {
@@ -1180,8 +1185,19 @@ function bindPointer() {
       const dx = p.x - drag.x0, dy = p.y - drag.y0;
       if (!drag.moved &amp;&amp; Math.hypot(dx, dy) &gt; 6) drag.moved = true;
       if (drag.moved &amp;&amp; S.mode === &#x27;pan&#x27;) {
-        S.anchor = drag.a0 - dx / S.barW;
-        clampAnchor();
+        const ppx = (drag.vp0.pMax - drag.vp0.pMin) / Math.max(1, LAY.candleBottom - LAY.candleTop);
+        if (drag.onAxis) {
+          // Cột giá: kéo lên = giãn nến (thu hẹp khoảng giá), kéo xuống = co lại
+          const k = Math.exp(dy * 0.006), mid = (drag.vp0.pMin + drag.vp0.pMax) / 2, half = (drag.vp0.pMax - drag.vp0.pMin) / 2 * k;
+          Y_LOCK = { pMin: mid - half, pMax: mid + half };
+        } else {
+          S.anchor = drag.a0 - dx / S.barW;
+          clampAnchor();
+          if (drag.inMain &amp;&amp; (drag.vert || Math.abs(dy) &gt; 10)) {
+            drag.vert = true;
+            Y_LOCK = { pMin: drag.vp0.pMin + dy * ppx, pMax: drag.vp0.pMax + dy * ppx };
+          }
+        }
       }
       S.cross = p;
     } else if (e.pointerType === &#x27;mouse&#x27;) {
@@ -1196,7 +1212,9 @@ function bindPointer() {
       // Chế độ vẽ: điểm đặt ở chỗ nhấc ngón; dấu thập đã theo ngón tay lúc đang giữ
       if (!cancelled &amp;&amp; hasData &amp;&amp; (S.mode !== &#x27;pan&#x27; || !drag.moved)) {
         const q = S.mode === &#x27;pan&#x27; ? { x: drag.x0, y: drag.y0 } : rel(e);
-        onTap(q.x, q.y);
+        // Chạm vào cột giá khi đang chỉnh tay: trở lại tự co giãn
+        if (drag.onAxis &amp;&amp; Y_LOCK) { Y_LOCK = null; say(&#x27;Thang giá: tự co giãn theo nến.&#x27;); }
+        else onTap(q.x, q.y);
       }
       drag = null;
     }
@@ -1222,7 +1240,11 @@ function bindPointer() {
   }, { passive: false });
 }
 
-function syncSettings() { $(&#x27;iTz&#x27;).value = String(S.tz); }
+function syncSettings() {
+  $(&#x27;iTz&#x27;).value = String(S.tz);
+  $(&#x27;vInds&#x27;).checked = VIEW.inds;
+  $(&#x27;vOhlc&#x27;).checked = VIEW.ohlc;
+}
 
 function applyTz() {
   S.tz = clampInt($(&#x27;iTz&#x27;).value, -12, 14, 7);
@@ -1385,6 +1407,9 @@ function bindUI() {
   $(&#x27;ordLotDn&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; ordStep(-1));
   $(&#x27;ordLotUp&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; ordStep(1));
   $(&#x27;iTz&#x27;).addEventListener(&#x27;change&#x27;, applyTz);
+  for (const [id, k] of [[&#x27;vInds&#x27;, &#x27;inds&#x27;], [&#x27;vOhlc&#x27;, &#x27;ohlc&#x27;]]) {
+    $(id).addEventListener(&#x27;change&#x27;, () =&gt; { VIEW[k] = $(id).checked; saveView(); legendKey = &#x27;&#x27;; schedule(); });
+  }
   $(&#x27;acctSave&#x27;).addEventListener(&#x27;click&#x27;, acctSaveClick);
   $(&#x27;acctRefresh&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; acctRefresh());
   $(&#x27;fdProv&#x27;).addEventListener(&#x27;change&#x27;, fdProvChange);
