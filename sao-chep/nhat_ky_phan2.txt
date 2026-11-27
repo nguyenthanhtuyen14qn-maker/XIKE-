@@ -1,0 +1,921 @@
+  function saveQuiet(){
+    saveState().catch(function(e){ toast('Không lưu được: ' + e.message, 4000, true); });
+  }
+
+  function imgKey(t, idx){ return t + '_' + idx; }
+
+  function imageNames(){
+    return Object.keys(state.images).map(function(k){ return state.images[k]; })
+      .filter(function(v){ return v && v.indexOf('data:') !== 0; });
+  }
+
+  // ===== ĐỌC DỮ LIỆU ĐÃ LƯU =====
+  function posNum(v, d){ v = Number(v); return isFinite(v) && v > 0 ? v : d; }
+  function clampTier(v){ v = parseInt(v, 10); return v >= 1 && v <= TIER_COUNT ? v : 1; }
+  function clampDays(v, d){ v = parseInt(v, 10); return v >= 1 ? Math.min(MAX_DAYS, v) : d; }
+  function fit(list, n, clean){
+    var out = [];
+    for(var i=0; i<n; i++) out.push(clean(Array.isArray(list) ? list[i] : undefined));
+    return out;
+  }
+
+  function ensureTierIn(s, t){
+    if(!s.tierDays[t]){
+      s.tierDays[t] = new Array(s.daysPerTier).fill(0);
+      s.tierDayAmt[t] = new Array(s.daysPerTier).fill(0);
+      s.tierDayDate[t] = new Array(s.daysPerTier).fill(null);
+    }
+  }
+  function ensureTier(t){ ensureTierIn(state, t); }
+
+  // Bậc hiện tại = bậc đầu tiên chưa ghi đủ ngày (giống checkTierCompletion của bản gốc)
+  function highestTierOf(s){
+    var highest = 1;
+    for(var t = 1; t <= TIER_COUNT; t++){
+      ensureTierIn(s, t);
+      if(s.tierDays[t].every(function(v){ return v !== 0; }) && t < TIER_COUNT) highest = t + 1;
+      else break;
+    }
+    return highest;
+  }
+
+  function normalizeState(src){
+    if(src && src.cfg && Array.isArray(src.results)) return fromV4(src);
+    var s = defaultState();
+    if(!src || typeof src !== 'object') return s;
+    if(isISO(src.startDate)) s.startDate = src.startDate;
+    s.capital = posNum(src.capital, s.capital);
+    s.percent = posNum(src.percent, s.percent);
+    s.tpPrices = posNum(src.tpPrices, s.tpPrices);
+    s.daysPerTier = clampDays(src.daysPerTier, s.daysPerTier);
+    s.currentTier = clampTier(src.currentTier);
+    s.viewTier = clampTier(src.viewTier || s.currentTier);
+    var n = s.daysPerTier;
+    for(var t=1; t<=TIER_COUNT; t++){
+      var days = src.tierDays && src.tierDays[t];
+      if(!Array.isArray(days)) continue;
+      s.tierDays[t] = fit(days, n, function(v){ return v === 1 || v === -1 ? v : 0; });
+      s.tierDayAmt[t] = fit(src.tierDayAmt && src.tierDayAmt[t], n, function(v){ return typeof v === 'number' && isFinite(v) ? v : 0; });
+      s.tierDayDate[t] = fit(src.tierDayDate && src.tierDayDate[t], n, function(v){ return isISO(v) ? v : null; });
+    }
+    if(src.images && typeof src.images === 'object'){
+      Object.keys(src.images).forEach(function(k){
+        var v = src.images[k];
+        if(/^\d+_\d+$/.test(k) && typeof v === 'string' && v) s.images[k] = v;
+      });
+    }
+    return s;
+  }
+
+  // Dữ liệu của bản v4 trước (dạng cfg/results) đổi về dạng của bảng gốc
+  function fromV4(src){
+    var c = src.cfg || {};
+    var s = defaultState();
+    if(isISO(c.start)) s.startDate = c.start;
+    s.capital = posNum(c.capital, s.capital);
+    s.percent = posNum(c.pct, s.percent);
+    s.tpPrices = posNum(c.tp, s.tpPrices);
+    s.daysPerTier = clampDays(c.days, s.daysPerTier);
+    var n = s.daysPerTier;
+    src.results.forEach(function(r, i){
+      if(!r || (r.r !== 'win' && r.r !== 'loss')) return;
+      var t = Math.floor(i / n) + 1, idx = i % n;
+      if(t > TIER_COUNT) return;
+      ensureTierIn(s, t);
+      s.tierDays[t][idx] = r.r === 'win' ? 1 : -1;
+      s.tierDayAmt[t][idx] = Number(r.pnl) || 0;
+      s.tierDayDate[t][idx] = isISO(r.date) ? r.date : null;
+      if(typeof r.img === 'string' && r.img) s.images[imgKey(t, idx)] = r.img;
+    });
+    s.currentTier = highestTierOf(s);
+    s.viewTier = s.currentTier;
+    return s;
+  }
+
+  // ===== TÍNH TOÁN (giữ nguyên công thức bản gốc) =====
+  function fmtFullDate(isoStr){
+    if(!isoStr) return '';
+    var parts = isoStr.split('-');
+    if(parts.length === 3) return parts[2] + '/' + parts[1] + '/' + parts[0];
+    return '';
+  }
+
+  function totalDaysLimit(){ return TIER_COUNT * state.daysPerTier; }
+  function vonTier(t){ return state.capital * Math.pow(2, t-1); }
+  function winTier(t){ return vonTier(t) * state.percent / 100; }
+
+  function lotTier(t){
+    var winAmt = winTier(t);
+    var tp = state.tpPrices || 10;
+    var lot = winAmt / (tp * 100);
+    return Math.max(0.01, Math.round(lot * 100) / 100);
+  }
+
+  function fmtVND(n){ return Math.round(n).toLocaleString('vi-VN'); }
+  function fmtLot(n){ return n.toLocaleString('vi-VN', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+  function fmtShort(n){
+    if(n >= 1e6) return (Math.round((n/1e6)*10)/10) + 'M';
+    if(n >= 1e3) return (Math.round((n/1e3)*10)/10).toString().replace('.0','') + 'K';
+    return Math.round(n).toString();
+  }
+
+  function addDays(iso, n){
+    if(!iso) iso = todayISO();
+    var d = new Date(iso + 'T00:00:00');
+    if(isNaN(d.getTime())) d = new Date();
+    d.setDate(d.getDate() + n);
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+  }
+
+  function totalCompletedDays(){
+    var sum = 0;
+    for(var t=1; t<=TIER_COUNT; t++){
+      ensureTier(t);
+      state.tierDays[t].forEach(function(v){ if(v !== 0) sum++; });
+    }
+    return sum;
+  }
+
+  function computeTotals(){
+    var profit = 0, maxLoss = 0;
+    Object.keys(state.tierDayAmt).forEach(function(t){
+      if(state.tierDayAmt[t] && parseInt(t, 10) <= TIER_COUNT){
+        state.tierDayAmt[t].forEach(function(a){
+          profit += a;
+          if(a < 0 && Math.abs(a) > maxLoss) maxLoss = Math.abs(a);
+        });
+      }
+    });
+    return { profit: profit, maxLoss: maxLoss };
+  }
+
+  // ===== Ô CÀI ĐẶT =====
+  function writeInputs(){
+    $('inStartDate').value = state.startDate;
+    $('inCapital').value = state.capital;
+    $('inPercent').value = state.percent;
+    $('inTpPrices').value = state.tpPrices || 10;
+    $('inDaysPerTier').value = state.daysPerTier;
+  }
+
+  function onSettingChange(id){
+    if(!ready) return;
+    var v = $(id).value;
+    if(id === 'inStartDate'){ if(isISO(v)) state.startDate = v; }
+    if(id === 'inCapital') state.capital = posNum(parseFloat(v), 1);
+    if(id === 'inPercent') state.percent = posNum(parseFloat(v), 0.1);
+    if(id === 'inTpPrices') state.tpPrices = posNum(parseFloat(v), 10);
+    saveQuiet();
+    writeInputs();
+    renderAll();
+  }
+
+  // Bản gốc đổi số ngày / bậc là xoá hết kết quả. Giữ cách đó nhưng hỏi lại trước khi xoá.
+  function onDaysChange(){
+    if(!ready) return;
+    var input = $('inDaysPerTier');
+    var v = parseInt(input.value, 10) || 1;
+    if(v < 1) v = 1;
+    if(v > MAX_DAYS){ v = MAX_DAYS; toast('Số ngày / bậc tối đa ' + MAX_DAYS + '.', 3000, true); }
+    if(v === state.daysPerTier){ input.value = v; return; }
+    if(totalCompletedDays() === 0){ applyDays(v); return; }
+    ask({
+      title: '⚠️ Đổi số ngày / bậc',
+      text: 'Đổi từ ' + state.daysPerTier + ' sang ' + v + ' ngày sẽ xoá toàn bộ kết quả và ảnh đã ghi, bắt đầu lại từ Bậc 1. Nên bấm 💾 Sao lưu trước.',
+      ok: 'Đổi và xoá',
+      danger: true,
+      action: function(){ applyDays(v); },
+      cancel: function(){ input.value = state.daysPerTier; }
+    });
+  }
+
+  async function applyDays(v){
+    var snapshot = JSON.stringify(state);
+    state.daysPerTier = v;
+    state.tierDays = {}; state.tierDayAmt = {}; state.tierDayDate = {}; state.images = {};
+    state.currentTier = 1; state.viewTier = 1;
+    try {
+      await saveState();
+    } catch(e) {
+      state = JSON.parse(snapshot);
+      toast('Không lưu được: ' + e.message, 4000, true);
+      writeInputs(); renderAll();
+      return;
+    }
+    if(HAS_BRIDGE) api('imgPrune', { keep: [] }).catch(function(){});
+    writeInputs(); renderAll();
+  }
+
+  // ===== VẼ GIAO DIỆN =====
+  function renderWarning(){
+    var totDays = totalDaysLimit();
+    $('warnBox').innerHTML = '<div class="warn-icon">⚠️</div> <div>Cứ ' + state.daysPerTier + ' ngày vốn gấp đôi. Bảng đủ ' + totDays + ' ngày (' + TIER_COUNT + ' bậc). Đến bậc 10 vốn > $' + fmtShort(vonTier(10)) + ', bậc 10 cần $' + fmtVND(vonTier(10)) + '.</div>';
+  }
+
+  function renderChart(){
+    var maxVal = vonTier(TIER_COUNT), minVal = vonTier(1);
+    var chart = $('chart');
+    chart.innerHTML = '';
+    for(var t=1; t<=TIER_COUNT; t++){
+      var val = vonTier(t);
+      var frac = (Math.log(val) - Math.log(minVal)) / (Math.log(maxVal) - Math.log(minVal) || 1);
+      var h = 14 + frac * 85;
+      var risky = t >= TIER_COUNT - 1;
+      var color = t < state.currentTier ? 'var(--green)' : (t === state.currentTier ? 'var(--gold)' : (risky ? 'var(--red)' : 'var(--gray-col)'));
+      var isViewing = (t === state.viewTier);
+
+      var col = document.createElement('div');
+      col.className = 'bar-col';
+      col.style.border = isViewing ? '1px solid var(--gold)' : '1px solid transparent';
+      col.style.background = isViewing ? 'rgba(255, 215, 0, 0.15)' : 'transparent';
+
+      var glowStyle = (t === state.currentTier) ? 'box-shadow: 0 0 12px var(--gold-glow);' : (risky && t > state.currentTier ? 'box-shadow: 0 0 10px var(--red-glow);' : '');
+
+      col.innerHTML = '<div class="bar-val font-mono" style="' + (isViewing ? 'color:var(--gold);font-weight:900;' : '') + '">' + fmtShort(val) + '</div>' +
+                      '<div class="bar" style="height:' + h + 'px;background:' + color + ';' + glowStyle + '"></div>' +
+                      '<div class="bar-idx' + (t===state.currentTier ? ' on' : '') + '">' + t + '</div>';
+      (function(idx){ col.addEventListener('click', function(){ state.viewTier = idx; saveQuiet(); renderAll(); }); })(t);
+      chart.appendChild(col);
+    }
+    $('progressLabel').textContent = 'Bậc ' + state.viewTier + ' / ' + TIER_COUNT + ' · Đang xem chi tiết';
+    $('progressFill').style.width = Math.min(100, totalCompletedDays()/totalDaysLimit()*100) + '%';
+  }
+
+  function renderTierCard(){
+    var t = state.viewTier || state.currentTier;
+    var von = vonTier(t), win = winTier(t);
+    $('prevTierBtn').disabled = (t <= 1);
+    $('nextTierBtn').disabled = (t >= TIER_COUNT);
+    $('tierTitle').textContent = 'Bậc ' + t + (t === state.currentTier ? '' : (t < state.currentTier ? ' (Đã qua)' : ' (Chưa tới)'));
+
+    var doneInTier = 0;
+    ensureTier(t);
+    var totalProfitInTier = 0;
+    state.tierDays[t].forEach(function(v, idx){
+      if(v !== 0){
+        doneInTier++;
+        totalProfitInTier += (state.tierDayAmt[t][idx] || 0);
+      }
+    });
+
+    $('tierSub').textContent = doneInTier + '/' + state.daysPerTier + ' ngày · ' + Math.round(doneInTier/state.daysPerTier*100) + '% hoàn thành';
+    var pipsVal = (state.tpPrices || 10) * 10;
+    // Bản gốc hiện vốn + 1 ngày thắng khi bậc chưa có ngày nào; ở đây hiện đúng vốn bậc
+    var currentRealCap = von + totalProfitInTier;
+
+    $('tierStats').innerHTML =
+      '<div class="stat wide"><span class="k">Bậc ' + t + ' — Vốn ban đầu</span><span class="v" style="color:var(--gold)">$ ' + fmtVND(von) + '</span></div>' +
+      '<div class="stat"><div class="k">%Vốn</div><div class="v">' + state.percent.toFixed(1) + '%</div></div>' +
+      '<div class="stat"><div class="k">Lô</div><div class="v" style="color:var(--gold)">' + fmtLot(lotTier(t)) + '</div></div>' +
+      '<div class="stat"><div class="k">TP (Giá Vàng)</div><div class="v" style="color:var(--gold)">' + state.tpPrices + ' giá (' + pipsVal + ' pips)</div></div>' +
+      '<div class="stat"><div class="k">Win / ngày</div><div class="v" style="color:var(--green)">$ ' + fmtVND(win) + '</div></div>' +
+      '<div class="stat wide"><span class="k">Vốn hiện tại (Thực tế)</span><span class="v" style="color:' + (currentRealCap >= von ? 'var(--gold)' : 'var(--red)') + '">$ ' + fmtVND(currentRealCap) + '</span></div>';
+
+    $('daysTitle').textContent = 'CHI TIẾT KẾT QUẢ NGÀY — BẬC ' + t;
+  }
+
+  function renderDays(){
+    var t = state.viewTier || state.currentTier;
+    ensureTier(t);
+    var grid = $('daysGrid');
+    grid.innerHTML = '';
+
+    var currentPendingIdx = state.tierDays[t].findIndex(function(v){ return v === 0; });
+    var prevDaysCount = 0;
+    for(var p = 1; p < t; p++){
+      ensureTier(p);
+      state.tierDays[p].forEach(function(val){ if(val !== 0) prevDaysCount++; });
+    }
+
+    for(var i=0; i<state.daysPerTier; i++){
+      var v = state.tierDays[t][i];
+      var amt = state.tierDayAmt[t][i] || 0;
+      var computedDateISO = addDays(state.startDate, prevDaysCount + i);
+      var dateISO = state.tierDayDate[t][i] || computedDateISO;
+      var dateFormatted = fmtFullDate(dateISO);
+
+      var isCurrentActive = (t === state.currentTier && i === currentPendingIdx);
+      var el = document.createElement('div');
+      el.className = 'day' + (v===1 ? ' win' : v===-1 ? ' loss' : '') + (isCurrentActive ? ' current-day-pulse' : '');
+
+      var symHtml = '<span class="symbol">' + (v===1 ? '✓' : v===-1 ? '✕' : (i+1)) + '</span>';
+      var amtHtml = v !== 0 ? '<span class="amount-sub font-mono">' + (v===1 ? '+' : '-') + '$' + Math.abs(Math.round(amt)) + '</span>' : '';
+      var dateHtml = dateFormatted ? '<span class="date-sub font-mono">' + dateFormatted + '</span>' : '';
+
+      el.innerHTML = '<div class="overlay">' + symHtml + amtHtml + dateHtml + '</div>';
+
+      var ref = state.images[imgKey(t, i)];
+      if(ref){
+        el.style.backgroundImage = 'url("' + Store.url(ref) + '")';
+        var cam = document.createElement('div');
+        cam.className = 'cam-ic';
+        cam.textContent = '📷';
+        cam.title = 'Xem ảnh lớn';
+        // Chạm vào biểu tượng máy ảnh để xem phóng to ngay
+        (function(r, idx){
+          cam.onclick = function(e){
+            e.stopPropagation();
+            openModal(Store.url(r), 'BẬC ' + t + ' — NGÀY ' + (idx + 1));
+          };
+        })(ref, i);
+        el.appendChild(cam);
+      }
+
+      (function(idx){ el.onclick = function(){ openResultDialog(idx); }; })(i);
+      grid.appendChild(el);
+    }
+  }
+
+  function renderFinance(){
+    var totals = computeTotals();
+    $('finProfit').className = 'fin' + (totals.profit >= 0 ? ' pos' : ' neg');
+    $('finProfit').querySelector('.v').textContent = (totals.profit >= 0 ? '+' : '-') + '$ ' + fmtVND(Math.abs(totals.profit));
+    $('finLoss').querySelector('.v').textContent = totals.maxLoss > 0 ? '-$ ' + fmtVND(totals.maxLoss) : '—';
+  }
+
+  function renderBottomBar(){
+    var t = state.viewTier || state.currentTier;
+    ensureTier(t);
+    var idx = state.tierDays[t].findIndex(function(v){ return v === 0; });
+    if(idx === -1) idx = state.daysPerTier - 1;
+    $('bottomDayLbl').textContent = 'Ngày ' + (idx+1) + ' (Bậc ' + t + ')';
+    var existing = state.tierDayDate[t] ? state.tierDayDate[t][idx] : null;
+    $('bottomDate').value = existing || todayISO();
+    bottomIdx = idx;
+  }
+
+  function renderAll(){
+    renderWarning(); renderChart(); renderTierCard(); renderDays();
+    renderFinance(); renderBottomBar();
+  }
+
+  // ===== HỘP NHẬP KẾT QUẢ NGÀY & ẢNH =====
+  window.openResultDialog = function(idx){
+    if(!ready) return;
+    var t = state.viewTier || state.currentTier;
+    ensureTier(t);
+    currentEditDayIdx = idx;
+    currentEditTier = t;
+
+    var curStatus = state.tierDays[t][idx];
+    var curAmt = state.tierDayAmt[t][idx];
+    // Ngày mặc định: ngày đã ghi, hoặc ngày đang chọn ở thanh dưới, hoặc hôm nay
+    var bottomDate = $('bottomDate').value;
+    var curDate = state.tierDayDate[t][idx] || (idx === bottomIdx && isISO(bottomDate) ? bottomDate : todayISO());
+
+    $('dlgTitle').textContent = 'BẬC ' + t + ' — NGÀY ' + (idx + 1);
+    $('dlgDate').value = curDate;
+
+    if (curStatus === -1) {
+      selectType(-1);
+      $('dlgAmount').value = Math.abs(curAmt);
+    } else {
+      selectType(1);
+      $('dlgAmount').value = curAmt ? Math.abs(curAmt) : Math.round(winTier(t));
+    }
+
+    dlgImage = { ref: state.images[imgKey(t, idx)] || '', data: null, removed: false };
+    updateDlgImageUI();
+    disarm($('dlgClearBtn'));
+    hideToast();
+    $('resultDialog').style.display = 'flex';
+  };
+
+  function dlgImageSrc(){
+    if(dlgImage.data) return dlgImage.data;
+    if(dlgImage.ref && !dlgImage.removed) return Store.url(dlgImage.ref);
+    return '';
+  }
+
+  function updateDlgImageUI(){
+    var src = dlgImageSrc();
+    var previewWrap = $('dlgImgPreviewContainer');
+    var uploadWrap = $('dlgImgUploadContainer');
+    var statusText = $('dlgImgStatus');
+    var previewImg = $('dlgImgPreview');
+
+    if(src){
+      previewImg.src = src;
+      previewWrap.style.display = 'block';
+      uploadWrap.style.display = 'none';
+      statusText.textContent = 'Đã có ảnh đính kèm';
+      statusText.style.color = 'var(--green)';
+    } else {
+      previewImg.removeAttribute('src');
+      previewWrap.style.display = 'none';
+      uploadWrap.style.display = 'block';
+      statusText.textContent = 'Chưa có ảnh';
+      statusText.style.color = 'var(--text-dim)';
+    }
+  }
+
+  window.triggerPickDayImage = function(){
+    $('dayFileInput').click();
+  };
+
+  // Đổi ảnh về JPEG (cạnh dài tối đa 2600 điểm ảnh, vẫn nét để đọc chữ trên ảnh chụp sàn)
+  function readFile(file){
+    return new Promise(function(resolve, reject){
+      var reader = new FileReader();
+      reader.onload = function(){ resolve(reader.result); };
+      reader.onerror = function(){ reject(new Error('Không đọc được ảnh.')); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function loadImage(src){
+    return new Promise(function(resolve, reject){
+      var img = new Image();
+      img.onload = function(){ resolve(img); };
+      img.onerror = function(){ reject(new Error('Không mở được ảnh này. Hãy chọn ảnh khác.')); };
+      img.src = src;
+    });
+  }
+
+  async function shrink(src, maxSide, quality){
+    var img = await loadImage(src);
+    var scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+    var canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', quality);
+  }
+
+  $('dayFileInput').addEventListener('change', async function(e){
+    var file = e.target.files[0];
+    e.target.value = '';
+    if(!file || currentEditDayIdx === null) return;
+    var session = currentEditTier + '_' + currentEditDayIdx;
+    $('dlgImgStatus').textContent = 'Đang xử lý ảnh…';
+    try {
+      var dataUrl = await shrink(await readFile(file), 2600, 0.9);
+      if(session !== currentEditTier + '_' + currentEditDayIdx) return;
+      dlgImage.data = dataUrl;
+      dlgImage.removed = false;
+    } catch(err) {
+      toast(err.message, 3500, true);
+    }
+    updateDlgImageUI();
+  });
+
+  window.removeCurrentImage = function(){
+    dlgImage.data = null;
+    dlgImage.removed = true;
+    updateDlgImageUI();
+  };
+
+  window.viewCurrentImageFullscreen = function(){
+    var src = dlgImageSrc();
+    if(src) openModal(src, 'BẬC ' + currentEditTier + ' — NGÀY ' + (currentEditDayIdx + 1));
+  };
+
+  window.selectType = function(type){
+    selectedResultType = type;
+    var btnWin = $('btnTypeWin');
+    var btnLoss = $('btnTypeLoss');
+    var t = currentEditTier || state.viewTier || state.currentTier;
+
+    if (type === 1) {
+      btnWin.className = 'type-btn active-win';
+      btnLoss.className = 'type-btn';
+      $('dlgAmount').value = Math.round(winTier(t));
+    } else {
+      btnWin.className = 'type-btn';
+      btnLoss.className = 'type-btn active-loss';
+      $('dlgAmount').value = Math.round(vonTier(t));
+    }
+  };
+
+  window.closeDialog = function(){
+    if(busy) return;
+    $('resultDialog').style.display = 'none';
+    $('dlgImgPreview').removeAttribute('src');
+    currentEditDayIdx = null;
+  };
+
+  window.confirmDialog = async function(){
+    if (currentEditDayIdx === null || busy) return;
+    var t = currentEditTier, idx = currentEditDayIdx;
+    ensureTier(t);
+
+    var amtVal = parseFloat($('dlgAmount').value) || 0;
+    var dateVal = isISO($('dlgDate').value) ? $('dlgDate').value : todayISO();
+    var key = imgKey(t, idx);
+    var oldRef = state.images[key] || '';
+    var snapshot = JSON.stringify(state);
+    var type = selectedResultType;
+    var btn = $('dlgSaveBtn');
+    busy = true;
+    btn.disabled = true;
+    btn.textContent = 'Đang lưu…';
+    var newRef = '';
+    var advanced = false;
+    try {
+      // Lưu ảnh trước, xong mới ghi kết quả, để không có kết quả trỏ tới ảnh chưa lưu
+      if(dlgImage.data) newRef = await Store.putImage(dlgImage.data, 't' + t + 'd' + idx + '-' + Date.now());
+      state.tierDays[t][idx] = type;
+      state.tierDayAmt[t][idx] = type === 1 ? Math.abs(amtVal) : -Math.abs(amtVal);
+      state.tierDayDate[t][idx] = dateVal;
+      if(newRef) state.images[key] = newRef;
+      else if(dlgImage.removed) delete state.images[key];
+      advanced = checkTierCompletion();
+      await saveState();
+    } catch(e) {
+      state = JSON.parse(snapshot);
+      if(newRef) Store.delImage(newRef);
+      toast('Không lưu được: ' + e.message, 4000, true);
+      return;
+    } finally {
+      busy = false;
+      btn.disabled = false;
+      btn.textContent = 'Lưu';
+    }
+    // Ảnh cũ chỉ xoá sau khi kết quả mới đã lưu xong
+    if(oldRef && oldRef !== (state.images[key] || '')) Store.delImage(oldRef);
+    closeDialog();
+    renderAll();
+    if(advanced){
+      launchConfetti();
+      var from = state.currentTier - 1;
+      toast('🎉 Hoàn thành Bậc ' + from + '! Lên Bậc ' + state.currentTier + ': vốn $' + fmtVND(vonTier(state.currentTier)) + ', lô ' + fmtLot(lotTier(state.currentTier)) + '.', 6000);
+    } else if(type === 1) {
+      launchConfetti();
+    }
+  };
+
+  window.clearDayResult = async function(){
+    if (currentEditDayIdx === null || busy) return;
+    var t = currentEditTier, idx = currentEditDayIdx;
+    ensureTier(t);
+    var key = imgKey(t, idx);
+    var oldRef = state.images[key] || '';
+    var btn = $('dlgClearBtn');
+    // Ngày đã có kết quả hoặc ảnh thì bấm hai lần mới xoá
+    if((state.tierDays[t][idx] !== 0 || oldRef) && !arm(btn, 'Bấm lần nữa')) return;
+    disarm(btn);
+    var snapshot = JSON.stringify(state);
+
+    state.tierDays[t][idx] = 0;
+    state.tierDayAmt[t][idx] = 0;
+    state.tierDayDate[t][idx] = null;
+    delete state.images[key];
+    checkTierCompletion();
+    try {
+      await saveState();
+    } catch(e) {
+      state = JSON.parse(snapshot);
+      toast('Không xoá được: ' + e.message, 4000, true);
+      return;
+    }
+    if(oldRef) Store.delImage(oldRef);
+    closeDialog();
+    renderAll();
+  };
+
+  // Trả về true khi vừa lên bậc mới
+  function checkTierCompletion(){
+    var highest = highestTierOf(state);
+    if(highest > state.currentTier){
+      state.currentTier = highest;
+      state.viewTier = highest;
+      return true;
+    }
+    return false;
+  }
+
+  // ===== XEM ẢNH TOÀN MÀN HÌNH =====
+  window.openModal = function(url, title){
+    var img = $('modalImg');
+    img.onerror = function(){ $('modalHint').textContent = 'Không mở được ảnh này.'; };
+    img.src = url;
+    img.style.width = '';
+    $('modalScroll').classList.remove('zoom');
+    $('modalImgTitle').textContent = title || 'BẰNG CHỨNG GIAO DỊCH';
+    $('modalHint').textContent = 'Chạm vào ảnh để phóng to';
+    hideToast();
+    $('imgModal').style.display = 'flex';
+  };
+
+  window.closeModal = function(){
+    $('imgModal').style.display = 'none';
+    $('modalImg').removeAttribute('src');
+  };
+
+  function toggleZoom(ev){
+    ev.stopPropagation();
+    var box = $('modalScroll');
+    var img = $('modalImg');
+    if(box.classList.contains('zoom')){
+      box.classList.remove('zoom');
+      img.style.width = '';
+      $('modalHint').textContent = 'Chạm vào ảnh để phóng to';
+      return;
+    }
+    var rect = img.getBoundingClientRect();
+    var fx = rect.width ? (ev.clientX - rect.left) / rect.width : 0.5;
+    var fy = rect.height ? (ev.clientY - rect.top) / rect.height : 0.5;
+    box.classList.add('zoom');
+    img.style.width = Math.round(Math.max(img.naturalWidth, box.clientWidth * 2.2)) + 'px';
+    // Giữ chỗ vừa chạm ở giữa màn hình
+    requestAnimationFrame(function(){
+      box.scrollLeft = fx * img.offsetWidth - box.clientWidth / 2;
+      box.scrollTop = fy * img.offsetHeight - box.clientHeight / 2;
+    });
+    $('modalHint').textContent = 'Vuốt để xem, chạm lần nữa để thu nhỏ';
+  }
+  $('modalImg').addEventListener('click', toggleZoom);
+
+  // ===== THÔNG BÁO NHỎ (thay cho alert) =====
+  var toastTimer = null;
+  function toast(msg, ms, isErr){
+    var t = $('toast');
+    var overlay = ['resultDialog', 'ask', 'imgModal'].some(function(id){ return $(id).style.display === 'flex'; });
+    var cls = 'toast' + (isErr ? ' err' : '') + (overlay ? ' top' : '');
+    t.textContent = msg;
+    t.className = cls + ' show';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ t.className = cls; }, ms || 2600);
+  }
+
+  function hideToast(){
+    clearTimeout(toastTimer);
+    $('toast').className = 'toast';
+  }
+
+  // Bấm hai lần để xác nhận
+  function arm(btn, label){
+    if(btn.dataset.armed === '1') return true;
+    btn.dataset.idle = btn.textContent;
+    btn.dataset.armed = '1';
+    btn.textContent = label;
+    btn._timer = setTimeout(function(){ disarm(btn); }, 3000);
+    return false;
+  }
+
+  function disarm(btn){
+    clearTimeout(btn._timer);
+    if(btn.dataset.armed === '1') btn.textContent = btn.dataset.idle;
+    btn.dataset.armed = '';
+  }
+
+  // ===== HỘP HỎI LẠI (thay cho confirm) =====
+  var askAction = null;
+  var askCancelAction = null;
+
+  function ask(opts){
+    $('askTitle').textContent = opts.title;
+    $('askText').textContent = opts.text;
+    $('askChkRow').hidden = !opts.checkbox;
+    if(opts.checkbox){
+      $('askChkLabel').textContent = opts.checkbox.label;
+      $('askChk').checked = !!opts.checkbox.checked;
+    }
+    var ok = $('askOk');
+    ok.textContent = opts.ok;
+    ok.className = opts.danger ? 'btn-clear' : 'btn-confirm';
+    ok.style.flex = '1';
+    askAction = opts.action || null;
+    askCancelAction = opts.cancel || null;
+    hideToast();
+    $('ask').style.display = 'flex';
+  }
+
+  function closeAsk(runCancel){
+    var cancel = askCancelAction;
+    $('ask').style.display = 'none';
+    askAction = null;
+    askCancelAction = null;
+    if(runCancel && cancel) cancel();
+  }
+
+  $('askCancel').addEventListener('click', function(){ closeAsk(true); });
+  $('ask').addEventListener('click', function(ev){ if(ev.target === $('ask')) closeAsk(true); });
+  $('askOk').addEventListener('click', function(){
+    var action = askAction;
+    var checked = $('askChk').checked;
+    closeAsk(false);
+    if(action) action(checked);
+  });
+
+  // ===== RESET =====
+  function handleReset(){
+    if(!ready) return;
+    ask({
+      title: '🔄 Reset Lịch Sử',
+      text: 'Xóa toàn bộ lịch sử và ảnh? Không hoàn tác được. Nên bấm 💾 Sao lưu trước. Vốn, % vốn, TP và số ngày / bậc được giữ lại.',
+      ok: 'Xóa hết',
+      danger: true,
+      checkbox: { label: 'Đặt ngày bắt đầu là hôm nay', checked: true },
+      action: doReset
+    });
+  }
+
+  async function doReset(startToday){
+    var snapshot = JSON.stringify(state);
+    var keep = {
+      startDate: startToday ? todayISO() : state.startDate,
+      capital: state.capital, percent: state.percent, tpPrices: state.tpPrices, daysPerTier: state.daysPerTier
+    };
+    state = defaultState();
+    Object.keys(keep).forEach(function(k){ state[k] = keep[k]; });
+    try {
+      await saveState();
+    } catch(e) {
+      state = JSON.parse(snapshot);
+      toast('Không xóa được: ' + e.message, 4000, true);
+      return;
+    }
+    if(HAS_BRIDGE) api('imgPrune', { keep: [] }).catch(function(){});
+    writeInputs();
+    renderAll();
+    toast('Đã xóa lịch sử. Bắt đầu lại từ Ngày 1 · Bậc 1.');
+  }
+  $('resetBtn').onclick = handleReset;
+  $('btnTopReset').onclick = handleReset;
+
+  // ===== SAO LƯU VÀ KHÔI PHỤC =====
+  async function doBackup(){
+    if(!ready) return;
+    if(!HAS_BRIDGE){ toast('Sao lưu chỉ chạy trong app.', 3000, true); return; }
+    var btn = $('btnBackup');
+    btn.disabled = true;
+    btn.textContent = 'Đang sao lưu…';
+    try {
+      await saveState();
+      var r = await api('backup', { images: imageNames() });
+      $('backupNote').textContent = 'Đã lưu ' + r.name + ' vào ' + r.folder + ' (' + r.images + ' ảnh).';
+      toast('💾 Đã sao lưu vào ' + r.folder);
+    } catch(e) {
+      toast('Không sao lưu được: ' + e.message, 4500, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '💾 Sao lưu';
+    }
+  }
+
+  function askRestore(){
+    if(!ready) return;
+    if(!HAS_BRIDGE){ toast('Khôi phục chỉ chạy trong app.', 3000, true); return; }
+    ask({
+      title: '📂 Khôi phục',
+      text: 'Toàn bộ kết quả và ảnh hiện tại sẽ được thay bằng bản sao lưu. Bấm Chọn file rồi chọn file .zip trong Download/AIXIKE.',
+      ok: 'Chọn file',
+      danger: false,
+      action: doRestore
+    });
+  }
+
+  async function doRestore(){
+    var btn = $('btnRestore');
+    btn.disabled = true;
+    btn.textContent = 'Đang khôi phục…';
+    try {
+      var r = await api('restore', {});
+      state = normalizeState(JSON.parse(r.data));
+      loadFailed = false;
+      writeInputs();
+      renderAll();
+      // Dọn ảnh cũ không còn dùng
+      api('imgPrune', { keep: imageNames() }).catch(function(){});
+      toast('📂 Đã khôi phục ' + totalCompletedDays() + ' ngày, ' + r.images + ' ảnh.', 4000);
+    } catch(e) {
+      if(!/huỷ|hủy/i.test(e.message)) toast('Không khôi phục được: ' + e.message, 4500, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '📂 Khôi phục';
+    }
+  }
+  $('btnBackup').onclick = doBackup;
+  $('btnRestore').onclick = askRestore;
+
+  // ===== CÀI ĐẶT, CHUYỂN BẬC, THANH DƯỚI =====
+  ['inStartDate','inCapital','inPercent','inTpPrices'].forEach(function(id){
+    $(id).addEventListener('change', function(){ onSettingChange(id); });
+  });
+  $('inDaysPerTier').addEventListener('change', onDaysChange);
+
+  $('prevTierBtn').onclick = function(){ if(state.viewTier > 1){ state.viewTier--; saveQuiet(); renderAll(); } };
+  $('nextTierBtn').onclick = function(){ if(state.viewTier < TIER_COUNT){ state.viewTier++; saveQuiet(); renderAll(); } };
+
+  $('bottomOk').onclick = function(){
+    if(bottomIdx !== undefined && bottomIdx !== -1) openResultDialog(bottomIdx);
+  };
+
+  $('btnCopySignal').onclick = async function(){
+    if(!ready) return;
+    var t = state.viewTier || state.currentTier;
+    var lot = fmtLot(lotTier(t));
+    var tpVal = state.tpPrices || 10;
+    var text = 'XIKE GOLD | Bậc ' + t + ' | Khối lượng: ' + lot + ' lot | Target: ' + tpVal + ' giá (' + tpVal * 10 + ' pips)';
+    try {
+      if(HAS_BRIDGE) await api('copy', { text: text });
+      else await navigator.clipboard.writeText(text);
+      toast('Đã sao chép: ' + text, 3500);
+    } catch(e) {
+      toast('Lệnh: ' + text, 6000);
+    }
+  };
+
+  // ===== PHÁO HOA (giữ nguyên bản gốc) =====
+  function launchConfetti(){
+    var canvas = $('confettiCanvas');
+    var ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    var pieces = [];
+    var count = 75;
+    var colors = ['#ffd700', '#00e676', '#00e5ff', '#ff1744', '#ffffff'];
+
+    for(var i=0; i<count; i++){
+      pieces.push({
+        x: canvas.width / 2,
+        y: canvas.height / 2,
+        vx: (Math.random() - 0.5) * 15,
+        vy: (Math.random() - 0.7) * 18,
+        size: Math.random() * 6 + 4,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        rotation: Math.random() * 360,
+        rSpeed: (Math.random() - 0.5) * 8,
+        life: 1
+      });
+    }
+
+    function animate(){
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      var alive = false;
+      pieces.forEach(function(p){
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.45;
+        p.rotation += p.rSpeed;
+        p.life -= 0.015;
+
+        if(p.life > 0){
+          alive = true;
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate((p.rotation * Math.PI) / 180);
+          ctx.fillStyle = p.color;
+          ctx.globalAlpha = p.life;
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+          ctx.restore();
+        }
+      });
+
+      if(alive) requestAnimationFrame(animate);
+      else ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+    requestAnimationFrame(animate);
+  }
+
+  // ===== NÚT QUAY LẠI CỦA ĐIỆN THOẠI =====
+  window.onBack = function(){
+    if($('imgModal').style.display === 'flex'){ closeModal(); return true; }
+    if($('ask').style.display === 'flex'){ closeAsk(true); return true; }
+    if($('resultDialog').style.display === 'flex'){ closeDialog(); return true; }
+    return false;
+  };
+
+  // ===== KHỞI ĐỘNG =====
+  async function init(){
+    var raw = '', note = '', parsed = null;
+    try {
+      raw = await Store.load();
+    } catch(e) {
+      loadFailed = true;
+      note = 'Không đọc được dữ liệu: ' + e.message;
+    }
+    if(raw){
+      try {
+        parsed = JSON.parse(raw);
+      } catch(e) {
+        var bak = '';
+        try { bak = await Store.loadBak(); } catch(e2) { bak = ''; }
+        try {
+          parsed = JSON.parse(bak);
+          note = 'File dữ liệu bị lỗi, đã mở bản lưu dự phòng gần nhất.';
+        } catch(e3) {
+          parsed = null;
+          note = 'File dữ liệu bị lỗi và không có bản dự phòng, đang mở bảng trống.';
+        }
+      }
+    }
+    state = normalizeState(parsed);
+    ready = true;
+    writeInputs();
+    renderAll();
+    // Dữ liệu dạng v4 trước đã đổi sang dạng gốc: ghi lại ngay
+    if(parsed && parsed.cfg) saveQuiet();
+    if(note) toast(note, 6000, true);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
