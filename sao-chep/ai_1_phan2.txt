@@ -367,9 +367,9 @@ function updateLegend(li) {
   const b = series(S.tf).bars[li];
   const up = b.c &gt;= b.o;
   const parts = [];
-  if (VIEW.ohlc) parts.push(&#x27;&lt;div class=&quot;lg&quot;&gt;&lt;b&gt;&#x27; + S.tf + &#x27;&lt;/b&gt; &#x27; + fmtTs(b.t, &#x27;dhm&#x27;) +
+  if (VIEW.ohlc &amp;&amp; VIEW.inds) parts.push(&#x27;&lt;div class=&quot;lg&quot;&gt;&lt;b&gt;&#x27; + S.tf + &#x27;&lt;/b&gt; &#x27; + fmtTs(b.t, &#x27;dhm&#x27;) +
     (S.showBlock &amp;&amp; inBlock(b.t) ? &#x27; &lt;span class=&quot;blk&quot;&gt;Giờ cấm 18–22h VN&lt;/span&gt;&#x27; : &#x27;&#x27;) + &#x27;&lt;/div&gt;&#x27;);
-  if (VIEW.ohlc) parts.push(&#x27;&lt;div class=&quot;lg&quot;&gt;O &lt;b&gt;&#x27; + b.o.toFixed(2) + &#x27;&lt;/b&gt; H &lt;b&gt;&#x27; + b.h.toFixed(2) +
+  if (VIEW.ohlc &amp;&amp; VIEW.inds) parts.push(&#x27;&lt;div class=&quot;lg&quot;&gt;O &lt;b&gt;&#x27; + b.o.toFixed(2) + &#x27;&lt;/b&gt; H &lt;b&gt;&#x27; + b.h.toFixed(2) +
     &#x27;&lt;/b&gt; L &lt;b&gt;&#x27; + b.l.toFixed(2) + &#x27;&lt;/b&gt; C &lt;b style=&quot;color:&#x27; + (up ? COL.up : COL.down) + &#x27;&quot;&gt;&#x27; +
     b.c.toFixed(2) + &#x27;&lt;/b&gt;&lt;/div&gt;&#x27;);
   for (const inst of S.inds) {
@@ -388,9 +388,9 @@ function updateLegend(li) {
       &#x27;&quot;&gt;&lt;/i&gt;&lt;b&gt;&#x27; + def.label(inst.p) + &#x27;&lt;/b&gt; &#x27; + vals + &#x27;&lt;/div&gt;&#x27;);
   }
   // Mũi tên thu gọn / mở thông số chỉ báo (chỉ hiện khi đang bật ít nhất một chỉ báo)
-  if (S.inds.some(x =&gt; x.on)) {
+  {
     const chev = VIEW.inds ? &#x27;M4 10 L8 6 L12 10&#x27; : &#x27;M4 6 L8 10 L12 6&#x27;;
-    parts.push(&#x27;&lt;button type=&quot;button&quot; class=&quot;lg-tog&quot; data-tog=&quot;1&quot; aria-label=&quot;&#x27; + (VIEW.inds ? &#x27;Thu gọn thông số chỉ báo&#x27; : &#x27;Hiện thông số chỉ báo&#x27;) +
+    parts.push(&#x27;&lt;button type=&quot;button&quot; class=&quot;lg-tog&quot; data-tog=&quot;1&quot; aria-label=&quot;&#x27; + (VIEW.inds ? &#x27;Thu gọn thông số&#x27; : &#x27;Hiện thông số&#x27;) +
       &#x27;&quot;&gt;&lt;svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 16 16&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;1.8&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;&gt;&lt;path d=&quot;&#x27; + chev + &#x27;&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&#x27;);
   }
   box.innerHTML = parts.join(&#x27;&#x27;);

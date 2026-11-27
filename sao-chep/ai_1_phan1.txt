@@ -457,8 +457,8 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
   &lt;/div&gt;
   &lt;div id=&quot;settings&quot; hidden&gt;
     &lt;label&gt;Lệch giờ hiển thị (so với UTC)&lt;input id=&quot;iTz&quot; type=&quot;number&quot; inputmode=&quot;numeric&quot; min=&quot;-12&quot; max=&quot;14&quot; value=&quot;7&quot;&gt;&lt;/label&gt;
-    &lt;label class=&quot;vchk&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;vInds&quot;&gt; Hiện thông số chỉ báo trên biểu đồ&lt;/label&gt;
-    &lt;label class=&quot;vchk&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;vOhlc&quot;&gt; Hiện giờ nến và giá O / H / L / C&lt;/label&gt;
+    &lt;label class=&quot;vchk&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;vInds&quot;&gt; Hiện thông số trên biểu đồ (tắt = thu gọn hết, như nút ˄)&lt;/label&gt;
+    &lt;label class=&quot;vchk&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;vOhlc&quot;&gt; Khi mở thông số: hiện cả giờ nến và giá O / H / L / C&lt;/label&gt;
     &lt;p class=&quot;note&quot;&gt;Kéo dọc trên biểu đồ để dời lên xuống. Kéo trên cột giá bên phải để co giãn. Chạm cột giá để trở lại tự co giãn.&lt;/p&gt;
     &lt;p class=&quot;note&quot; id=&quot;info&quot;&gt;&lt;/p&gt;
     &lt;p class=&quot;note&quot;&gt;Nạp file: CSV hoặc TSV có cột time (hoặc date và time), open, high, low, close, volume. File TradingView xuất theo UTC, để 7 để ra giờ VN. File MT5 theo giờ server của broker, lấy 7 trừ đi lệch giờ đó.&lt;/p&gt;
