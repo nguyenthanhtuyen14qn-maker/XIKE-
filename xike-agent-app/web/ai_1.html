@@ -4502,18 +4502,18 @@ function tvConfig() {
     interval: "15",
     timezone: "Asia/Bangkok",
     theme: "dark",
-    style: "1",
+    style: "19",   // Nến khối lượng (Volume Candles): độ rộng nến theo khối lượng
     locale: "vi_VN",
     backgroundColor: "#000000",
     gridColor: "rgba(255, 255, 255, 0.06)",
     allow_symbol_change: true,
     hide_side_toolbar: tvHideDraw(),
-    hide_volume: false,
+    hide_volume: true,   // khối lượng đã thể hiện bằng độ rộng nến
     withdateranges: true,
     details: false,
     calendar: false,
     save_image: true,
-    // Bản nhúng miễn phí tối đa 3 chỉ báo, tính cả Khối lượng (hide_volume: false): EMA 34, EMA 80, Khối lượng.
+    // Bản nhúng miễn phí chỉ nhận 2 chỉ báo tự thêm (đã thử): EMA 34, EMA 80.
     // MACD và TRIX xem trong bảng 📊 Chỉ báo (tính từ nến thật).
     studies: [
       { id: "MAExp@tv-basicstudies", inputs: { length: 34 } },
