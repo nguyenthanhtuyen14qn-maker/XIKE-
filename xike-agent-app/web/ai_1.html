@@ -192,6 +192,19 @@ details.models summary { color: var(--info); font-weight: 600; font-size: 14px; 
 .nav button { flex: 1 1 auto; font-size: 13px; padding: 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Biểu đồ phóng to: khung biểu đồ lấp kín màn hình, ẩn thanh chọn và các mục khác */
 body.chart-full > *:not(#view-chart):not(#viewer) { display: none !important; }
+/* Công tắc XIKE / TradingView và khung TradingView nhúng */
+.chart-switch { flex: none; display: flex; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: #000000; }
+.chart-switch button { flex: 1; min-height: 32px; border: 1px solid var(--line); border-radius: 8px; background: #000000; color: var(--muted); font-weight: 600; font-size: 13px; }
+.chart-switch button.on { color: var(--gold); border-color: var(--gold); }
+body.chart-full .chart-switch { display: none; }
+.tv-full { flex: none; display: inline-flex; align-items: center; padding: 0 10px; min-height: 32px; border: 1px solid var(--line); border-radius: 8px; color: var(--info); font-weight: 600; font-size: 13px; text-decoration: none; }
+.tv-full[hidden] { display: none !important; }
+.tv-box { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: #000000; }
+.tv-box[hidden] { display: none !important; }
+#tvWrap, #tvWrap .tradingview-widget-container__widget { flex: 1 1 auto; min-height: 0; width: 100%; height: 100%; }
+#tvWrap iframe { width: 100% !important; height: 100% !important; border: 0; }
+.tv-msg { position: absolute; left: 16px; right: 16px; top: 40%; margin: 0; text-align: center; color: var(--muted); font-size: 13px; line-height: 1.5; pointer-events: none; }
+.tv-msg.err { color: #fecaca; }
 body.chart-full #view-chart { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 30; display: flex !important; flex-direction: column; padding: 0; margin: 0; border: 0; background: #000000; }
 </style>
 </head>
@@ -227,6 +240,15 @@ body.chart-full #view-chart { position: fixed; top: 0; right: 0; bottom: 0; left
 
 <!-- BIỂU ĐỒ XAUUSD: chạy trong khung riêng, không lẫn với code của app -->
 <section id="view-chart" class="view">
+  <div class="chart-switch" role="group" aria-label="Chọn biểu đồ">
+    <button type="button" id="modeXike" class="on">📈 Biểu đồ XIKE</button>
+    <button type="button" id="modeTv">TradingView</button>
+    <a id="tvFull" class="tv-full" href="https://www.tradingview.com/chart/?symbol=OANDA%3AXAUUSD" target="_blank" rel="noopener" hidden title="Mở TradingView đầy đủ: Pine Editor, cảnh báo, phát lại thanh">↗ Đầy đủ</a>
+  </div>
+  <div id="tvBox" class="tv-box" hidden>
+    <div id="tvWrap" class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div></div>
+    <p id="tvMsg" class="tv-msg">Đang tải biểu đồ TradingView…</p>
+  </div>
   <iframe id="xauFrame" class="xau-frame" title="Biểu đồ XAUUSD" srcdoc="&lt;!DOCTYPE html&gt;
 &lt;html lang=&quot;vi&quot;&gt;
 &lt;head&gt;
@@ -4348,6 +4370,72 @@ function show(name) {
 
 // ===== BIỂU ĐỒ PHÓNG TO =====
 // Khung biểu đồ phóng to lấp kín màn hình: ẩn thanh chọn và các mục khác, chỉ giữ khung biểu đồ.
+// ===== CHỌN BIỂU ĐỒ: XIKE (chỉ báo riêng, AI, đặt lệnh) hoặc TradingView nhúng (đủ công cụ) =====
+const CHART_MODE_KEY = "xk-chart-mode";
+let tvLoaded = false;
+// Biểu đồ TradingView chính hãng (bản nhúng miễn phí). Đổi mã ngay trong biểu đồ bằng ô tìm mã.
+const TV_CONFIG = {
+  autosize: true,
+  symbol: "OANDA:XAUUSD",
+  interval: "15",
+  timezone: "Asia/Bangkok",
+  theme: "dark",
+  style: "1",
+  locale: "vi_VN",
+  backgroundColor: "#000000",
+  gridColor: "rgba(255, 255, 255, 0.06)",
+  allow_symbol_change: true,
+  hide_side_toolbar: false,
+  withdateranges: true,
+  details: false,
+  calendar: false,
+  save_image: true,
+  studies: [
+    { id: "MAExp@tv-basicstudies", inputs: { length: 34 } },
+    { id: "MAExp@tv-basicstudies", inputs: { length: 80 } },
+    "MACD@tv-basicstudies"
+  ],
+  support_host: "https://www.tradingview.com"
+};
+function loadTv() {
+  if (tvLoaded) return;
+  tvLoaded = true;
+  const msg = $("tvMsg");
+  msg.hidden = false;
+  msg.className = "tv-msg";
+  msg.textContent = "Đang tải biểu đồ TradingView…";
+  const sc = document.createElement("script");
+  sc.type = "text/javascript";
+  sc.async = true;
+  sc.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+  sc.textContent = JSON.stringify(TV_CONFIG);
+  sc.onload = () => {
+    // Ẩn chữ chờ khi khung TradingView đã xuất hiện
+    const t0 = Date.now();
+    const iv = setInterval(() => {
+      if ($("tvWrap").querySelector("iframe")) { msg.hidden = true; clearInterval(iv); }
+      else if (Date.now() - t0 > 15000) { clearInterval(iv); }
+    }, 300);
+  };
+  sc.onerror = () => {
+    tvLoaded = false;
+    sc.remove();
+    msg.className = "tv-msg err";
+    msg.textContent = "Không tải được TradingView. Kiểm tra mạng rồi bấm lại nút TradingView.";
+  };
+  $("tvWrap").appendChild(sc);
+}
+function chartMode(m) {
+  const tv = m === "tv";
+  $("modeXike").classList.toggle("on", !tv);
+  $("modeTv").classList.toggle("on", tv);
+  $("tvBox").hidden = !tv;
+  $("xauFrame").hidden = tv;
+  $("tvFull").hidden = !tv;
+  try { localStorage.setItem(CHART_MODE_KEY, tv ? "tv" : "xike"); } catch (e) { /* bỏ qua */ }
+  if (tv) loadTv();
+}
+
 function setChartFull(on) {
   document.body.classList.toggle("chart-full", !!on);
   const f = $("xauFrame");
@@ -5404,6 +5492,11 @@ async function runDiagnose() {
 // ===== KHỞI ĐỘNG =====
 function bind() {
   for (const v of VIEWS) $("nav-" + v).addEventListener("click", () => show(v));
+  $("modeXike").addEventListener("click", () => chartMode("xike"));
+  $("modeTv").addEventListener("click", () => chartMode("tv"));
+  let savedMode = "xike";
+  try { savedMode = localStorage.getItem(CHART_MODE_KEY) || "xike"; } catch (e) { savedMode = "xike"; }
+  if (savedMode === "tv") chartMode("tv");
 
   $("pickChat").addEventListener("click", () => $("fileChat").click());
   $("fileChat").addEventListener("change", async (ev) => {

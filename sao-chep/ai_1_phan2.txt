@@ -1868,3 +1868,51 @@ function aiSnapshot() {
   return Object.assign({ tf: S.tf, now: last.c, text }, shot);
 }
 
+// Chụp biểu đồ đang xem (kéo về nến mới nhất), kèm thang giá đúng để vẽ chính xác.
+// fit = { lo, hi }: mở rộng thang giá cho đủ các mức cần vẽ.
+function takeShot(fit) {
+  if (!hasData) return null;
+  const N = series(S.tf).bars.length;
+  S.anchor = N - 1 + Math.round(LAY.plotW * 0.28 / S.barW);
+  clampAnchor();
+  // Tạm ẩn Gann Fan tự động (có TP/SL riêng) để không lẫn với kế hoạch của AI
+  const hidden = S.inds.filter(x =&gt; x.id === &#x27;gann_fan&#x27; &amp;&amp; x.on);
+  hidden.forEach(x =&gt; { x.on = false; });
+  indsVer += 1;
+  legendKey = &#x27;&#x27;;
+  XK_FIT = fit &amp;&amp; Number.isFinite(fit.lo) &amp;&amp; Number.isFinite(fit.hi) ? fit : null;
+  render();
+  const r = cv.getBoundingClientRect();
+  let out = null;
+  if (r.width &gt; 0 &amp;&amp; r.height &gt; 0) {
+    const p1 = priceAtY(LAY.candleTop + (LAY.candleBottom - LAY.candleTop) * 0.15);
+    const p2 = priceAtY(LAY.candleTop + (LAY.candleBottom - LAY.candleTop) * 0.85);
+    out = {
+      image: cv.toDataURL(&#x27;image/jpeg&#x27;, 0.92),
+      axis: [{ price: p1, y: yOf(p1) / r.height * 1000 }, { price: p2, y: yOf(p2) / r.height * 1000 }],
+      pane: { top: LAY.candleTop / r.height * 1000, bottom: LAY.candleBottom / r.height * 1000 },
+      last_x: xOf(N - 1) / r.width * 1000
+    };
+  }
+  XK_FIT = null;
+  hidden.forEach(x =&gt; { x.on = true; });
+  indsVer += 1;
+  legendKey = &#x27;&#x27;;
+  schedule();
+  return out;
+}
+// Trang chính xin chụp lại khi AI đã trả các mức giá
+window.addEventListener(&#x27;message&#x27;, e =&gt; {
+  if (e.source !== window.parent || !e.data || e.data.type !== &#x27;xk-shot&#x27;) return;
+  const shot = takeShot({ lo: Number(e.data.lo), hi: Number(e.data.hi) });
+  window.parent.postMessage(Object.assign({ type: &#x27;xk-shot-done&#x27;, id: e.data.id }, shot || { error: &#x27;hidden&#x27; }), &#x27;*&#x27;);
+  if (shot) say(&#x27;AI đã phân tích xong. Xem ở tab Phân tích.&#x27;);
+});
+function aiClick() {
+  const snap = aiSnapshot();
+  if (snap.error) { say(snap.error); return; }
+  if (window.parent === window) { say(&#x27;Nút AI chỉ chạy trong app.&#x27;); return; }
+  window.parent.postMessage(Object.assign({ type: &#x27;xk-analyze&#x27; }, snap), &#x27;*&#x27;);
+  say(&#x27;AI đang phân tích dữ liệu &#x27; + snap.tf + &#x27;… Giữ tab Biểu đồ để AI vẽ lên biểu đồ.&#x27;);
+}
+

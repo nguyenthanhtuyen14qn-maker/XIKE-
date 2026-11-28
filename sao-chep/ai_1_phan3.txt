@@ -1,51 +1,3 @@
-// Chụp biểu đồ đang xem (kéo về nến mới nhất), kèm thang giá đúng để vẽ chính xác.
-// fit = { lo, hi }: mở rộng thang giá cho đủ các mức cần vẽ.
-function takeShot(fit) {
-  if (!hasData) return null;
-  const N = series(S.tf).bars.length;
-  S.anchor = N - 1 + Math.round(LAY.plotW * 0.28 / S.barW);
-  clampAnchor();
-  // Tạm ẩn Gann Fan tự động (có TP/SL riêng) để không lẫn với kế hoạch của AI
-  const hidden = S.inds.filter(x =&gt; x.id === &#x27;gann_fan&#x27; &amp;&amp; x.on);
-  hidden.forEach(x =&gt; { x.on = false; });
-  indsVer += 1;
-  legendKey = &#x27;&#x27;;
-  XK_FIT = fit &amp;&amp; Number.isFinite(fit.lo) &amp;&amp; Number.isFinite(fit.hi) ? fit : null;
-  render();
-  const r = cv.getBoundingClientRect();
-  let out = null;
-  if (r.width &gt; 0 &amp;&amp; r.height &gt; 0) {
-    const p1 = priceAtY(LAY.candleTop + (LAY.candleBottom - LAY.candleTop) * 0.15);
-    const p2 = priceAtY(LAY.candleTop + (LAY.candleBottom - LAY.candleTop) * 0.85);
-    out = {
-      image: cv.toDataURL(&#x27;image/jpeg&#x27;, 0.92),
-      axis: [{ price: p1, y: yOf(p1) / r.height * 1000 }, { price: p2, y: yOf(p2) / r.height * 1000 }],
-      pane: { top: LAY.candleTop / r.height * 1000, bottom: LAY.candleBottom / r.height * 1000 },
-      last_x: xOf(N - 1) / r.width * 1000
-    };
-  }
-  XK_FIT = null;
-  hidden.forEach(x =&gt; { x.on = true; });
-  indsVer += 1;
-  legendKey = &#x27;&#x27;;
-  schedule();
-  return out;
-}
-// Trang chính xin chụp lại khi AI đã trả các mức giá
-window.addEventListener(&#x27;message&#x27;, e =&gt; {
-  if (e.source !== window.parent || !e.data || e.data.type !== &#x27;xk-shot&#x27;) return;
-  const shot = takeShot({ lo: Number(e.data.lo), hi: Number(e.data.hi) });
-  window.parent.postMessage(Object.assign({ type: &#x27;xk-shot-done&#x27;, id: e.data.id }, shot || { error: &#x27;hidden&#x27; }), &#x27;*&#x27;);
-  if (shot) say(&#x27;AI đã phân tích xong. Xem ở tab Phân tích.&#x27;);
-});
-function aiClick() {
-  const snap = aiSnapshot();
-  if (snap.error) { say(snap.error); return; }
-  if (window.parent === window) { say(&#x27;Nút AI chỉ chạy trong app.&#x27;); return; }
-  window.parent.postMessage(Object.assign({ type: &#x27;xk-analyze&#x27; }, snap), &#x27;*&#x27;);
-  say(&#x27;AI đang phân tích dữ liệu &#x27; + snap.tf + &#x27;… Giữ tab Biểu đồ để AI vẽ lên biểu đồ.&#x27;);
-}
-
 /* ===== Đăng nhập MT5 qua VPS (POST /login, POST /logout). Mật khẩu chỉ gửi đi, không lưu. ===== */
 const MT_KEY = &#x27;xau-chart-mt5-login-v1&#x27;;   // chỉ lưu số tài khoản và server
 let mtHold = 0;   // giữ thông báo đăng nhập vừa xong, không để lần làm mới ghi đè ngay
@@ -928,6 +880,72 @@ function show(name) {
 
 // ===== BIỂU ĐỒ PHÓNG TO =====
 // Khung biểu đồ phóng to lấp kín màn hình: ẩn thanh chọn và các mục khác, chỉ giữ khung biểu đồ.
+// ===== CHỌN BIỂU ĐỒ: XIKE (chỉ báo riêng, AI, đặt lệnh) hoặc TradingView nhúng (đủ công cụ) =====
+const CHART_MODE_KEY = "xk-chart-mode";
+let tvLoaded = false;
+// Biểu đồ TradingView chính hãng (bản nhúng miễn phí). Đổi mã ngay trong biểu đồ bằng ô tìm mã.
+const TV_CONFIG = {
+  autosize: true,
+  symbol: "OANDA:XAUUSD",
+  interval: "15",
+  timezone: "Asia/Bangkok",
+  theme: "dark",
+  style: "1",
+  locale: "vi_VN",
+  backgroundColor: "#000000",
+  gridColor: "rgba(255, 255, 255, 0.06)",
+  allow_symbol_change: true,
+  hide_side_toolbar: false,
+  withdateranges: true,
+  details: false,
+  calendar: false,
+  save_image: true,
+  studies: [
+    { id: "MAExp@tv-basicstudies", inputs: { length: 34 } },
+    { id: "MAExp@tv-basicstudies", inputs: { length: 80 } },
+    "MACD@tv-basicstudies"
+  ],
+  support_host: "https://www.tradingview.com"
+};
+function loadTv() {
+  if (tvLoaded) return;
+  tvLoaded = true;
+  const msg = $("tvMsg");
+  msg.hidden = false;
+  msg.className = "tv-msg";
+  msg.textContent = "Đang tải biểu đồ TradingView…";
+  const sc = document.createElement("script");
+  sc.type = "text/javascript";
+  sc.async = true;
+  sc.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+  sc.textContent = JSON.stringify(TV_CONFIG);
+  sc.onload = () => {
+    // Ẩn chữ chờ khi khung TradingView đã xuất hiện
+    const t0 = Date.now();
+    const iv = setInterval(() => {
+      if ($("tvWrap").querySelector("iframe")) { msg.hidden = true; clearInterval(iv); }
+      else if (Date.now() - t0 > 15000) { clearInterval(iv); }
+    }, 300);
+  };
+  sc.onerror = () => {
+    tvLoaded = false;
+    sc.remove();
+    msg.className = "tv-msg err";
+    msg.textContent = "Không tải được TradingView. Kiểm tra mạng rồi bấm lại nút TradingView.";
+  };
+  $("tvWrap").appendChild(sc);
+}
+function chartMode(m) {
+  const tv = m === "tv";
+  $("modeXike").classList.toggle("on", !tv);
+  $("modeTv").classList.toggle("on", tv);
+  $("tvBox").hidden = !tv;
+  $("xauFrame").hidden = tv;
+  $("tvFull").hidden = !tv;
+  try { localStorage.setItem(CHART_MODE_KEY, tv ? "tv" : "xike"); } catch (e) { /* bỏ qua */ }
+  if (tv) loadTv();
+}
+
 function setChartFull(on) {
   document.body.classList.toggle("chart-full", !!on);
   const f = $("xauFrame");
@@ -1984,6 +2002,11 @@ async function runDiagnose() {
 // ===== KHỞI ĐỘNG =====
 function bind() {
   for (const v of VIEWS) $("nav-" + v).addEventListener("click", () => show(v));
+  $("modeXike").addEventListener("click", () => chartMode("xike"));
+  $("modeTv").addEventListener("click", () => chartMode("tv"));
+  let savedMode = "xike";
+  try { savedMode = localStorage.getItem(CHART_MODE_KEY) || "xike"; } catch (e) { savedMode = "xike"; }
+  if (savedMode === "tv") chartMode("tv");
 
   $("pickChat").addEventListener("click", () => $("fileChat").click());
   $("fileChat").addEventListener("change", async (ev) => {
