@@ -192,24 +192,13 @@ details.models summary { color: var(--info); font-weight: 600; font-size: 14px; 
 .nav button { flex: 1 1 auto; font-size: 13px; padding: 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Biểu đồ phóng to: khung biểu đồ lấp kín màn hình, ẩn thanh chọn và các mục khác */
 body.chart-full > *:not(#view-chart):not(#viewer) { display: none !important; }
-/* Biểu đồ: TradingView là biểu đồ chính, XIKE chạy ngầm phía sau */
+/* Biểu đồ XIKE (giao diện kiểu TradingView) */
 .chart-stage { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: #000000; }
-.tv-box { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: #000000; }
-.tv-box[hidden] { display: none !important; }
-#tvWrap, #tvWrap .tradingview-widget-container__widget { flex: 1 1 auto; min-height: 0; width: 100%; height: 100%; }
-#tvWrap iframe { width: 100% !important; height: 100% !important; border: 0; }
-.tv-msg { position: absolute; left: 16px; right: 16px; top: 40%; margin: 0; text-align: center; color: var(--muted); font-size: 13px; line-height: 1.5; pointer-events: none; }
-.tv-msg.err { color: #fecaca; }
-/* XIKE chạy ngầm: vẫn có kích thước (để tính và chụp cho AI) nhưng không nhìn thấy, không nhận chạm */
-.xau-frame.engine { position: absolute; inset: 0; visibility: hidden; pointer-events: none; z-index: 0; }
-.xike-bar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
-.xike-bar[hidden] { display: none !important; }
 .mini { min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: #000000; color: var(--text); font-size: 12.5px; font-weight: 600; }
 .chart-actions { flex: none; display: flex; gap: 6px; padding: 6px 8px; border-top: 1px solid var(--line); background: #000000; }
 .chart-actions button { flex: 1 1 0; min-width: 0; min-height: 38px; padding: 0 4px; border: 1px solid var(--line); border-radius: 10px; background: #000000; color: var(--text); font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chart-actions button.on { border-color: var(--gold); color: var(--gold); }
 .chart-actions button:disabled { opacity: .55; }
-.act-link { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 38px; border: 1px solid var(--line); border-radius: 10px; color: var(--info); font-weight: 700; text-decoration: none; }
 body.chart-full .chart-actions { display: none; }
 /* Khung đặt lệnh dưới biểu đồ */
 .trade { flex: none; display: grid; gap: 8px; padding: 8px 10px 10px; border-top: 1px solid var(--line); max-height: 46vh; overflow-y: auto; }
@@ -292,13 +281,9 @@ body.chart-full .chart-actions { display: none; }
 
 <!-- BIỂU ĐỒ XAUUSD: chạy trong khung riêng, không lẫn với code của app -->
 <section id="view-chart" class="view">
-  <!-- Biểu đồ chính là TradingView. Biểu đồ XIKE chạy ngầm phía sau (tính chỉ báo, AI, giá đặt lệnh), hiện ra khi TradingView không tải được. -->
+  <!-- Biểu đồ XIKE: nến, chỉ báo, vẽ, AI và giá đặt lệnh -->
   <div class="chart-stage" id="chartStage">
-    <div id="tvBox" class="tv-box">
-      <div id="tvWrap" class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div></div>
-      <p id="tvMsg" class="tv-msg">Đang tải biểu đồ TradingView…</p>
-    </div>
-    <iframe id="xauFrame" class="xau-frame engine" title="Biểu đồ XAUUSD" srcdoc="&lt;!DOCTYPE html&gt;
+    <iframe id="xauFrame" class="xau-frame" title="Biểu đồ XAUUSD" srcdoc="&lt;!DOCTYPE html&gt;
 &lt;html lang=&quot;vi&quot;&gt;
 &lt;head&gt;
 &lt;meta charset=&quot;utf-8&quot;&gt;
@@ -312,12 +297,13 @@ body.chart-full .chart-actions { display: none; }
 :root {
   --bg: #000000;
   --panel: #000000;
-  --line: #1f1f1f;
-  --text: #dde3ee;
-  --muted: #7c8699;
-  --accent: #4f8dff;
-  --up: #2bb39a;
-  --down: #ef6471;
+  --line: #2a2e39;
+  --text: #d1d4dc;
+  --muted: #787b86;
+  --accent: #2962ff;
+  --up: #089981;
+  --down: #f23645;
+  --f-tv: -apple-system, BlinkMacSystemFont, &quot;Trebuchet MS&quot;, Roboto, Ubuntu, sans-serif;
   --f-display: &quot;Barlow Condensed&quot;, &quot;Arial Narrow&quot;, Arial, sans-serif;
   --f-ui: &quot;IBM Plex Sans&quot;, system-ui, -apple-system, &quot;Segoe UI&quot;, Roboto, Arial, sans-serif;
   --f-num: &quot;IBM Plex Mono&quot;, ui-monospace, Menlo, Consolas, monospace;
@@ -328,6 +314,34 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
 body { font: 400 13px/1.4 var(--f-ui); -webkit-font-smoothing: antialiased; -webkit-user-select: none; user-select: none; }
 input { -webkit-user-select: text; user-select: text; }
 #app { position: relative; height: 100%; display: flex; flex-direction: column; }
+/* ===== Giao diện kiểu TradingView ===== */
+body { font-family: var(--f-tv); }
+.topbar { gap: 10px !important; padding: 8px 10px 6px !important; }
+.symbol { font: 600 17px/1.15 var(--f-tv) !important; letter-spacing: 0 !important; }
+.symbol small { margin-top: 3px !important; font: 400 11.5px/1.2 var(--f-tv) !important; letter-spacing: 0 !important; }
+#px { font: 600 21px/1 var(--f-tv) !important; font-variant-numeric: tabular-nums; }
+#chg { margin-top: 3px !important; font: 500 12px/1 var(--f-tv) !important; font-variant-numeric: tabular-nums; }
+.toolbar { gap: 2px !important; padding: 3px 6px !important; }
+.toolbar button, .topbar button, .dtb button { border: 0 !important; border-radius: 4px; background: transparent; color: var(--text); font: 500 13px/1 var(--f-tv); }
+.toolbar button { padding: 8px 8px; }
+.toolbar button:hover, .dtb button:hover { background: #1e222d; }
+.toolbar button.on, .dtb button.on { background: rgba(41, 98, 255, .16) !important; color: #5b8cff !important; }
+.toolbar .seg { border: 0 !important; gap: 0; }
+.toolbar .seg button + button { border-left: 0 !important; }
+.toolbar .seg button.on { background: transparent !important; color: #5b8cff !important; font-weight: 700; }
+.toolbar .badge { background: #2962ff; }
+.toolbar .fx { font: italic 600 14px/1 Georgia, &quot;Times New Roman&quot;, serif; }
+.toolbar .sep { background: var(--line); }
+.toolbar button svg { display: block; }
+#bType { padding: 6px 7px; }
+/* Thanh công cụ vẽ bên trái như TradingView (ẩn bằng nút ✏️ Ẩn vẽ) */
+#wrap { display: flex; }
+.dtb { flex: none; width: 40px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; border-right: 1px solid var(--line); background: var(--bg); overflow-y: auto; scrollbar-width: none; }
+.dtb::-webkit-scrollbar { display: none; }
+.dtb button { width: 32px; height: 32px; padding: 0; display: flex; align-items: center; justify-content: center; flex: none; }
+.dtb .dsep { width: 22px; height: 1px; flex: none; background: var(--line); margin: 2px 0; }
+body.nodtb .dtb { display: none; }
+#plot { position: relative; flex: 1 1 auto; min-width: 0; }
 
 .topbar { display: flex; align-items: center; gap: 12px; padding: 10px 12px 8px; background: var(--panel); border-bottom: 1px solid var(--line); }
 .symbol { font: 700 22px/1 var(--f-display); letter-spacing: .05em; min-width: 0; }
@@ -354,14 +368,18 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 #wrap { position: relative; flex: 1; min-height: 0; }
 #cv { position: absolute; left: 0; top: 0; display: block; touch-action: none; -webkit-touch-callout: none; }
-#legend { position: absolute; left: 6px; top: 4px; right: 70px; z-index: 1; pointer-events: none; font: 500 11px/1.4 var(--f-num); color: var(--muted); text-shadow: 0 0 3px var(--bg), 0 0 3px var(--bg); }
+#legend { position: absolute; left: 6px; top: 4px; right: 70px; bottom: 26px; z-index: 1; pointer-events: none; font: 400 12px/1.55 var(--f-tv); font-variant-numeric: tabular-nums; color: var(--text); text-shadow: 0 0 3px var(--bg), 0 0 3px var(--bg); }
 #legend .lg { display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; }
-#legend .lg b { color: var(--text); font-weight: 600; }
+#legend .lg b { color: var(--text); font-weight: 400; }
+#legend .lg .k { color: var(--text); }
+#legend .lg .sym { font-weight: 600; }
+#legend .lg .src { color: var(--muted); }
+#legend .plg { position: absolute; left: 0; right: 0; }
 #legend .blk { color: var(--down); }
-#legend .sw { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 2px; }
+#legend .sw { display: none; }
 #legend [data-uid] { pointer-events: auto; cursor: pointer; }
 /* Nút thu gọn / mở thông số chỉ báo, kiểu TradingView */
-#legend .lg-tog { pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 24px; margin-top: 3px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: rgba(0, 0, 0, .55); color: var(--text); cursor: pointer; }
+#legend .lg-tog { pointer-events: auto; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 22px; margin-top: 2px; padding: 0; border: 1px solid var(--line); border-radius: 4px; background: rgba(0, 0, 0, .6); color: var(--text); cursor: pointer; }
 #legend .lg-tog svg { display: block; }
 
 #settings { display: grid; gap: 10px; padding: 12px; background: var(--panel); border-top: 1px solid var(--line); }
@@ -422,7 +440,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 #settings input, .fields input { font: 500 14px/1 var(--f-num); color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px; width: 100%; }
 .note { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
 
-.statusline { padding: 6px 12px; background: var(--panel); border-top: 1px solid var(--line); font: 500 11px/1.2 var(--f-num); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.statusline { padding: 4px 10px; font-family: var(--f-tv) !important; background: var(--panel); border-top: 1px solid var(--line); font: 500 11px/1.2 var(--f-num); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #picker { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
 /* Bảng chỉ báo kiểu bottom sheet */
@@ -448,6 +466,7 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .idesc { margin-top: 3px; font: 400 12px/1.4 var(--f-ui); color: var(--muted); }
 .iswatch { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 3px; }
 .iactions { flex: 0 0 auto; display: flex; gap: 2px; }
+.sig-open { width: 100%; margin-bottom: 10px; padding: 10px; color: #f2b04a; border-color: rgba(242, 176, 74, .5); }
 .empty { margin: 18px 0; text-align: center; font-size: 13px; color: var(--muted); }
 .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
 .fields label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); }
@@ -477,14 +496,10 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
   &lt;div class=&quot;toolbar&quot; role=&quot;toolbar&quot; aria-label=&quot;Khung thời gian và công cụ&quot;&gt;
     &lt;div class=&quot;seg&quot; id=&quot;tfs&quot; role=&quot;group&quot; aria-label=&quot;Khung thời gian&quot;&gt;&lt;/div&gt;
     &lt;span class=&quot;sep&quot;&gt;&lt;/span&gt;
-    &lt;button type=&quot;button&quot; id=&quot;bInd&quot; class=&quot;ind-btn&quot; aria-haspopup=&quot;dialog&quot;&gt;Chỉ báo &lt;span class=&quot;badge&quot; id=&quot;indCount&quot; hidden&gt;0&lt;/span&gt;&lt;/button&gt;
+    &lt;button type=&quot;button&quot; id=&quot;bType&quot; title=&quot;Kiểu nến&quot; aria-label=&quot;Kiểu nến&quot;&gt;&lt;/button&gt;
+    &lt;button type=&quot;button&quot; id=&quot;bInd&quot; class=&quot;ind-btn&quot; aria-haspopup=&quot;dialog&quot;&gt;&lt;span class=&quot;fx&quot;&gt;ƒx&lt;/span&gt; Chỉ báo &lt;span class=&quot;badge&quot; id=&quot;indCount&quot; hidden&gt;0&lt;/span&gt;&lt;/button&gt;
     &lt;button type=&quot;button&quot; id=&quot;bLegend&quot; aria-pressed=&quot;true&quot; title=&quot;Ẩn/hiện thông số chỉ báo trên biểu đồ&quot;&gt;Thông số&lt;/button&gt;
     &lt;button type=&quot;button&quot; id=&quot;bAuto&quot; title=&quot;Trở lại tự co giãn thang giá&quot; hidden&gt;↕ Tự động&lt;/button&gt;
-    &lt;span class=&quot;sep&quot;&gt;&lt;/span&gt;
-    &lt;button type=&quot;button&quot; id=&quot;bFan&quot; aria-pressed=&quot;false&quot;&gt;Gann Fan&lt;/button&gt;
-    &lt;button type=&quot;button&quot; id=&quot;bHl&quot; aria-pressed=&quot;false&quot;&gt;Ngang&lt;/button&gt;
-    &lt;button type=&quot;button&quot; id=&quot;bDraw&quot; aria-pressed=&quot;false&quot;&gt;Bản vẽ&lt;/button&gt;
-    &lt;button type=&quot;button&quot; id=&quot;bClr&quot;&gt;Xóa vẽ&lt;/button&gt;
     &lt;span class=&quot;sep&quot;&gt;&lt;/span&gt;
     &lt;button type=&quot;button&quot; id=&quot;bBlock&quot; class=&quot;on&quot; aria-pressed=&quot;true&quot;&gt;Giờ cấm&lt;/button&gt;
     &lt;button type=&quot;button&quot; id=&quot;bFile&quot;&gt;Nạp file&lt;/button&gt;
@@ -494,8 +509,19 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
     &lt;button type=&quot;button&quot; id=&quot;bSet&quot; aria-pressed=&quot;false&quot;&gt;Cài đặt&lt;/button&gt;
   &lt;/div&gt;
   &lt;div id=&quot;wrap&quot;&gt;
-    &lt;canvas id=&quot;cv&quot; role=&quot;img&quot; aria-label=&quot;Biểu đồ nến XAUUSD&quot;&gt;&lt;/canvas&gt;
-    &lt;div id=&quot;legend&quot;&gt;&lt;/div&gt;
+    &lt;nav id=&quot;dtb&quot; class=&quot;dtb&quot; aria-label=&quot;Công cụ vẽ&quot;&gt;
+      &lt;button type=&quot;button&quot; id=&quot;bCur&quot; title=&quot;Con trỏ: kéo, xem giá&quot; aria-label=&quot;Con trỏ&quot; aria-pressed=&quot;true&quot;&gt;&lt;/button&gt;
+      &lt;span class=&quot;dsep&quot;&gt;&lt;/span&gt;
+      &lt;button type=&quot;button&quot; id=&quot;bDraw&quot; title=&quot;Đường xu hướng và công cụ vẽ&quot; aria-label=&quot;Công cụ vẽ&quot; aria-pressed=&quot;false&quot;&gt;&lt;/button&gt;
+      &lt;button type=&quot;button&quot; id=&quot;bHl&quot; title=&quot;Đường nằm ngang&quot; aria-label=&quot;Đường nằm ngang&quot; aria-pressed=&quot;false&quot;&gt;&lt;/button&gt;
+      &lt;button type=&quot;button&quot; id=&quot;bFan&quot; title=&quot;Gann Fan&quot; aria-label=&quot;Gann Fan&quot; aria-pressed=&quot;false&quot;&gt;&lt;/button&gt;
+      &lt;span class=&quot;dsep&quot;&gt;&lt;/span&gt;
+      &lt;button type=&quot;button&quot; id=&quot;bClr&quot; title=&quot;Xóa toàn bộ hình vẽ&quot; aria-label=&quot;Xóa toàn bộ hình vẽ&quot;&gt;&lt;/button&gt;
+    &lt;/nav&gt;
+    &lt;div id=&quot;plot&quot;&gt;
+      &lt;canvas id=&quot;cv&quot; role=&quot;img&quot; aria-label=&quot;Biểu đồ nến XAUUSD&quot;&gt;&lt;/canvas&gt;
+      &lt;div id=&quot;legend&quot;&gt;&lt;/div&gt;
+    &lt;/div&gt;
   &lt;/div&gt;
   &lt;div id=&quot;settings&quot; hidden&gt;
     &lt;label&gt;Lệch giờ hiển thị (so với UTC)&lt;input id=&quot;iTz&quot; type=&quot;number&quot; inputmode=&quot;numeric&quot; min=&quot;-12&quot; max=&quot;14&quot; value=&quot;7&quot;&gt;&lt;/label&gt;
@@ -519,6 +545,7 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
     &lt;button type=&quot;button&quot; id=&quot;sheetClose&quot; class=&quot;icon-btn&quot; aria-label=&quot;Đóng&quot;&gt;&lt;/button&gt;
   &lt;/header&gt;
   &lt;div id=&quot;libView&quot; class=&quot;sheet-body&quot;&gt;
+    &lt;button type=&quot;button&quot; id=&quot;bSig&quot; class=&quot;sig-open&quot; hidden&gt;📋 Bảng tín hiệu các chỉ báo (nến mới nhất)&lt;/button&gt;
     &lt;input id=&quot;indSearch&quot; type=&quot;search&quot; placeholder=&quot;Tìm chỉ báo, ví dụ EMA, RSI, MACD&quot; autocomplete=&quot;off&quot;&gt;
     &lt;div class=&quot;chips&quot; id=&quot;indChips&quot; role=&quot;group&quot; aria-label=&quot;Nhóm chỉ báo&quot;&gt;&lt;/div&gt;
     &lt;div id=&quot;activeBox&quot; hidden&gt;
@@ -572,8 +599,8 @@ const BLOCK_FROM = 18, BLOCK_TO = 22;   // khung cấm vào lệnh, giờ VN (lu
 const VN_SHIFT = 7 * 3600;
 const MAX_INDS = 20;
 const PAL = {
-  blue: &#x27;#4f8dff&#x27;, amber: &#x27;#f2b04a&#x27;, violet: &#x27;#b48cf2&#x27;, cyan: &#x27;#4fd1e8&#x27;, gold: &#x27;#e8c46a&#x27;,
-  green: &#x27;#2bb39a&#x27;, red: &#x27;#ef6471&#x27;, orange: &#x27;#ff8a65&#x27;, slate: &#x27;#9aa9c7&#x27;
+  blue: &#x27;#2962ff&#x27;, amber: &#x27;#ff9800&#x27;, violet: &#x27;#7e57c2&#x27;, cyan: &#x27;#00bcd4&#x27;, gold: &#x27;#fdd835&#x27;,
+  green: &#x27;#089981&#x27;, red: &#x27;#f23645&#x27;, orange: &#x27;#ff6d00&#x27;, slate: &#x27;#787b86&#x27;
 };
 const STATE_KEYS = [&#x27;tf&#x27;, &#x27;showBlock&#x27;, &#x27;tz&#x27;, &#x27;drawings&#x27;];
 
@@ -963,7 +990,7 @@ function makeDemo(n, start, stepSec, endSec) {
 
 function pickPeriod(tfSec, barW) {
   for (const P of PERIODS) {
-    if (P &gt;= tfSec &amp;&amp; (P / tfSec) * barW &gt;= 85) return P;
+    if (P &gt;= tfSec &amp;&amp; (P / tfSec) * barW &gt;= 58) return P;
   }
   return PERIODS[PERIODS.length - 1];
 }
@@ -1067,7 +1094,7 @@ const IND_ALL = [
           { name: &#x27;EMA&#x27; + p.f, v: e34, color: PAL.amber },
           { name: &#x27;EMA&#x27; + p.s, v: e80, color: PAL.blue }
         ],
-        band: { a: 0, b: 1, up: &#x27;rgba(43,179,154,0.16)&#x27;, dn: &#x27;rgba(239,100,113,0.16)&#x27; },
+        band: { a: 0, b: 1, up: &#x27;rgba(8,153,129,0.14)&#x27;, dn: &#x27;rgba(242,54,69,0.14)&#x27; },
         marks: zoneMarks(h, l, c, e34, e80, mac, p.nb, p.bt, p.st)
       };
     }
@@ -1217,9 +1244,9 @@ const IND_ALL = [
       for (let i = 0; i &lt; N; i++) if (Number.isFinite(m[i]) &amp;&amp; Number.isFinite(sg[i])) hist[i] = m[i] - sg[i];
       return {
         lines: [
-          { name: &#x27;MACD&#x27;, v: m, color: PAL.cyan },
-          { name: &#x27;Tín hiệu&#x27;, v: sg, color: PAL.amber },
-          { name: &#x27;Hist&#x27;, v: hist, type: &#x27;hist&#x27;, up: &#x27;rgba(43,179,154,0.7)&#x27;, dn: &#x27;rgba(239,100,113,0.7)&#x27; }
+          { name: &#x27;MACD&#x27;, v: m, color: PAL.blue },
+          { name: &#x27;Tín hiệu&#x27;, v: sg, color: PAL.orange },
+          { name: &#x27;Hist&#x27;, v: hist, type: &#x27;hist&#x27;, up: &#x27;#26a69a&#x27;, dn: &#x27;#ff5252&#x27; }
         ]
       };
     }
@@ -1478,16 +1505,17 @@ const DEMO_LABEL = &#x27;Demo (mô phỏng, không phải giá thật)&#x27;;
 const LS_KEY = &#x27;xau-chart-drawings-v1&#x27;;
 const IND_KEY = &#x27;xau-chart-indicators-v2&#x27;;
 const COL = {
-  bg: &#x27;#000000&#x27;, panel: &#x27;#000000&#x27;, line: &#x27;#1f1f1f&#x27;, text: &#x27;#dde3ee&#x27;, muted: &#x27;#7c8699&#x27;,
-  accent: &#x27;#4f8dff&#x27;, up: &#x27;#2bb39a&#x27;, down: &#x27;#ef6471&#x27;,
-  fan: &#x27;#9aa9c7&#x27;, hline: &#x27;#5ad1e6&#x27;, levels: &#x27;#b48cf2&#x27;,
-  zoneUp: &#x27;rgba(43,179,154,0.16)&#x27;, zoneDn: &#x27;rgba(239,100,113,0.16)&#x27;,
-  volUp: &#x27;rgba(43,179,154,0.32)&#x27;, volDn: &#x27;rgba(239,100,113,0.32)&#x27;,
-  grid: &#x27;rgba(124,134,153,0.55)&#x27;, cross: &#x27;#5b6679&#x27;, box: &#x27;#253047&#x27;
+  bg: &#x27;#000000&#x27;, panel: &#x27;#000000&#x27;, line: &#x27;#15181f&#x27;, text: &#x27;#d1d4dc&#x27;, muted: &#x27;#787b86&#x27;,
+  accent: &#x27;#2962ff&#x27;, up: &#x27;#089981&#x27;, down: &#x27;#f23645&#x27;,
+  fan: &#x27;#9598a1&#x27;, hline: &#x27;#2962ff&#x27;, levels: &#x27;#7e57c2&#x27;,
+  zoneUp: &#x27;rgba(8,153,129,0.14)&#x27;, zoneDn: &#x27;rgba(242,54,69,0.14)&#x27;,
+  volUp: &#x27;rgba(8,153,129,0.45)&#x27;, volDn: &#x27;rgba(242,54,69,0.45)&#x27;,
+  grid: &#x27;rgba(120,123,134,0.45)&#x27;, cross: &#x27;#9598a1&#x27;, box: &#x27;#363a45&#x27;,
+  axis: &#x27;#b2b5be&#x27;, border: &#x27;#2a2e39&#x27;
 };
 const FONT = {
-  num: &#x27;&quot;IBM Plex Mono&quot;, ui-monospace, Menlo, Consolas, monospace&#x27;,
-  ui: &#x27;&quot;IBM Plex Sans&quot;, system-ui, sans-serif&#x27;
+  num: &#x27;-apple-system, BlinkMacSystemFont, &quot;Trebuchet MS&quot;, Roboto, Ubuntu, sans-serif&#x27;,
+  ui: &#x27;-apple-system, BlinkMacSystemFont, &quot;Trebuchet MS&quot;, Roboto, Ubuntu, sans-serif&#x27;
 };
 const GROUPS = [[&#x27;all&#x27;, &#x27;Tất cả&#x27;], [&#x27;trend&#x27;, &#x27;Trên giá&#x27;], [&#x27;osc&#x27;, &#x27;Dao động&#x27;]];
 const ICONS = {
@@ -1499,7 +1527,14 @@ const ICONS = {
   back: &#x27;&lt;path d=&quot;M15 6l-6 6 6 6&quot;/&gt;&#x27;,
   close: &#x27;&lt;path d=&quot;M6 6l12 12M18 6L6 18&quot;/&gt;&#x27;,
   expand: &#x27;&lt;path d=&quot;M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5&quot;/&gt;&#x27;,
-  shrink: &#x27;&lt;path d=&quot;M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5&quot;/&gt;&#x27;
+  shrink: &#x27;&lt;path d=&quot;M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5&quot;/&gt;&#x27;,
+  candle: &#x27;&lt;path d=&quot;M7 3v18M17 3v18&quot;/&gt;&lt;rect x=&quot;5&quot; y=&quot;7&quot; width=&quot;4&quot; height=&quot;9&quot; fill=&quot;currentColor&quot;/&gt;&lt;rect x=&quot;15&quot; y=&quot;9&quot; width=&quot;4&quot; height=&quot;7&quot;/&gt;&#x27;,
+  vcandle: &#x27;&lt;path d=&quot;M6 3v18M16 3v18&quot;/&gt;&lt;rect x=&quot;4.8&quot; y=&quot;7&quot; width=&quot;2.4&quot; height=&quot;9&quot; fill=&quot;currentColor&quot;/&gt;&lt;rect x=&quot;12&quot; y=&quot;9&quot; width=&quot;8&quot; height=&quot;7&quot;/&gt;&#x27;,
+  cursor: &#x27;&lt;path d=&quot;M6 3l12 9-5.5 1.2L15 20l-2.4 1-2.6-6.6L6 18z&quot;/&gt;&#x27;,
+  trend: &#x27;&lt;path d=&quot;M5 19L19 5&quot;/&gt;&lt;circle cx=&quot;5&quot; cy=&quot;19&quot; r=&quot;1.8&quot;/&gt;&lt;circle cx=&quot;19&quot; cy=&quot;5&quot; r=&quot;1.8&quot;/&gt;&#x27;,
+  hline: &#x27;&lt;path d=&quot;M2 12H22&quot;/&gt;&lt;circle cx=&quot;12&quot; cy=&quot;12&quot; r=&quot;2&quot;/&gt;&#x27;,
+  fan: &#x27;&lt;path d=&quot;M4 20L20 4M4 20L20 11M4 20L20 17M4 20L13 4&quot;/&gt;&lt;circle cx=&quot;4&quot; cy=&quot;20&quot; r=&quot;1.6&quot;/&gt;&#x27;,
+  trash: &#x27;&lt;path d=&quot;M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6&quot;/&gt;&#x27;
 };
 function setIcon(el, name) {
   el.innerHTML = &#x27;&lt;svg viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot; aria-hidden=&quot;true&quot;&gt;&#x27; + ICONS[name] + &#x27;&lt;/svg&gt;&#x27;;
@@ -1518,7 +1553,37 @@ let cv = null, cx = null, wrapEl = null, statusEl = null, DPR = 1, raf = 0, bloc
 let libGroup = &#x27;all&#x27;, libQuery = &#x27;&#x27;, editUid = null, legendKey = &#x27;&#x27;, indsVer = 0;
 
 function say(msg) { if (statusEl) statusEl.textContent = msg; }
-function smallFont() { return &#x27;11px &#x27; + FONT.num; }
+function smallFont() { return &#x27;12px &#x27; + FONT.num; }
+// Vẽ sắc nét: đường mảnh đúng 1 điểm ảnh CSS, đặt trùng lưới điểm ảnh thật của màn hình
+function hair() { return Math.max(1, Math.round(DPR)) / DPR; }
+function crisp(v) { const w = Math.max(1, Math.round(DPR)); return (Math.round(v * DPR) + (w % 2 ? 0.5 : 0)) / DPR; }
+const TF_LABEL = { M1: &#x27;1m&#x27;, M5: &#x27;5m&#x27;, M15: &#x27;15m&#x27;, M30: &#x27;30m&#x27;, H1: &#x27;1h&#x27;, H4: &#x27;4h&#x27;, D1: &#x27;D&#x27; };
+function tfLabel(id) { return TF_LABEL[id] || id; }
+// Kiểu nến: &#x27;candles&#x27; (nến thường) hoặc &#x27;vol&#x27; (nến khối lượng: thân rộng theo khối lượng, như TradingView)
+const CTYPE_KEY = &#x27;xk-ctype&#x27;;
+let CTYPE = &#x27;candles&#x27;;
+try { CTYPE = localStorage.getItem(CTYPE_KEY) === &#x27;vol&#x27; ? &#x27;vol&#x27; : &#x27;candles&#x27;; } catch (err) { /* bỏ qua */ }
+function syncTypeBtn() {
+  const bt = $(&#x27;bType&#x27;);
+  if (!bt) return;
+  setIcon(bt, CTYPE === &#x27;vol&#x27; ? &#x27;vcandle&#x27; : &#x27;candle&#x27;);
+  bt.title = CTYPE === &#x27;vol&#x27; ? &#x27;Nến khối lượng (bấm: nến thường)&#x27; : &#x27;Nến thường (bấm: nến khối lượng)&#x27;;
+}
+function toggleCtype() {
+  CTYPE = CTYPE === &#x27;vol&#x27; ? &#x27;candles&#x27; : &#x27;vol&#x27;;
+  try { localStorage.setItem(CTYPE_KEY, CTYPE); } catch (err) { /* bỏ qua */ }
+  syncTypeBtn();
+  say(CTYPE === &#x27;vol&#x27; ? &#x27;Nến khối lượng: thân nến rộng theo khối lượng.&#x27; : &#x27;Nến thường.&#x27;);
+  schedule();
+}
+// Ẩn / hiện thanh công cụ vẽ bên trái (nút ✏️ Ẩn vẽ của app gọi hàm này)
+const DTB_KEY = &#x27;xk-dtb-hide&#x27;;
+function xkDrawBar(hide) {
+  if (hide === undefined) { try { hide = localStorage.getItem(DTB_KEY) === &#x27;1&#x27;; } catch (err) { hide = false; } }
+  document.body.classList.toggle(&#x27;nodtb&#x27;, !!hide);
+  if (hide &amp;&amp; S.mode !== &#x27;pan&#x27;) setMode(&#x27;pan&#x27;);
+  resize();
+}
 function setOn(id, on) {
   const el = $(id);
   el.classList.toggle(&#x27;on&#x27;, !!on);
@@ -1561,7 +1626,7 @@ function drawBand(r, iL, iR) {
 // Nhãn tín hiệu: hộp màu có chữ trắng, góc trên trái tại (x, y0), căn giữa theo x.
 function drawMark(x, y0, text, color) {
   cx.font = smallFont();
-  const w = Math.ceil(cx.measureText(text).width) + 8, h = 14;
+  const w = Math.ceil(cx.measureText(text).width) + 8, h = 16;
   const x0 = Math.round(x - w / 2), yt = Math.round(y0);
   cx.fillStyle = color;
   cx.fillRect(x0, yt, w, h);
@@ -1701,8 +1766,10 @@ function render() {
       }
     }
     if (o.r.fit) {
+      // Mức SL/TP chỉ nới thang giá khi ở gần nến (như TradingView: nến luôn đủ lớn để đọc)
+      const rg = hi &gt; lo ? hi - lo : 1, fLo = lo - rg * 0.5, fHi = hi + rg * 0.5;
       for (const lv of o.r.levels || []) {
-        if (Number.isFinite(lv.v)) {
+        if (Number.isFinite(lv.v) &amp;&amp; lv.v &gt;= fLo &amp;&amp; lv.v &lt;= fHi) {
           if (lv.v &lt; lo) lo = lv.v;
           if (lv.v &gt; hi) hi = lv.v;
         }
@@ -1718,16 +1785,17 @@ function render() {
   const crInMain = crInPlot &amp;&amp; cr.y &gt;= 0 &amp;&amp; cr.y &lt;= L.mainH;
   const li = crInPlot ? clamp(Math.round(idxAtX(cr.x)), 0, n - 1) : n - 1;
   const tags = [];   // nhãn có nền trên trục phải
+  const lvTxt = [];  // vị trí chữ của các mức SL/TP/Entry đã vẽ
   const axis = [];   // nhãn trục phải thường
 
   // Lưới giá
   const step = niceStep(VP.pMax - VP.pMin, 6);
   const dec = clamp(-Math.floor(Math.log10(step)), 0, 2);
   for (let k = Math.ceil(VP.pMin / step); k * step &lt;= VP.pMax; k++) {
-    const y = Math.round(yOf(k * step)) + 0.5;
-    cx.strokeStyle = COL.line; cx.lineWidth = 1;
+    const y = crisp(yOf(k * step));
+    cx.strokeStyle = COL.line; cx.lineWidth = hair();
     cx.beginPath(); cx.moveTo(0, y); cx.lineTo(L.plotW, y); cx.stroke();
-    axis.push({ y: y, text: (k * step).toFixed(dec), color: COL.muted });
+    axis.push({ y: y, text: (k * step).toFixed(dec), color: COL.axis });
   }
 
   // Lưới thời gian và nhãn trục thời gian
@@ -1735,7 +1803,7 @@ function render() {
   const tzSec = S.tz * 3600;
   let lastDay = null;
   cx.textAlign = &#x27;center&#x27;;
-  cx.fillStyle = COL.muted;
+  cx.fillStyle = COL.axis;
   for (let i = Math.max(1, iL); i &lt;= iR; i++) {
     const tt = bars[i].t + tzSec, tp = bars[i - 1].t + tzSec;
     if (Math.floor(tt / P) === Math.floor(tp / P)) continue;
@@ -1745,11 +1813,11 @@ function render() {
     const x = xOf(i);
     if (x &lt; 0 || x &gt; L.plotW) continue;
     let label;
-    if (P &lt; 86400) label = fmtTs(bars[i].t, newDay ? &#x27;dhm&#x27; : &#x27;hm&#x27;);
+    if (P &lt; 86400) label = newDay ? fmtTs(bars[i].t, &#x27;dm&#x27;) : fmtTs(bars[i].t, &#x27;hm&#x27;);
     else if (P &lt; 2592000) label = fmtTs(bars[i].t, &#x27;dm&#x27;);
     else { const d = new Date(tt * 1000); label = pad2(d.getUTCMonth() + 1) + &#x27;/&#x27; + d.getUTCFullYear(); }
-    const xl = Math.round(x) + 0.5;
-    cx.strokeStyle = COL.line; cx.lineWidth = 1;
+    const xl = crisp(x);
+    cx.strokeStyle = COL.line; cx.lineWidth = hair();
     cx.beginPath(); cx.moveTo(xl, 0); cx.lineTo(xl, L.totalH); cx.stroke();
     cx.fillText(label, x, L.totalH + L.axisB / 2);
   }
@@ -1780,13 +1848,21 @@ function render() {
 
   for (const o of ovs) if (o.r.band) drawBand(o.r, iL, iR);
 
-  const bodyW = Math.max(1, Math.round(S.barW * 0.7));
+  // Nến vẽ theo điểm ảnh thật: thân và bấc thẳng hàng, mép sắc như TradingView
+  const vt = CTYPE === &#x27;vol&#x27; &amp;&amp; ser.hasVol &amp;&amp; vmax &gt; 0;
+  const wd = Math.max(1, Math.floor(DPR));
   for (let i = iL; i &lt;= iR; i++) {
-    const bc = bars[i], xc = Math.round(xOf(i)), col = bc.c &gt;= bc.o ? COL.up : COL.down;
-    cx.fillStyle = col; cx.strokeStyle = col; cx.lineWidth = 1;
-    cx.beginPath(); cx.moveTo(xc + 0.5, yOf(bc.h)); cx.lineTo(xc + 0.5, yOf(bc.l)); cx.stroke();
-    const yo = yOf(bc.o), yc = yOf(bc.c);
-    cx.fillRect(xc - Math.floor(bodyW / 2), Math.min(yo, yc), bodyW, Math.max(1, Math.abs(yc - yo)));
+    const bc = bars[i], col = bc.c &gt;= bc.o ? COL.up : COL.down;
+    const bw = vt ? Math.max(1, S.barW * 0.94 * Math.max(0.12, bc.v / vmax)) : Math.max(1, S.barW * 0.72);
+    let bwd = Math.max(wd, Math.round(bw * DPR));
+    if ((bwd - wd) % 2) bwd += 1;
+    const xl = Math.round(xOf(i) * DPR - bwd / 2), xw = xl + (bwd - wd) / 2;
+    const yh = Math.round(yOf(bc.h) * DPR), yl = Math.round(yOf(bc.l) * DPR);
+    const yt = Math.round(yOf(Math.max(bc.o, bc.c)) * DPR);
+    const yb = Math.max(yt + Math.max(1, Math.round(DPR)), Math.round(yOf(Math.min(bc.o, bc.c)) * DPR));
+    cx.fillStyle = col;
+    cx.fillRect(xw / DPR, yh / DPR, wd / DPR, Math.max(1, yl - yh) / DPR);
+    cx.fillRect(xl / DPR, yt / DPR, bwd / DPR, (yb - yt) / DPR);
   }
 
   for (const o of ovs) {
@@ -1797,12 +1873,15 @@ function render() {
     }
     for (const lv of o.r.levels || []) {
       if (lv.v &lt; VP.pMin || lv.v &gt; VP.pMax) continue;
-      const y = Math.round(yOf(lv.v)) + 0.5;
-      cx.setLineDash([5, 4]); cx.strokeStyle = lv.color; cx.lineWidth = 1;
+      const y = crisp(yOf(lv.v));
+      cx.setLineDash([5, 4]); cx.strokeStyle = lv.color; cx.lineWidth = hair();
       cx.beginPath(); cx.moveTo(0, y); cx.lineTo(L.plotW, y); cx.stroke();
       cx.setLineDash([]);
-      cx.fillStyle = lv.color; cx.textAlign = lv.right ? &#x27;right&#x27; : &#x27;left&#x27;;
-      cx.fillText(lv.text + &#x27;  &#x27; + lv.v.toFixed(2), lv.right ? L.plotW - 8 : 8, y - 8);
+      cx.fillStyle = lv.color; cx.textAlign = &#x27;right&#x27;;
+      let ty = y - 9;
+      if (lvTxt.some(v =&gt; Math.abs(v - ty) &lt; 14)) ty = y + 9;
+      if (!lvTxt.some(v =&gt; Math.abs(v - ty) &lt; 14)) { cx.fillText(lv.text, L.plotW - 6, ty); lvTxt.push(ty); }
+      tags.push({ y: y, text: lv.v.toFixed(2), bg: lv.color, fg: &#x27;#000000&#x27; });
       cx.textAlign = &#x27;left&#x27;;
     }
   }
@@ -1826,8 +1905,8 @@ function render() {
     if (d.type === &#x27;hline&#x27;) {
       const yh = yOf(d.p);
       if (yh &lt; L.candleTop || yh &gt; L.candleBottom) continue;
-      const y = Math.round(yh) + 0.5;
-      cx.strokeStyle = COL.hline; cx.lineWidth = 1; cx.setLineDash([6, 4]);
+      const y = crisp(yh);
+      cx.strokeStyle = COL.hline; cx.lineWidth = hair(); cx.setLineDash([6, 4]);
       cx.beginPath(); cx.moveTo(0, y); cx.lineTo(L.plotW, y); cx.stroke();
       cx.setLineDash([]);
       tags.push({ y: yh, text: d.p.toFixed(2), bg: COL.hline, fg: COL.bg });
@@ -1851,16 +1930,23 @@ function render() {
 
   const last = bars[n - 1], lastUp = last.c &gt;= last.o;
   if (last.c &gt;= VP.pMin &amp;&amp; last.c &lt;= VP.pMax) {
-    const yl = Math.round(yOf(last.c)) + 0.5;
-    cx.strokeStyle = lastUp ? COL.up : COL.down; cx.lineWidth = 1; cx.setLineDash([2, 3]);
+    const yl = crisp(yOf(last.c));
+    cx.strokeStyle = lastUp ? COL.up : COL.down; cx.lineWidth = hair(); cx.setLineDash([2, 3]);
     cx.beginPath(); cx.moveTo(0, yl); cx.lineTo(L.plotW, yl); cx.stroke();
     cx.setLineDash([]);
-    tags.push({ y: yOf(last.c), text: last.c.toFixed(2), bg: lastUp ? COL.up : COL.down, fg: COL.bg });
+    // Giá cuối kèm đồng hồ đếm ngược tới lúc đóng nến (như TradingView), chỉ khi dữ liệu live
+    const left = last.t + ser.sec - Date.now() / 1000;
+    let sub = &#x27;&#x27;;
+    if (/^Live/.test(baseName) &amp;&amp; left &gt; 0 &amp;&amp; left &lt;= ser.sec) {
+      const sl = Math.floor(left), hh = Math.floor(sl / 3600), mm = Math.floor(sl % 3600 / 60), ss = sl % 60;
+      sub = (hh ? hh + &#x27;:&#x27; + pad2(mm) : pad2(mm)) + &#x27;:&#x27; + pad2(ss);
+    }
+    tags.push({ y: yOf(last.c), text: last.c.toFixed(2), sub: sub, bg: lastUp ? COL.up : COL.down, fg: &#x27;#ffffff&#x27;, keep: true });
   }
 
   if (crInMain) {
-    const yc = Math.round(cr.y) + 0.5;
-    cx.strokeStyle = COL.cross; cx.lineWidth = 1; cx.setLineDash([3, 3]);
+    const yc = crisp(cr.y);
+    cx.strokeStyle = COL.cross; cx.lineWidth = hair(); cx.setLineDash([3, 3]);
     cx.beginPath(); cx.moveTo(0, yc); cx.lineTo(L.plotW, yc); cx.stroke();
     cx.setLineDash([]);
     if (cr.y &gt;= L.candleTop &amp;&amp; cr.y &lt;= L.candleBottom) {
@@ -1900,14 +1986,14 @@ function render() {
     }
     const yP = v =&gt; top + 6 + (hi2 - v) / (hi2 - lo2) * (L.paneH - 12);
 
-    cx.strokeStyle = COL.line; cx.lineWidth = 1;
-    cx.beginPath(); cx.moveTo(0, Math.round(top) + 0.5); cx.lineTo(L.w, Math.round(top) + 0.5); cx.stroke();
+    cx.strokeStyle = COL.line; cx.lineWidth = hair();
+    cx.beginPath(); cx.moveTo(0, crisp(top)); cx.lineTo(L.w, crisp(top)); cx.stroke();
 
     cx.save();
     cx.beginPath(); cx.rect(0, top, L.plotW, L.paneH); cx.clip();
-    cx.setLineDash([4, 4]); cx.strokeStyle = COL.grid; cx.lineWidth = 1;
+    cx.setLineDash([4, 4]); cx.strokeStyle = COL.grid; cx.lineWidth = hair();
     for (const lv of def.levels) {
-      const y = Math.round(yP(lv.v)) + 0.5;
+      const y = crisp(yP(lv.v));
       cx.beginPath(); cx.moveTo(0, y); cx.lineTo(L.plotW, y); cx.stroke();
     }
     cx.setLineDash([]);
@@ -1928,43 +2014,15 @@ function render() {
     // Nhãn Buy / Sell của TRIX: Buy nằm sát đáy ô, Sell nằm sát đỉnh ô
     for (const mk of r.marks || []) {
       if (mk.i &lt; iL || mk.i &gt; iR) continue;
-      drawMark(xOf(mk.i), mk.up ? bot - 17 : top + 3, mk.text, mk.up ? COL.up : COL.down);
+      drawMark(xOf(mk.i), mk.up ? bot - 18 : top + 22, mk.text, mk.up ? COL.up : COL.down);
     }
     if (crInPlot &amp;&amp; cr.y &gt;= top &amp;&amp; cr.y &lt; bot) {
-      const yc = Math.round(cr.y) + 0.5;
-      cx.strokeStyle = COL.cross; cx.lineWidth = 1; cx.setLineDash([3, 3]);
+      const yc = crisp(cr.y);
+      cx.strokeStyle = COL.cross; cx.lineWidth = hair(); cx.setLineDash([3, 3]);
       cx.beginPath(); cx.moveTo(0, yc); cx.lineTo(L.plotW, yc); cx.stroke();
       cx.setLineDash([]);
       const vv = hi2 - (cr.y - top - 6) / (L.paneH - 12) * (hi2 - lo2);
       tags.push({ y: cr.y, text: fmtVal(vv, def.dec), bg: COL.box, fg: COL.text });
     }
     cx.restore();
-
-    // Nhãn trục phải: các mức tham chiếu và mốc đẹp
-    const pstep = niceStep(hi2 - lo2, 3);
-    const pdec = clamp(-Math.floor(Math.log10(pstep)), 0, 4);
-    const levelYs = [];
-    for (const lv of def.levels) {
-      const y = yP(lv.v);
-      levelYs.push(y);
-      axis.push({ y: y, text: fmtVal(lv.v, pdec), color: COL.muted });
-    }
-    for (let kk = Math.ceil(lo2 / pstep); kk * pstep &lt;= hi2; kk++) {
-      const y = yP(kk * pstep);
-      if (y &lt; top + 4 || y &gt; bot - 4) continue;
-      if (levelYs.some(ly =&gt; Math.abs(ly - y) &lt; 12)) continue;
-      axis.push({ y: y, text: (kk * pstep).toFixed(pdec), color: COL.muted });
-    }
-  });
-
-  // Đường dọc của con trỏ, trên toàn khung
-  if (crInPlot &amp;&amp; cr.y &gt;= 0 &amp;&amp; cr.y &lt;= L.totalH) {
-    const xl = Math.round(cr.x) + 0.5;
-    cx.save();
-    cx.beginPath(); cx.rect(0, 0, L.plotW, L.totalH); cx.clip();
-    cx.strokeStyle = COL.cross; cx.lineWidth = 1; cx.setLineDash([3, 3]);
-    cx.beginPath(); cx.moveTo(xl, 0); cx.lineTo(xl, L.totalH); cx.stroke();
-    cx.setLineDash([]);
-    cx.restore();
-  }
 

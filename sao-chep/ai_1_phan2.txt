@@ -1,12 +1,68 @@
+    // Nhãn trục phải: các mức tham chiếu và mốc đẹp
+    const pstep = niceStep(hi2 - lo2, 3);
+    const pdec = clamp(-Math.floor(Math.log10(pstep)), 0, 4);
+    const levelYs = [];
+    for (const lv of def.levels) {
+      const y = yP(lv.v);
+      levelYs.push(y);
+      axis.push({ y: y, text: fmtVal(lv.v, pdec), color: COL.muted });
+    }
+    for (let kk = Math.ceil(lo2 / pstep); kk * pstep &lt;= hi2; kk++) {
+      const y = yP(kk * pstep);
+      if (y &lt; top + 4 || y &gt; bot - 4) continue;
+      if (levelYs.some(ly =&gt; Math.abs(ly - y) &lt; 12)) continue;
+      axis.push({ y: y, text: (kk * pstep).toFixed(pdec), color: COL.muted });
+    }
+  });
+
+  // Đường dọc của con trỏ, trên toàn khung
+  if (crInPlot &amp;&amp; cr.y &gt;= 0 &amp;&amp; cr.y &lt;= L.totalH) {
+    const xl = crisp(cr.x);
+    cx.save();
+    cx.beginPath(); cx.rect(0, 0, L.plotW, L.totalH); cx.clip();
+    cx.strokeStyle = COL.cross; cx.lineWidth = hair(); cx.setLineDash([3, 3]);
+    cx.beginPath(); cx.moveTo(xl, 0); cx.lineTo(xl, L.totalH); cx.stroke();
+    cx.setLineDash([]);
+    cx.restore();
+  }
+
+  // Viền cột giá và trục thời gian
+  cx.strokeStyle = COL.border; cx.lineWidth = hair();
+  cx.beginPath();
+  cx.moveTo(crisp(L.plotW), 0); cx.lineTo(crisp(L.plotW), L.h);
+  cx.moveTo(0, crisp(L.totalH)); cx.lineTo(L.w, crisp(L.totalH));
+  cx.stroke();
+
+  // Nhãn có nền: không chồng lên nhau (giá cuối giữ nguyên chỗ, nhãn khác né ra)
+  for (const t of tags) t.h = t.sub ? 32 : 18;
+  {
+    const mid = (t, y) =&gt; y - 9 + t.h / 2;
+    const placed = tags.filter(t =&gt; t.keep);
+    for (const t of tags.filter(t =&gt; !t.keep).sort((p, q) =&gt; p.y - q.y)) {
+      const hit = y =&gt; placed.some(g =&gt; Math.abs(mid(g, g.y) - mid(t, y)) &lt; (g.h + t.h) / 2 + 1);
+      let y = t.y;
+      for (let d = 1; hit(y) &amp;&amp; d &lt; 600; d++) {
+        if (!hit(t.y + d)) { y = t.y + d; break; }
+        if (!hit(t.y - d)) { y = t.y - d; break; }
+      }
+      t.y = y;
+      placed.push(t);
+    }
+  }
   // Nhãn trục (ngoài vùng cắt xén)
   cx.textAlign = &#x27;left&#x27;;
   for (const t of axis) {
+    if (tags.some(g =&gt; t.y &gt; g.y - 9 - 8 &amp;&amp; t.y &lt; g.y - 9 + g.h + 8)) continue;
     cx.fillStyle = t.color;
     cx.fillText(t.text, L.plotW + 8, t.y);
   }
   for (const t of tags) {
-    cx.fillStyle = t.bg; cx.fillRect(L.plotW, t.y - 9, L.axisR, 18);
-    cx.fillStyle = t.fg; cx.fillText(t.text, L.plotW + 6, t.y);
+    const top = Math.round(t.y - 9);
+    cx.fillStyle = t.bg;
+    if (cx.roundRect) { cx.beginPath(); cx.roundRect(L.plotW + 1, top, L.axisR - 2, t.h, 2); cx.fill(); }
+    else cx.fillRect(L.plotW + 1, top, L.axisR - 2, t.h);
+    cx.fillStyle = t.fg; cx.fillText(t.text, L.plotW + 7, top + 9);
+    if (t.sub) cx.fillText(t.sub, L.plotW + 7, top + 23);
   }
   if (crInPlot &amp;&amp; cr.y &gt;= 0 &amp;&amp; cr.y &lt;= L.totalH) {
     const txt = fmtTs(timeAtIdx(bars, ser.sec, idxAtX(cr.x)), &#x27;dhm&#x27;);
@@ -31,17 +87,23 @@ function updateLegend(li) {
     if (legendKey !== &#x27;empty&#x27;) { box.textContent = &#x27;&#x27;; legendKey = &#x27;empty&#x27;; }
     return;
   }
-  const key = [li, S.tf, dataGen, indsVer, S.showBlock, S.tz, VIEW.ohlc, VIEW.inds].join(&#x27;|&#x27;);
+  const key = [li, S.tf, dataGen, indsVer, S.showBlock, S.tz, VIEW.ohlc, VIEW.inds, LAY.mainH, LAY.paneH].join(&#x27;|&#x27;);
   if (key === legendKey) return;
   legendKey = key;
   const b = series(S.tf).bars[li];
   const up = b.c &gt;= b.o;
   const parts = [];
-  if (VIEW.ohlc &amp;&amp; VIEW.inds) parts.push(&#x27;&lt;div class=&quot;lg&quot;&gt;&lt;b&gt;&#x27; + S.tf + &#x27;&lt;/b&gt; &#x27; + fmtTs(b.t, &#x27;dhm&#x27;) +
+  const src = /Demo/.test(baseName) ? &#x27;Demo&#x27; : (baseName.match(/OANDA|Twelve Data|Exness\/MT5/) || [&#x27;Live&#x27;])[0];
+  const cc = up ? COL.up : COL.down;
+  const bars0 = series(S.tf).bars, pb = bars0[li &gt; 0 ? li - 1 : li];
+  const dch = b.c - pb.c, dpc = pb.c ? dch / pb.c * 100 : 0;
+  if (VIEW.inds) parts.push(&#x27;&lt;div class=&quot;lg&quot;&gt;&lt;span class=&quot;sym&quot;&gt;XAUUSD · &#x27; + tfLabel(S.tf) + &#x27;&lt;/span&gt;&lt;span class=&quot;src&quot;&gt;· &#x27; + src + &#x27;&lt;/span&gt;&#x27; +
     (S.showBlock &amp;&amp; inBlock(b.t) ? &#x27; &lt;span class=&quot;blk&quot;&gt;Giờ cấm 18–22h VN&lt;/span&gt;&#x27; : &#x27;&#x27;) + &#x27;&lt;/div&gt;&#x27;);
-  if (VIEW.ohlc &amp;&amp; VIEW.inds) parts.push(&#x27;&lt;div class=&quot;lg&quot;&gt;O &lt;b&gt;&#x27; + b.o.toFixed(2) + &#x27;&lt;/b&gt; H &lt;b&gt;&#x27; + b.h.toFixed(2) +
-    &#x27;&lt;/b&gt; L &lt;b&gt;&#x27; + b.l.toFixed(2) + &#x27;&lt;/b&gt; C &lt;b style=&quot;color:&#x27; + (up ? COL.up : COL.down) + &#x27;&quot;&gt;&#x27; +
-    b.c.toFixed(2) + &#x27;&lt;/b&gt;&lt;/div&gt;&#x27;);
+  if (VIEW.ohlc &amp;&amp; VIEW.inds) parts.push(&#x27;&lt;div class=&quot;lg&quot; style=&quot;color:&#x27; + cc + &#x27;&quot;&gt;&lt;span class=&quot;k&quot;&gt;O&lt;/span&gt;&#x27; + b.o.toFixed(2) +
+    &#x27; &lt;span class=&quot;k&quot;&gt;H&lt;/span&gt;&#x27; + b.h.toFixed(2) + &#x27; &lt;span class=&quot;k&quot;&gt;L&lt;/span&gt;&#x27; + b.l.toFixed(2) +
+    &#x27; &lt;span class=&quot;k&quot;&gt;C&lt;/span&gt;&#x27; + b.c.toFixed(2) + &#x27; &#x27; + (dch &gt;= 0 ? &#x27;+&#x27; : &#x27;&#x27;) + dch.toFixed(2) +
+    &#x27; (&#x27; + (dpc &gt;= 0 ? &#x27;+&#x27; : &#x27;&#x27;) + dpc.toFixed(2) + &#x27;%)&lt;/div&gt;&#x27;);
+  const paneUids = paneInsts().map(x =&gt; x.uid), paneParts = [];
   for (const inst of S.inds) {
     if (!inst.on || !VIEW.inds) continue;
     const def = IND_BY_ID[inst.id];
@@ -54,8 +116,11 @@ function updateLegend(li) {
       if (r.info) vs.push(&#x27;&lt;span&gt;&#x27; + r.info + &#x27;&lt;/span&gt;&#x27;);
       vals = vs.join(&#x27; &#x27;);
     }
-    parts.push(&#x27;&lt;div class=&quot;lg&quot; data-uid=&quot;&#x27; + inst.uid + &#x27;&quot;&gt;&lt;i class=&quot;sw&quot; style=&quot;background:&#x27; + def.color +
-      &#x27;&quot;&gt;&lt;/i&gt;&lt;b&gt;&#x27; + def.label(inst.p) + &#x27;&lt;/b&gt; &#x27; + vals + &#x27;&lt;/div&gt;&#x27;);
+    const pk = paneUids.indexOf(inst.uid);
+    const row = &#x27;&quot;&gt;&lt;i class=&quot;sw&quot; style=&quot;background:&#x27; + def.color + &#x27;&quot;&gt;&lt;/i&gt;&lt;b&gt;&#x27; + def.label(inst.p) + &#x27;&lt;/b&gt; &#x27; + vals + &#x27;&lt;/div&gt;&#x27;;
+    // Chỉ báo dao động: chú thích nằm ở góc trên trái ô của nó, như TradingView
+    if (pk &gt;= 0) paneParts.push(&#x27;&lt;div class=&quot;lg plg&quot; style=&quot;top:&#x27; + Math.round(LAY.mainH + pk * LAY.paneH - 2) + &#x27;px&quot; data-uid=&quot;&#x27; + inst.uid + row);
+    else parts.push(&#x27;&lt;div class=&quot;lg&quot; data-uid=&quot;&#x27; + inst.uid + row);
   }
   // Mũi tên thu gọn / mở thông số chỉ báo (chỉ hiện khi đang bật ít nhất một chỉ báo)
   {
@@ -63,7 +128,7 @@ function updateLegend(li) {
     parts.push(&#x27;&lt;button type=&quot;button&quot; class=&quot;lg-tog&quot; data-tog=&quot;1&quot; aria-label=&quot;&#x27; + (VIEW.inds ? &#x27;Thu gọn thông số&#x27; : &#x27;Hiện thông số&#x27;) +
       &#x27;&quot;&gt;&lt;svg width=&quot;16&quot; height=&quot;16&quot; viewBox=&quot;0 0 16 16&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;1.8&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot;&gt;&lt;path d=&quot;&#x27; + chev + &#x27;&quot;/&gt;&lt;/svg&gt;&lt;/button&gt;&#x27;);
   }
-  box.innerHTML = parts.join(&#x27;&#x27;);
+  box.innerHTML = parts.concat(paneParts).join(&#x27;&#x27;);
 }
 
 function schedule() {
@@ -584,6 +649,7 @@ function setMode(m) {
   setOn(&#x27;bFan&#x27;, m === &#x27;fan&#x27;);
   setOn(&#x27;bHl&#x27;, m === &#x27;hline&#x27;);
   setOn(&#x27;bDraw&#x27;, m === &#x27;draw&#x27;);
+  setOn(&#x27;bCur&#x27;, m === &#x27;pan&#x27;);
   document.body.classList.toggle(&#x27;drawing&#x27;, m !== &#x27;pan&#x27;);
   if (m === &#x27;fan&#x27;) say(&#x27;Gann Fan: chạm điểm gốc, rồi chạm điểm thứ hai để định nghĩa 1x1.&#x27;);
   else if (m === &#x27;hline&#x27;) say(&#x27;Đường ngang: chạm mức giá muốn ghim.&#x27;);
@@ -970,7 +1036,7 @@ function updateInfo() {
     return;
   }
   const a = BASE[0], z = BASE[BASE.length - 1];
-  $(&#x27;tfinfo&#x27;).textContent = S.tf + &#x27; · &#x27; + baseName;
+  $(&#x27;tfinfo&#x27;).textContent = tfLabel(S.tf) + &#x27; · &#x27; + baseName;
   $(&#x27;info&#x27;).textContent = baseName + &#x27;: &#x27; + BASE.length + &#x27; nến gốc &#x27; + Math.round(baseSec / 60) +
     &#x27; phút, từ &#x27; + fmtTs(a.t, &#x27;full&#x27;) + &#x27; đến &#x27; + fmtTs(z.t, &#x27;full&#x27;) +
     &#x27;. Đang hiển thị UTC&#x27; + (S.tz &gt;= 0 ? &#x27;+&#x27; : &#x27;&#x27;) + S.tz + &#x27;.&#x27;;
@@ -990,7 +1056,7 @@ function buildTFButtons() {
   for (const tf of TFS) {
     const b = document.createElement(&#x27;button&#x27;);
     b.type = &#x27;button&#x27;;
-    b.textContent = tf.id;
+    b.textContent = tfLabel(tf.id);
     b.dataset.id = tf.id;
     b.addEventListener(&#x27;click&#x27;, () =&gt; {
       if (!hasData || tf.sec &lt; baseSec) return;
@@ -1075,6 +1141,9 @@ function bindUI() {
     rd.readAsText(f);
   });
   $(&#x27;bDemo&#x27;).addEventListener(&#x27;click&#x27;, loadDemo);
+  $(&#x27;bType&#x27;).addEventListener(&#x27;click&#x27;, toggleCtype);
+  $(&#x27;bCur&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; setMode(&#x27;pan&#x27;));
+  $(&#x27;bSig&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; { closeSheet(); try { window.parent.toggleSignals(true); } catch (err) { /* bỏ qua */ } });
   $(&#x27;bFull&#x27;).addEventListener(&#x27;click&#x27;, toggleFull);
   $(&#x27;bFan&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; setMode(S.mode === &#x27;fan&#x27; ? &#x27;pan&#x27; : &#x27;fan&#x27;));
   $(&#x27;bHl&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; setMode(S.mode === &#x27;hline&#x27; ? &#x27;pan&#x27; : &#x27;hline&#x27;));
@@ -1492,7 +1561,6 @@ async function tdLoadClick() {
     S.anchor = series(S.tf).bars.length - 1 + 6;
     clampAnchor();
     schedule();
-    if (window.parent !== window) window.parent.postMessage({ type: &#x27;xk-feed&#x27;, prov: cfg.prov, sym: cfg.sym }, &#x27;*&#x27;);
     tdSay(FD_NAME[cfg.prov] + &#x27;: đã tải &#x27; + bars.length + &#x27; nến &#x27; + cfg.tf + &#x27; · nến cuối &#x27; + fmtTs(bars[bars.length - 1].t, &#x27;dhm&#x27;) +
       (cfg.every ? &#x27; · tự cập nhật mỗi &#x27; + cfg.every + &#x27; giây&#x27; : &#x27;&#x27;), &#x27;ok&#x27;);
     if (cfg.every) tdTimer = setInterval(tdTick, cfg.every * 1000);
@@ -1927,41 +1995,5 @@ async function ordCloseClick(bt, ticket) {
     $(&#x27;ordBuy&#x27;).disabled = $(&#x27;ordSell&#x27;).disabled = !$(&#x27;ordEnable&#x27;).checked;
     acctRefresh();
   }
-}
-
-function start(st) {
-  cv = $(&#x27;cv&#x27;);
-  cx = cv.getContext(&#x27;2d&#x27;);
-  wrapEl = $(&#x27;wrap&#x27;);
-  statusEl = $(&#x27;status&#x27;);
-  DPR = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-  readTokens();
-  blockPat = makeHatch();
-  applyState(st || {});
-  loadView();
-  if (!st || !Array.isArray(st.drawings)) loadDrawings();
-  if (!st || !Array.isArray(st.inds)) loadInds();
-  setIcon($(&#x27;sheetBack&#x27;), &#x27;back&#x27;);
-  setIcon($(&#x27;sheetClose&#x27;), &#x27;close&#x27;);
-  buildChips();
-  buildTFButtons();
-  setOn(&#x27;bBlock&#x27;, S.showBlock);
-  syncSettings();
-  acctFill();
-  mtFill();
-  tdFill();
-  ordLoad();
-  updateIndBadge();
-  setMode(&#x27;pan&#x27;);
-  bindUI();
-  bindPointer();
-  resize();
-  if (typeof ResizeObserver !== &#x27;undefined&#x27;) new ResizeObserver(() =&gt; resize()).observe(wrapEl);
-  window.addEventListener(&#x27;resize&#x27;, resize);
-  if (XK_APP) { $(&#x27;bFull&#x27;).hidden = false; setFullBtn(); }
-  if (document.fonts &amp;&amp; document.fonts.ready) document.fonts.ready.then(schedule);
-  if (!XK_APP) loadDemo();                       // bản artifact: dữ liệu mô phỏng
-  else if (!xkLoadBars()) { updateInfo(); say(&#x27;Chưa có nến. Bấm Nạp file để nạp CSV, hoặc Demo.&#x27;); }
-  tdAutoStart();                                  // đã có khoá Twelve Data: tự tải nến thật
 }
 

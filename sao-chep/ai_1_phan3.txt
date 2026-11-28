@@ -1,3 +1,44 @@
+function start(st) {
+  cv = $(&#x27;cv&#x27;);
+  cx = cv.getContext(&#x27;2d&#x27;);
+  wrapEl = $(&#x27;plot&#x27;);
+  statusEl = $(&#x27;status&#x27;);
+  DPR = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+  readTokens();
+  blockPat = makeHatch();
+  applyState(st || {});
+  loadView();
+  if (!st || !Array.isArray(st.drawings)) loadDrawings();
+  if (!st || !Array.isArray(st.inds)) loadInds();
+  setIcon($(&#x27;sheetBack&#x27;), &#x27;back&#x27;);
+  setIcon($(&#x27;sheetClose&#x27;), &#x27;close&#x27;);
+  setIcon($(&#x27;bCur&#x27;), &#x27;cursor&#x27;); setIcon($(&#x27;bDraw&#x27;), &#x27;trend&#x27;); setIcon($(&#x27;bHl&#x27;), &#x27;hline&#x27;); setIcon($(&#x27;bFan&#x27;), &#x27;fan&#x27;); setIcon($(&#x27;bClr&#x27;), &#x27;trash&#x27;);
+  syncTypeBtn();
+  if (XK_HOST) { $(&#x27;bAI&#x27;).hidden = true; $(&#x27;bOrd&#x27;).hidden = true; $(&#x27;bSig&#x27;).hidden = false; }   // trong app: AI, Đặt lệnh nằm ở thanh dưới biểu đồ
+  try { document.body.classList.toggle(&#x27;nodtb&#x27;, localStorage.getItem(DTB_KEY) === &#x27;1&#x27;); } catch (err) { /* bỏ qua */ }
+  buildChips();
+  buildTFButtons();
+  setOn(&#x27;bBlock&#x27;, S.showBlock);
+  syncSettings();
+  acctFill();
+  mtFill();
+  tdFill();
+  ordLoad();
+  updateIndBadge();
+  setMode(&#x27;pan&#x27;);
+  bindUI();
+  bindPointer();
+  resize();
+  if (typeof ResizeObserver !== &#x27;undefined&#x27;) new ResizeObserver(() =&gt; resize()).observe(wrapEl);
+  window.addEventListener(&#x27;resize&#x27;, resize);
+  if (XK_APP) { $(&#x27;bFull&#x27;).hidden = false; setFullBtn(); }
+  if (document.fonts &amp;&amp; document.fonts.ready) document.fonts.ready.then(schedule);
+  setInterval(() =&gt; { if (hasData &amp;&amp; /^Live/.test(baseName) &amp;&amp; !document.hidden) schedule(); }, 1000);   // đồng hồ đếm ngược nến
+  if (!XK_APP) loadDemo();                       // bản artifact: dữ liệu mô phỏng
+  else if (!xkLoadBars()) { updateInfo(); say(&#x27;Chưa có nến. Bấm Nạp file để nạp CSV, hoặc Demo.&#x27;); }
+  tdAutoStart();                                  // đã có khoá Twelve Data: tự tải nến thật
+}
+
 /* ===== Phóng to: khung biểu đồ lấp kín màn hình (chỉ trong app). Trang app ẩn thanh chọn, nút nằm ở góc phải thanh trên. ===== */
 let XK_FULL = false;
 function setFullBtn() {
@@ -84,10 +125,6 @@ else xkBoot();
 &lt;/body&gt;
 &lt;/html&gt;
 "></iframe>
-    <div id="xikeBar" class="xike-bar" hidden>
-      <span id="xikeBarMsg">Biểu đồ XIKE</span>
-      <button type="button" id="xikeBack" class="mini">📺 Về TradingView</button>
-    </div>
   </div>
   <div id="trade" class="trade" hidden>
     <div class="tr-row">
@@ -123,7 +160,6 @@ else xkBoot();
     <button type="button" id="actInd">📊 Chỉ báo</button>
     <button type="button" id="actOrd">💰 Đặt lệnh</button>
     <button type="button" id="actDraw">✏️ Ẩn vẽ</button>
-    <a id="tvFull" class="act-link" href="https://www.tradingview.com/chart/?symbol=OANDA%3AXAUUSD" target="_blank" rel="noopener" title="Mở TradingView đầy đủ: Pine Editor, cảnh báo">↗</a>
   </div>
   <!-- Bảng tín hiệu XIKE -->
   <div id="sigSheet" class="sig-sheet" hidden>
@@ -134,9 +170,6 @@ else xkBoot();
     </div>
     <div id="sigTfs" class="sig-tfs"></div>
     <div id="sigBody" class="sig-body"></div>
-    <div class="sig-foot">
-      <button type="button" id="sigShowXike" class="mini">📈 Xem biểu đồ XIKE</button>
-    </div>
   </div>
 </section>
 
@@ -182,7 +215,7 @@ else xkBoot();
       <p class="hint">Nến XAU/USD thật cho tab Biểu đồ và cho nút 🤖 AI.</p>
       <label>Nhà cung cấp
         <select id="fdProv">
-          <option value="oanda" selected>OANDA (cùng nguồn với TradingView)</option>
+          <option value="oanda" selected>OANDA (giá thật, miễn phí)</option>
           <option value="twelve">Twelve Data</option>
           <option value="vps">Exness / MT5 (qua VPS): giá đúng tài khoản</option>
         </select>
@@ -194,10 +227,10 @@ else xkBoot();
         </label>
       </div>
       <div id="fdVps" hidden>
-        <p class="hint"><b>Giá đúng tài khoản giao dịch của bạn</b>: nến lấy từ cầu nối VPS (chế độ Exness API hoặc MT5). Dùng địa chỉ và token ở thẻ <b>Tài khoản MT5 (qua VPS)</b> bên dưới, không cần khoá riêng. Mã để trống thì VPS dùng mã đầu tiên trong XIKE_SYMBOLS (ví dụ XAUUSDm). Lưu ý: biểu đồ TradingView vẫn là OANDA:XAUUSD nên có thể lệch vài giá.</p>
+        <p class="hint"><b>Giá đúng tài khoản giao dịch của bạn</b>: nến lấy từ cầu nối VPS (chế độ Exness API hoặc MT5). Dùng địa chỉ và token ở thẻ <b>Tài khoản MT5 (qua VPS)</b> bên dưới, không cần khoá riêng. Mã để trống thì VPS dùng mã đầu tiên trong XIKE_SYMBOLS (ví dụ XAUUSDm).</p>
       </div>
       <div id="fdOanda">
-        <p class="hint"><b>Cùng nguồn giá với biểu đồ TradingView</b> (OANDA:XAUUSD): chỉ báo XIKE, bảng 📊 Chỉ báo và 🤖 AI tính trên đúng nến bạn đang xem. Tạo token ở OANDA, mục Manage API Access. Nên dùng tài khoản <b>demo (practice)</b>: giá vẫn là giá thật, còn token OANDA có quyền giao dịch nên dùng demo cho an toàn; app chỉ dùng để đọc giá.</p>
+        <p class="hint"><b>Giá XAU/USD thật của OANDA</b> (cùng giá OANDA:XAUUSD trên TradingView): biểu đồ, chỉ báo và 🤖 AI tính trên đúng nến bạn đang xem. Tạo token ở OANDA, mục Manage API Access. Nên dùng tài khoản <b>demo (practice)</b>: giá vẫn là giá thật, còn token OANDA có quyền giao dịch nên dùng demo cho an toàn; app chỉ dùng để đọc giá.</p>
         <label>Token OANDA
           <input id="oaKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Dán token">
         </label>
@@ -637,116 +670,25 @@ function show(name) {
 
 // ===== BIỂU ĐỒ PHÓNG TO =====
 // Khung biểu đồ phóng to lấp kín màn hình: ẩn thanh chọn và các mục khác, chỉ giữ khung biểu đồ.
-// ===== BIỂU ĐỒ: TradingView là biểu đồ chính; XIKE chạy ngầm (chỉ báo riêng, AI, giá đặt lệnh) =====
-const TV_DRAW_KEY = "xk-tv-hide-draw";
-let tvLoaded = false, tvOk = false;
-function tvHideDraw() { try { return localStorage.getItem(TV_DRAW_KEY) === "1"; } catch (e) { return false; } }
-// Biểu đồ TradingView chính hãng (bản nhúng miễn phí). Đổi mã ngay trong biểu đồ bằng ô tìm mã.
-function tvConfig() {
-  return {
-    autosize: true,
-    symbol: tvSymbol(),   // cùng mã với nguồn OANDA của biểu đồ XIKE
-    interval: "15",
-    timezone: "Asia/Bangkok",
-    theme: "dark",
-    style: "19",   // Nến khối lượng (Volume Candles): độ rộng nến theo khối lượng
-    locale: "vi_VN",
-    backgroundColor: "#000000",
-    gridColor: "rgba(255, 255, 255, 0.06)",
-    allow_symbol_change: true,
-    hide_side_toolbar: tvHideDraw(),
-    hide_volume: true,   // khối lượng đã thể hiện bằng độ rộng nến
-    withdateranges: true,
-    details: false,
-    calendar: false,
-    save_image: true,
-    // 5 chỉ báo. Phải viết tất cả cùng một dạng { id, inputs }: trộn với dạng chuỗi
-    // ("MACD@tv-basicstudies") thì TradingView bỏ các chỉ báo phía sau (đã thử).
-    studies: [
-      { id: "MAExp@tv-basicstudies", inputs: { length: 34 } },
-      { id: "MAExp@tv-basicstudies", inputs: { length: 80 } },
-      { id: "MACD@tv-basicstudies", inputs: { fastLength: 12, slowLength: 26, signalLength: 9 } },
-      { id: "Trix@tv-basicstudies", inputs: { length: 25 } },
-      // Stoch RSI (cùng thông số Stoch RSI PRO: K 3, D 3, RSI 14, Stoch 14). Dấu BUY/SELL của bản Pine có ở chỉ báo XIKE.
-      { id: "StochasticRSI@tv-basicstudies", inputs: { lengthRSI: 14, lengthStoch: 14, smoothK: 3, smoothD: 3 } }
-    ],
-    support_host: "https://www.tradingview.com"
-  };
-}
-// Mã TradingView theo nguồn dữ liệu XIKE: OANDA XAU_USD → OANDA:XAUUSD (cùng nguồn giá)
-function tvSymbol() {
-  let cfg = {};
-  try { cfg = JSON.parse(localStorage.getItem("xau-chart-twelvedata-v1") || "{}") || {}; } catch (e) { cfg = {}; }
-  const sym = String(cfg.sym || "").trim().toUpperCase();
-  if (cfg.prov !== "twelve" && /^[A-Z0-9]{2,10}_[A-Z0-9]{2,10}$/.test(sym)) return "OANDA:" + sym.replace("_", "");
-  return "OANDA:XAUUSD";
-}
-let tvSymNow = "";
-// Khung XIKE báo đã tải nguồn mới: nếu đổi mã thì tải lại TradingView cho cùng mã
-window.addEventListener("message", (e) => {
-  const f = $("xauFrame");
-  if (!f || e.source !== f.contentWindow || !e.data || e.data.type !== "xk-feed") return;
-  const want = tvSymbol();
-  if (tvSymNow && want !== tvSymNow) { showXike(false); tvLoaded = false; loadTv(); }
-  const a = $("tvFull");
-  if (a) a.href = "https://www.tradingview.com/chart/?symbol=" + encodeURIComponent(want);
-});
+// ===== BIỂU ĐỒ XIKE (giao diện kiểu TradingView) =====
 function fw() { try { return $("xauFrame").contentWindow; } catch (e) { return null; } }
-// Hiện biểu đồ XIKE (khi TradingView lỗi, hoặc bấm Xem biểu đồ XIKE); ẩn = chạy ngầm sau TradingView
-function showXike(on, msg) {
-  $("xauFrame").classList.toggle("engine", !on);
-  $("tvBox").hidden = !!on;
-  $("xikeBar").hidden = !on;
-  $("xikeBarMsg").textContent = msg || "Biểu đồ XIKE";
-  $("xikeBack").hidden = !tvOk && !msg;
-  const w = fw();
-  try { if (w && w.resize) w.resize(); } catch (e) { /* khung chưa sẵn sàng */ }
-}
-function loadTv() {
-  if (tvLoaded) return;
-  tvLoaded = true;
-  const msg = $("tvMsg");
-  msg.hidden = false;
-  msg.className = "tv-msg";
-  msg.textContent = "Đang tải biểu đồ TradingView…";
-  const wrap = $("tvWrap");
-  wrap.innerHTML = '<div class="tradingview-widget-container__widget"></div>';
-  const sc = document.createElement("script");
-  sc.type = "text/javascript";
-  sc.async = true;
-  sc.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
-  const cfgNow = tvConfig();
-  tvSymNow = cfgNow.symbol;
-  sc.textContent = JSON.stringify(cfgNow);
-  sc.onload = () => {
-    const t0 = Date.now();
-    const iv = setInterval(() => {
-      if (wrap.querySelector("iframe")) { tvOk = true; msg.hidden = true; clearInterval(iv); }
-      else if (Date.now() - t0 > 15000) { clearInterval(iv); tvFail(); }
-    }, 300);
-  };
-  sc.onerror = tvFail;
-  wrap.appendChild(sc);
-}
-function tvFail() {
-  tvLoaded = false;
-  tvOk = false;
-  $("tvMsg").className = "tv-msg err";
-  $("tvMsg").textContent = "Không tải được TradingView.";
-  showXike(true, "Không tải được TradingView (mạng?). Đang dùng biểu đồ XIKE.");
-  $("xikeBack").hidden = false;
-  $("xikeBack").textContent = "🔄 Thử lại TradingView";
-}
-// Ẩn / hiện thanh vẽ bên trái của TradingView (tải lại biểu đồ với tuỳ chọn mới)
-function toggleTvDraw() {
-  const hide = !tvHideDraw();
-  try { localStorage.setItem(TV_DRAW_KEY, hide ? "1" : "0"); } catch (e) { /* bỏ qua */ }
+// ✏️ Ẩn / hiện thanh công cụ vẽ bên trái biểu đồ
+const DTB_KEY = "xk-dtb-hide";
+function dtbHidden() { try { return localStorage.getItem(DTB_KEY) === "1"; } catch (e) { return false; } }
+function syncDrawBtn() { $("actDraw").textContent = dtbHidden() ? "✏️ Hiện vẽ" : "✏️ Ẩn vẽ"; }
+function toggleDrawBar() {
+  const hide = !dtbHidden();
+  try { localStorage.setItem(DTB_KEY, hide ? "1" : "0"); } catch (e) { /* bỏ qua */ }
   syncDrawBtn();
-  showXike(false);
-  tvLoaded = false;
-  loadTv();
+  const w = fw();
+  try { if (w && w.xkDrawBar) w.xkDrawBar(hide); } catch (e) { /* khung chưa sẵn sàng */ }
 }
-function syncDrawBtn() { $("actDraw").textContent = tvHideDraw() ? "✏️ Hiện vẽ" : "✏️ Ẩn vẽ"; }
+// 📊 Chỉ báo: mở bảng chỉ báo của biểu đồ (thêm, sửa, ẩn chỉ báo)
+function openIndicators() {
+  toggleSignals(false);
+  const w = fw();
+  try { if (w && w.openSheet) w.openSheet(); } catch (e) { /* khung chưa sẵn sàng */ }
+}
 
 // 💰 Đặt lệnh: khung đặt lệnh dưới biểu đồ (xử lý trong khung XIKE)
 function toggleTrade() {
@@ -1892,14 +1834,11 @@ async function runDiagnose() {
 function bind() {
   for (const v of VIEWS) $("nav-" + v).addEventListener("click", () => show(v));
   $("actAI").addEventListener("click", runAI);
-  $("actInd").addEventListener("click", () => toggleSignals());
+  $("actInd").addEventListener("click", openIndicators);
   $("sigClose").addEventListener("click", () => toggleSignals(false));
-  $("sigShowXike").addEventListener("click", () => { toggleSignals(false); showXike(true, "Biểu đồ XIKE (chỉ báo riêng, vẽ tay)"); $("xikeBack").hidden = false; $("xikeBack").textContent = "📺 Về TradingView"; });
-  $("xikeBack").addEventListener("click", () => { showXike(false); if (!tvOk) loadTv(); });
   $("actOrd").addEventListener("click", toggleTrade);
-  $("actDraw").addEventListener("click", toggleTvDraw);
+  $("actDraw").addEventListener("click", toggleDrawBar);
   syncDrawBtn();
-  loadTv();
 
   $("pickChat").addEventListener("click", () => $("fileChat").click());
   $("fileChat").addEventListener("change", async (ev) => {
