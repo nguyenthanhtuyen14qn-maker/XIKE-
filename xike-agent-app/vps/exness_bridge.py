@@ -426,7 +426,7 @@ def _route(b, route, args, body, allowed_by_key, max_lot, seen):
         st = res.get("status")
         if st in ("rejected", "failed"):
             return _err("Exness từ chối lệnh: " + (res.get("error_message") or res.get("error_code") or st), 400, retcode=res.get("error_code", ""))
-        out = {"ok": True, "ticket": res.get("operation_id", ""), "price": price,
+        out = {"ok": True, "ticket": res.get("operation_id", ""), "price": round(price, 5),
                "pending": st != "confirmed", "note": "" if st == "confirmed" else "Đã gửi, Exness đang xử lý. Xem lại Lệnh đang mở."}
         if cid:
             seen[cid] = out
