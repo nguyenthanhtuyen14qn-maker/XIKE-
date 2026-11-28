@@ -192,20 +192,72 @@ details.models summary { color: var(--info); font-weight: 600; font-size: 14px; 
 .nav button { flex: 1 1 auto; font-size: 13px; padding: 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Biểu đồ phóng to: khung biểu đồ lấp kín màn hình, ẩn thanh chọn và các mục khác */
 body.chart-full > *:not(#view-chart):not(#viewer) { display: none !important; }
-/* Công tắc XIKE / TradingView và khung TradingView nhúng */
-.chart-switch { flex: none; display: flex; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: #000000; }
-.chart-switch button { flex: 1; min-height: 32px; border: 1px solid var(--line); border-radius: 8px; background: #000000; color: var(--muted); font-weight: 600; font-size: 13px; }
-.chart-switch button.on { color: var(--gold); border-color: var(--gold); }
-body.chart-full .chart-switch { display: none; }
-.tv-full { flex: none; display: inline-flex; align-items: center; padding: 0 10px; min-height: 32px; border: 1px solid var(--line); border-radius: 8px; color: var(--info); font-weight: 600; font-size: 13px; text-decoration: none; }
-.tv-full[hidden] { display: none !important; }
+/* Biểu đồ: TradingView là biểu đồ chính, XIKE chạy ngầm phía sau */
+.chart-stage { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: #000000; }
 .tv-box { position: relative; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; background: #000000; }
 .tv-box[hidden] { display: none !important; }
 #tvWrap, #tvWrap .tradingview-widget-container__widget { flex: 1 1 auto; min-height: 0; width: 100%; height: 100%; }
 #tvWrap iframe { width: 100% !important; height: 100% !important; border: 0; }
 .tv-msg { position: absolute; left: 16px; right: 16px; top: 40%; margin: 0; text-align: center; color: var(--muted); font-size: 13px; line-height: 1.5; pointer-events: none; }
 .tv-msg.err { color: #fecaca; }
-body.chart-full #view-chart { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 30; display: flex !important; flex-direction: column; padding: 0; margin: 0; border: 0; background: #000000; }
+/* XIKE chạy ngầm: vẫn có kích thước (để tính và chụp cho AI) nhưng không nhìn thấy, không nhận chạm */
+.xau-frame.engine { position: absolute; inset: 0; visibility: hidden; pointer-events: none; z-index: 0; }
+.xike-bar { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
+.xike-bar[hidden] { display: none !important; }
+.mini { min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: #000000; color: var(--text); font-size: 12.5px; font-weight: 600; }
+.chart-actions { flex: none; display: flex; gap: 6px; padding: 6px 8px; border-top: 1px solid var(--line); background: #000000; }
+.chart-actions button { flex: 1 1 0; min-width: 0; min-height: 38px; padding: 0 4px; border: 1px solid var(--line); border-radius: 10px; background: #000000; color: var(--text); font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chart-actions button.on { border-color: var(--gold); color: var(--gold); }
+.chart-actions button:disabled { opacity: .55; }
+.act-link { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 38px; border: 1px solid var(--line); border-radius: 10px; color: var(--info); font-weight: 700; text-decoration: none; }
+body.chart-full .chart-actions { display: none; }
+/* Khung đặt lệnh dưới biểu đồ */
+.trade { flex: none; display: grid; gap: 8px; padding: 8px 10px 10px; border-top: 1px solid var(--line); max-height: 46vh; overflow-y: auto; }
+.trade[hidden] { display: none !important; }
+.trade input { margin: 0; padding: 9px 10px; font: 600 14px/1.2 ui-monospace, "Roboto Mono", monospace; min-width: 0; }
+.tr-row { display: flex; gap: 8px; align-items: center; }
+.tr-sym { flex: 1 1 0; }
+.tr-lot { flex: 1.3 1 0; display: flex; min-width: 0; }
+.tr-lot input { text-align: center; border-radius: 0; border-left: 0; border-right: 0; }
+.tr-lot button { flex: none; width: 38px; border: 1px solid var(--line); background: #000000; color: var(--text); font-size: 18px; font-weight: 600; }
+.tr-lot button:first-child { border-radius: 10px 0 0 10px; }
+.tr-lot button:last-child { border-radius: 0 10px 10px 0; }
+.tr-on { flex: none; display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; color: var(--text); }
+.tr-on input { width: 18px; height: 18px; margin: 0; padding: 0; accent-color: var(--gold); }
+.tr-f { flex: 1 1 0; min-width: 0; margin: 0; font-size: 11.5px; }
+.tr-side { display: flex; gap: 8px; }
+.tr-side button { flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 6px; border-radius: 10px; background: #000000; }
+.tr-side b { font-size: 16px; }
+.tr-side small { font: 500 11.5px/1 ui-monospace, "Roboto Mono", monospace; opacity: .85; }
+#ordBuy { color: var(--up); border: 1px solid rgba(74, 222, 128, .55); }
+#ordSell { color: var(--down); border: 1px solid rgba(248, 113, 113, .55); }
+#ordBuy.arm { background: var(--up); color: #04140f; }
+#ordSell.arm { background: var(--down); color: #1d0508; }
+.tr-side button:disabled { opacity: .45; }
+.tr-more summary { font-size: 12.5px; color: var(--muted); padding: 2px 0; }
+.tr-more[open] summary { margin-bottom: 8px; }
+.trade .note { margin: 0; }
+.trade .acct-pos { max-height: 160px; }
+/* Bảng tín hiệu XIKE */
+.sig-sheet { position: absolute; left: 0; right: 0; bottom: 52px; z-index: 5; max-height: 62%; overflow-y: auto; padding: 10px 12px 12px; border-top: 1px solid var(--gold); border-radius: 14px 14px 0 0; background: #000000; box-shadow: 0 -10px 30px rgba(0, 0, 0, .7); }
+.sig-sheet[hidden] { display: none !important; }
+#view-chart { position: relative; }
+.sig-head { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.sig-head b { font-size: 15px; color: var(--gold); }
+.sig-src { flex: 1; min-width: 0; font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sig-tfs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.sig-tfs button { min-height: 30px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: #000000; color: var(--muted); font-size: 12.5px; font-weight: 600; }
+.sig-tfs button.on { color: var(--gold); border-color: var(--gold); }
+.sig-row { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.sig-row span { color: var(--muted); flex: none; }
+.sig-row b { text-align: right; font: 600 13px/1.4 ui-monospace, "Roboto Mono", monospace; overflow-wrap: anywhere; }
+.sig-row b.up { color: var(--up); }
+.sig-row b.down { color: var(--down); }
+.sig-sub { margin: 10px 0 4px; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.sig-chip { display: inline-block; margin: 3px 4px 0 0; padding: 4px 8px; border-radius: 6px; font: 600 12px/1.3 ui-monospace, "Roboto Mono", monospace; }
+.sig-chip.up { background: rgba(74, 222, 128, .14); color: var(--up); }
+.sig-chip.down { background: rgba(248, 113, 113, .14); color: var(--down); }
+.sig-foot { margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -240,16 +292,13 @@ body.chart-full #view-chart { position: fixed; top: 0; right: 0; bottom: 0; left
 
 <!-- BIỂU ĐỒ XAUUSD: chạy trong khung riêng, không lẫn với code của app -->
 <section id="view-chart" class="view">
-  <div class="chart-switch" role="group" aria-label="Chọn biểu đồ">
-    <button type="button" id="modeXike" class="on">📈 Biểu đồ XIKE</button>
-    <button type="button" id="modeTv">TradingView</button>
-    <a id="tvFull" class="tv-full" href="https://www.tradingview.com/chart/?symbol=OANDA%3AXAUUSD" target="_blank" rel="noopener" hidden title="Mở TradingView đầy đủ: Pine Editor, cảnh báo, phát lại thanh">↗ Đầy đủ</a>
-  </div>
-  <div id="tvBox" class="tv-box" hidden>
-    <div id="tvWrap" class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div></div>
-    <p id="tvMsg" class="tv-msg">Đang tải biểu đồ TradingView…</p>
-  </div>
-  <iframe id="xauFrame" class="xau-frame" title="Biểu đồ XAUUSD" srcdoc="&lt;!DOCTYPE html&gt;
+  <!-- Biểu đồ chính là TradingView. Biểu đồ XIKE chạy ngầm phía sau (tính chỉ báo, AI, giá đặt lệnh), hiện ra khi TradingView không tải được. -->
+  <div class="chart-stage" id="chartStage">
+    <div id="tvBox" class="tv-box">
+      <div id="tvWrap" class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div></div>
+      <p id="tvMsg" class="tv-msg">Đang tải biểu đồ TradingView…</p>
+    </div>
+    <iframe id="xauFrame" class="xau-frame engine" title="Biểu đồ XAUUSD" srcdoc="&lt;!DOCTYPE html&gt;
 &lt;html lang=&quot;vi&quot;&gt;
 &lt;head&gt;
 &lt;meta charset=&quot;utf-8&quot;&gt;
@@ -447,35 +496,6 @@ body.drawing #legend [data-uid] { pointer-events: none; cursor: default; }
   &lt;div id=&quot;wrap&quot;&gt;
     &lt;canvas id=&quot;cv&quot; role=&quot;img&quot; aria-label=&quot;Biểu đồ nến XAUUSD&quot;&gt;&lt;/canvas&gt;
     &lt;div id=&quot;legend&quot;&gt;&lt;/div&gt;
-  &lt;/div&gt;
-  &lt;div id=&quot;trade&quot; hidden&gt;
-    &lt;div class=&quot;tr-row&quot;&gt;
-      &lt;input id=&quot;ordSym&quot; class=&quot;tr-sym&quot; type=&quot;text&quot; autocomplete=&quot;off&quot; autocapitalize=&quot;off&quot; spellcheck=&quot;false&quot; value=&quot;XAUUSD&quot; aria-label=&quot;Mã (Exness Standard: XAUUSDm)&quot; placeholder=&quot;XAUUSD hoặc XAUUSDm&quot;&gt;
-      &lt;div class=&quot;tr-lot&quot; role=&quot;group&quot; aria-label=&quot;Khối lượng&quot;&gt;
-        &lt;button type=&quot;button&quot; id=&quot;ordLotDn&quot; aria-label=&quot;Giảm lot&quot;&gt;−&lt;/button&gt;
-        &lt;input id=&quot;ordVol&quot; type=&quot;text&quot; inputmode=&quot;decimal&quot; value=&quot;0.01&quot; aria-label=&quot;Khối lượng (lot)&quot;&gt;
-        &lt;button type=&quot;button&quot; id=&quot;ordLotUp&quot; aria-label=&quot;Tăng lot&quot;&gt;+&lt;/button&gt;
-      &lt;/div&gt;
-      &lt;label class=&quot;tr-on&quot;&gt;&lt;input type=&quot;checkbox&quot; id=&quot;ordEnable&quot;&gt; Bật&lt;/label&gt;
-    &lt;/div&gt;
-    &lt;div class=&quot;tr-row&quot;&gt;
-      &lt;label class=&quot;tr-f&quot;&gt;SL&lt;input id=&quot;ordSl&quot; type=&quot;text&quot; inputmode=&quot;decimal&quot; placeholder=&quot;bắt buộc&quot;&gt;&lt;/label&gt;
-      &lt;label class=&quot;tr-f&quot;&gt;TP&lt;input id=&quot;ordTp&quot; type=&quot;text&quot; inputmode=&quot;decimal&quot; placeholder=&quot;có thể trống&quot;&gt;&lt;/label&gt;
-    &lt;/div&gt;
-    &lt;div class=&quot;tr-side&quot;&gt;
-      &lt;button type=&quot;button&quot; id=&quot;ordSell&quot; disabled&gt;&lt;b&gt;SELL&lt;/b&gt;&lt;small id=&quot;ordSellPx&quot;&gt;—&lt;/small&gt;&lt;/button&gt;
-      &lt;button type=&quot;button&quot; id=&quot;ordBuy&quot; disabled&gt;&lt;b&gt;BUY&lt;/b&gt;&lt;small id=&quot;ordBuyPx&quot;&gt;—&lt;/small&gt;&lt;/button&gt;
-    &lt;/div&gt;
-    &lt;p class=&quot;note ord-msg&quot; id=&quot;ordMsg&quot;&gt;Đặt lệnh đang tắt.&lt;/p&gt;
-    &lt;div class=&quot;acct-pos&quot; id=&quot;tradePos&quot;&gt;&lt;/div&gt;
-    &lt;details class=&quot;tr-more&quot;&gt;
-      &lt;summary&gt;Tuỳ chọn&lt;/summary&gt;
-      &lt;div class=&quot;tr-row&quot;&gt;
-        &lt;label class=&quot;tr-f&quot;&gt;Lot tối đa&lt;input id=&quot;ordMax&quot; type=&quot;text&quot; inputmode=&quot;decimal&quot; value=&quot;0.10&quot;&gt;&lt;/label&gt;
-        &lt;label class=&quot;tr-f&quot;&gt;Ghi chú&lt;input id=&quot;ordNote&quot; type=&quot;text&quot; autocomplete=&quot;off&quot; maxlength=&quot;20&quot; placeholder=&quot;XIKE&quot;&gt;&lt;/label&gt;
-      &lt;/div&gt;
-      &lt;p class=&quot;note&quot;&gt;Lệnh thị trường qua VPS trong Cài đặt. Bấm BUY/SELL một lần để xem lại, bấm lần nữa trong 6 giây mới gửi. Giá trên nút là giá đóng nến mới nhất của biểu đồ, giá khớp thật do MT5 quyết định.&lt;/p&gt;
-    &lt;/details&gt;
   &lt;/div&gt;
   &lt;div id=&quot;settings&quot; hidden&gt;
     &lt;label&gt;Lệch giờ hiển thị (so với UTC)&lt;input id=&quot;iTz&quot; type=&quot;number&quot; inputmode=&quot;numeric&quot; min=&quot;-12&quot; max=&quot;14&quot; value=&quot;7&quot;&gt;&lt;/label&gt;

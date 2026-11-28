@@ -1908,11 +1908,125 @@ window.addEventListener(&#x27;message&#x27;, e =&gt; {
   window.parent.postMessage(Object.assign({ type: &#x27;xk-shot-done&#x27;, id: e.data.id }, shot || { error: &#x27;hidden&#x27; }), &#x27;*&#x27;);
   if (shot) say(&#x27;AI đã phân tích xong. Xem ở tab Phân tích.&#x27;);
 });
+// Bảng tín hiệu XIKE cho trang app (khi biểu đồ chính là TradingView): số liệu nến mới nhất
+function xkSetTf(id) {
+  const tf = TFS.find(t =&gt; t.id === id);
+  if (!hasData || !tf || tf.sec &lt; baseSec) return false;
+  S.tf = tf.id;
+  fitView();
+  updateTFButtons();
+  updateInfo();
+  legendKey = &#x27;&#x27;;
+  schedule();
+  return true;
+}
+function xikeReadout() {
+  if (!hasData) return { error: &#x27;Chưa có nến. Kết nối nguồn dữ liệu (Twelve Data hoặc OANDA) ở tab Cài đặt.&#x27; };
+  const bars = series(S.tf).bars, N = bars.length;
+  if (N &lt; 100) return { error: &#x27;Cần ít nhất 100 nến &#x27; + S.tf + &#x27; (đang có &#x27; + N + &#x27;).&#x27; };
+  const c = closesOf(bars), h = highsOf(bars), l = lowsOf(bars);
+  const e34 = ema(c, 34), e80 = ema(c, 80), mac = macdLineArr(c, 12, 26), sig = ema(mac, 9), tr = trixCalc(c, 25, 15);
+  const i = N - 1, f = (v, d) =&gt; Number.isFinite(v) ? v.toFixed(d) : &#x27;—&#x27;;
+  const up = e34[i] &gt; e80[i];
+  const rows = [
+    { k: &#x27;Giá&#x27;, v: f(c[i], 2) + &#x27;  (&#x27; + fmtTs(bars[i].t, &#x27;dhm&#x27;) + &#x27;)&#x27; },
+    { k: &#x27;EMA 34 / 80&#x27;, v: f(e34[i], 2) + &#x27; / &#x27; + f(e80[i], 2), tone: up ? &#x27;up&#x27; : &#x27;down&#x27;, note: up ? &#x27;xu hướng tăng&#x27; : &#x27;xu hướng giảm&#x27; },
+    { k: &#x27;MACD&#x27;, v: f(mac[i], 3) + &#x27; · tín hiệu &#x27; + f(sig[i], 3) + &#x27; · hist &#x27; + f(mac[i] - sig[i], 3), tone: mac[i] - sig[i] &gt;= 0 ? &#x27;up&#x27; : &#x27;down&#x27; },
+    { k: &#x27;TRIX 25/15&#x27;, v: f(tr.t[i], 3) + &#x27; / &#x27; + f(tr.s[i], 3), tone: tr.t[i] &gt;= tr.s[i] ? &#x27;up&#x27; : &#x27;down&#x27; }
+  ];
+  const marks = [];
+  try {
+    for (const m of zoneMarks(h, l, c, e34, e80, mac, 3, 0.5, 1)) if (m.i &gt;= N - 80) marks.push({ i: m.i, t: m.text, up: /BUY/.test(m.text) });
+    for (const m of trixMarks(tr.t, tr.s)) if (m.i &gt;= N - 80) marks.push({ i: m.i, t: &#x27;TRIX &#x27; + m.text, up: m.text === &#x27;Buy&#x27; });
+  } catch (err) { /* bỏ qua phần tín hiệu */ }
+  marks.sort((a, b) =&gt; b.i - a.i);
+  let gann = null;
+  try {
+    const inst = S.inds.find(x =&gt; x.id === &#x27;gann_fan&#x27;) || sanitizeInds([{ id: &#x27;gann_fan&#x27; }])[0];
+    const g = gannAutoCalc(bars, inst.p);
+    if (g &amp;&amp; g.levels &amp;&amp; g.levels.length) gann = { info: g.info, levels: g.levels.map(lv =&gt; ({ t: lv.text, v: f(lv.v, 2) })) };
+    else if (g &amp;&amp; g.info) gann = { info: g.info, levels: [] };
+  } catch (err) { gann = null; }
+  return {
+    tf: S.tf, src: baseName, rows,
+    marks: marks.slice(0, 6).map(m =&gt; ({ t: m.t, up: m.up, when: fmtTs(bars[m.i].t, &#x27;dhm&#x27;), ago: N - 1 - m.i })),
+    gann, tfs: TFS.filter(t =&gt; t.sec &gt;= baseSec).map(t =&gt; t.id)
+  };
+}
+
 function aiClick() {
   const snap = aiSnapshot();
   if (snap.error) { say(snap.error); return; }
   if (window.parent === window) { say(&#x27;Nút AI chỉ chạy trong app.&#x27;); return; }
   window.parent.postMessage(Object.assign({ type: &#x27;xk-analyze&#x27; }, snap), &#x27;*&#x27;);
   say(&#x27;AI đang phân tích dữ liệu &#x27; + snap.tf + &#x27;… Giữ tab Biểu đồ để AI vẽ lên biểu đồ.&#x27;);
+}
+
+/* ===== Đăng nhập MT5 qua VPS (POST /login, POST /logout). Mật khẩu chỉ gửi đi, không lưu. ===== */
+const MT_KEY = &#x27;xau-chart-mt5-login-v1&#x27;;   // chỉ lưu số tài khoản và server
+let mtHold = 0;   // giữ thông báo đăng nhập vừa xong, không để lần làm mới ghi đè ngay
+function mtSay(text, kind, hold) {
+  if (hold) mtHold = Date.now() + 15000;
+  const el = $(&#x27;mtMsg&#x27;);
+  el.textContent = text;
+  el.className = &#x27;note login-msg&#x27; + (kind ? &#x27; &#x27; + kind : &#x27;&#x27;);
+}
+function mtFill() {
+  let v = {};
+  try { v = JSON.parse(localStorage.getItem(MT_KEY) || &#x27;null&#x27;) || {}; } catch (err) { v = {}; }
+  $(&#x27;mtLogin&#x27;).value = v.login || &#x27;&#x27;;
+  $(&#x27;mtServer&#x27;).value = v.server || &#x27;&#x27;;
+}
+function mtShowState(h) {
+  if (!h || Date.now() &lt; mtHold) return;
+  if (h.login) mtSay(&#x27;Đang đăng nhập TK &#x27; + h.login + (h.server ? &#x27; · &#x27; + h.server : &#x27;&#x27;) + &#x27;.&#x27;, &#x27;ok&#x27;);
+  else mtSay(&#x27;MT5 trên VPS chưa đăng nhập tài khoản nào.&#x27;, &#x27;&#x27;);
+}
+function mtVps() {
+  const cfg = acctStored();
+  const base = acctBase(cfg.url), token = String(cfg.token || &#x27;&#x27;);
+  return base &amp;&amp; token ? { base, token } : null;
+}
+async function mtLoginClick() {
+  const vps = mtVps();
+  if (!vps) { mtSay(&#x27;Lưu địa chỉ VPS và token ở trên trước.&#x27;, &#x27;err&#x27;); return; }
+  const login = $(&#x27;mtLogin&#x27;).value.trim(), pass = $(&#x27;mtPass&#x27;).value, server = $(&#x27;mtServer&#x27;).value.trim();
+  if (!/^\d{3,15}$/.test(login)) { mtSay(&#x27;Số tài khoản chỉ gồm chữ số.&#x27;, &#x27;err&#x27;); return; }
+  if (!pass) { mtSay(&#x27;Nhập mật khẩu.&#x27;, &#x27;err&#x27;); return; }
+  if (!server) { mtSay(&#x27;Nhập tên server (xem trong MT5: Tệp → Mở tài khoản, hoặc email của broker).&#x27;, &#x27;err&#x27;); return; }
+  try { localStorage.setItem(MT_KEY, JSON.stringify({ login, server })); } catch (err) { /* không lưu được */ }
+  const bt = $(&#x27;mtLoginBtn&#x27;);
+  bt.disabled = true;
+  bt.textContent = &#x27;Đang đăng nhập...&#x27;;
+  mtSay(&#x27;Đang đăng nhập &#x27; + login + &#x27; @ &#x27; + server + &#x27;...&#x27;, &#x27;&#x27;);
+  try {
+    const d = await ordPost(vps.base, vps.token, &#x27;/login&#x27;, { login, password: pass, server });
+    mtSay(&#x27;Đã đăng nhập TK &#x27; + d.login + (d.name ? &#x27; (&#x27; + d.name + &#x27;)&#x27; : &#x27;&#x27;) + &#x27; · &#x27; + d.server + &#x27; · số dư &#x27; + acctNum(d.balance, d.currency) +
+      (d.algo_trading === false ? &#x27; — Lưu ý: MT5 đang tắt Algo Trading, chưa đặt lệnh được.&#x27; : &#x27;&#x27;), &#x27;ok&#x27;, true);
+  } catch (err) {
+    mtSay(String(err.message || &#x27;Lỗi không rõ.&#x27;).replace(/Lệnh CÓ THỂ đã (khớp|tới VPS): xem lại Lệnh đang mở trước khi đặt lại\./, &#x27;Thử lại sau.&#x27;), &#x27;err&#x27;, true);
+  } finally {
+    $(&#x27;mtPass&#x27;).value = &#x27;&#x27;;
+    bt.disabled = false;
+    bt.textContent = &#x27;Đăng nhập MT5&#x27;;
+    acctRefresh();
+  }
+}
+let mtOutArm = 0;
+async function mtLogoutClick() {
+  const vps = mtVps();
+  if (!vps) { mtSay(&#x27;Lưu địa chỉ VPS và token ở trên trước.&#x27;, &#x27;err&#x27;); return; }
+  const bt = $(&#x27;mtLogoutBtn&#x27;);
+  if (!mtOutArm) {
+    bt.textContent = &#x27;Xác nhận ngắt&#x27;;
+    mtOutArm = setTimeout(() =&gt; { mtOutArm = 0; bt.textContent = &#x27;Ngắt MT5&#x27;; }, 6000);
+    return;
+  }
+  clearTimeout(mtOutArm);
+  mtOutArm = 0;
+  bt.textContent = &#x27;Ngắt MT5&#x27;;
+  try { await ordPost(vps.base, vps.token, &#x27;/logout&#x27;, {}); mtSay(&#x27;Đã ngắt MT5 trên VPS.&#x27;, &#x27;&#x27;, true); }
+  catch (err) { mtSay(err.message || &#x27;Lỗi không rõ.&#x27;, &#x27;err&#x27;, true); }
+  acctRefresh();
 }
 
