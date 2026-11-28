@@ -1638,3 +1638,333 @@ function makeHatch() {
   }
 }
 
+// Nút ↕ Tự động chỉ hiện khi đã kéo thang giá bằng tay
+function syncAutoBtn() {
+  const b = $(&#x27;bAuto&#x27;);
+  if (b &amp;&amp; b.hidden !== !Y_LOCK) b.hidden = !Y_LOCK;
+}
+function yAuto() {
+  Y_LOCK = null;
+  syncAutoBtn();
+  say(&#x27;Thang giá: tự co giãn theo nến.&#x27;);
+  schedule();
+}
+function toggleLegendInds() {
+  VIEW.inds = !VIEW.inds;
+  saveView();
+  syncSettings();
+  syncLegendBtn();
+  legendKey = &#x27;&#x27;;
+  schedule();
+}
+function syncLegendBtn() {
+  setOn(&#x27;bLegend&#x27;, VIEW.inds);
+  $(&#x27;bLegend&#x27;).setAttribute(&#x27;aria-pressed&#x27;, String(VIEW.inds));
+}
+function render() {
+  syncAutoBtn();
+  if (!cx) return;
+  LAY = layout();
+  const L = LAY;
+  cx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  cx.fillStyle = COL.bg;
+  cx.fillRect(0, 0, L.w, L.h);
+  cx.textBaseline = &#x27;middle&#x27;;
+  cx.font = smallFont();
+  if (!hasData) { drawEmpty(); updateLegend(0); return; }
+
+  const ser = series(S.tf), bars = ser.bars, n = bars.length;
+  let iL = Math.max(0, Math.floor(idxAtX(0)));
+  let iR = Math.min(n - 1, Math.ceil(idxAtX(L.plotW)));
+  if (iR &lt; iL) { iL = Math.max(0, n - 50); iR = n - 1; }
+
+  const ovs = overlayInsts().map(inst =&gt; ({ def: IND_BY_ID[inst.id], r: instResult(inst) }));
+  const pns = paneInsts().map(inst =&gt; ({ def: IND_BY_ID[inst.id], r: instResult(inst) }));
+
+  // Khoảng giá: nến, cộng thêm các đường và dải đang hiển thị
+  let lo = Infinity, hi = -Infinity, vmax = 0;
+  for (let i = iL; i &lt;= iR; i++) {
+    const b = bars[i];
+    if (b.l &lt; lo) lo = b.l;
+    if (b.h &gt; hi) hi = b.h;
+    if (b.v &gt; vmax) vmax = b.v;
+  }
+  for (const o of ovs) {
+    for (const ln of o.r.lines) {
+      if (ln.nofit) continue;
+      for (let i = iL; i &lt;= iR; i++) {
+        const v = ln.v[i];
+        if (Number.isFinite(v)) {
+          if (v &lt; lo) lo = v;
+          if (v &gt; hi) hi = v;
+        }
+      }
+    }
+    if (o.r.fit) {
+      for (const lv of o.r.levels || []) {
+        if (Number.isFinite(lv.v)) {
+          if (lv.v &lt; lo) lo = lv.v;
+          if (lv.v &gt; hi) hi = lv.v;
+        }
+      }
+    }
+  }
+  if (XK_FIT) { lo = Math.min(lo, XK_FIT.lo); hi = Math.max(hi, XK_FIT.hi); }
+  const pad = hi &gt; lo ? (hi - lo) * 0.08 : 1;
+  VP = (Y_LOCK &amp;&amp; !XK_FIT) ? { pMin: Y_LOCK.pMin, pMax: Y_LOCK.pMax } : { pMin: lo - pad, pMax: hi + pad };
+
+  const cr = S.cross;
+  const crInPlot = !!cr &amp;&amp; cr.x &gt;= 0 &amp;&amp; cr.x &lt;= L.plotW;
+  const crInMain = crInPlot &amp;&amp; cr.y &gt;= 0 &amp;&amp; cr.y &lt;= L.mainH;
+  const li = crInPlot ? clamp(Math.round(idxAtX(cr.x)), 0, n - 1) : n - 1;
+  const tags = [];   // nhãn có nền trên trục phải
+  const axis = [];   // nhãn trục phải thường
+
+  // Lưới giá
+  const step = niceStep(VP.pMax - VP.pMin, 6);
+  const dec = clamp(-Math.floor(Math.log10(step)), 0, 2);
+  for (let k = Math.ceil(VP.pMin / step); k * step &lt;= VP.pMax; k++) {
+    const y = Math.round(yOf(k * step)) + 0.5;
+    cx.strokeStyle = COL.line; cx.lineWidth = 1;
+    cx.beginPath(); cx.moveTo(0, y); cx.lineTo(L.plotW, y); cx.stroke();
+    axis.push({ y: y, text: (k * step).toFixed(dec), color: COL.muted });
+  }
+
+  // Lưới thời gian và nhãn trục thời gian
+  const P = pickPeriod(ser.sec, S.barW);
+  const tzSec = S.tz * 3600;
+  let lastDay = null;
+  cx.textAlign = &#x27;center&#x27;;
+  cx.fillStyle = COL.muted;
+  for (let i = Math.max(1, iL); i &lt;= iR; i++) {
+    const tt = bars[i].t + tzSec, tp = bars[i - 1].t + tzSec;
+    if (Math.floor(tt / P) === Math.floor(tp / P)) continue;
+    const day = Math.floor(tt / 86400);
+    const newDay = day !== lastDay;
+    lastDay = day;
+    const x = xOf(i);
+    if (x &lt; 0 || x &gt; L.plotW) continue;
+    let label;
+    if (P &lt; 86400) label = fmtTs(bars[i].t, newDay ? &#x27;dhm&#x27; : &#x27;hm&#x27;);
+    else if (P &lt; 2592000) label = fmtTs(bars[i].t, &#x27;dm&#x27;);
+    else { const d = new Date(tt * 1000); label = pad2(d.getUTCMonth() + 1) + &#x27;/&#x27; + d.getUTCFullYear(); }
+    const xl = Math.round(x) + 0.5;
+    cx.strokeStyle = COL.line; cx.lineWidth = 1;
+    cx.beginPath(); cx.moveTo(xl, 0); cx.lineTo(xl, L.totalH); cx.stroke();
+    cx.fillText(label, x, L.totalH + L.axisB / 2);
+  }
+
+  // Giờ cấm: cột chéo đỏ phủ cả vùng giá lẫn vùng chỉ báo
+  cx.save();
+  cx.beginPath(); cx.rect(0, 0, L.plotW, L.totalH); cx.clip();
+  if (S.showBlock &amp;&amp; blockPat) {
+    cx.fillStyle = blockPat;
+    for (let i = iL; i &lt;= iR; i++) {
+      if (inBlock(bars[i].t)) cx.fillRect(xOf(i) - S.barW / 2, 0, S.barW, L.totalH);
+    }
+  }
+  cx.restore();
+
+  // Vùng giá: khối lượng, dải tô, nến, đường, mức, hình vẽ, giá cuối, con trỏ
+  cx.save();
+  cx.beginPath(); cx.rect(0, 0, L.plotW, L.mainH); cx.clip();
+
+  if (L.volH &gt; 8 &amp;&amp; vmax &gt; 0) {
+    const bw = Math.max(1, S.barW * 0.7), base = L.mainH - 2, maxH = L.volH - 6;
+    for (let i = iL; i &lt;= iR; i++) {
+      const b = bars[i], h = b.v / vmax * maxH;
+      cx.fillStyle = b.c &gt;= b.o ? COL.volUp : COL.volDn;
+      cx.fillRect(xOf(i) - bw / 2, base - h, bw, h);
+    }
+  }
+
+  for (const o of ovs) if (o.r.band) drawBand(o.r, iL, iR);
+
+  const bodyW = Math.max(1, Math.round(S.barW * 0.7));
+  for (let i = iL; i &lt;= iR; i++) {
+    const bc = bars[i], xc = Math.round(xOf(i)), col = bc.c &gt;= bc.o ? COL.up : COL.down;
+    cx.fillStyle = col; cx.strokeStyle = col; cx.lineWidth = 1;
+    cx.beginPath(); cx.moveTo(xc + 0.5, yOf(bc.h)); cx.lineTo(xc + 0.5, yOf(bc.l)); cx.stroke();
+    const yo = yOf(bc.o), yc = yOf(bc.c);
+    cx.fillRect(xc - Math.floor(bodyW / 2), Math.min(yo, yc), bodyW, Math.max(1, Math.abs(yc - yo)));
+  }
+
+  for (const o of ovs) {
+    for (const ln of o.r.lines) {
+      cx.setLineDash(ln.dash || []);
+      polyline(ln.v, Math.max(0, iL - 1), iR, yOf, ln.color, ln.w || (ln.thin ? 1 : 1.5));
+      cx.setLineDash([]);
+    }
+    for (const lv of o.r.levels || []) {
+      if (lv.v &lt; VP.pMin || lv.v &gt; VP.pMax) continue;
+      const y = Math.round(yOf(lv.v)) + 0.5;
+      cx.setLineDash([5, 4]); cx.strokeStyle = lv.color; cx.lineWidth = 1;
+      cx.beginPath(); cx.moveTo(0, y); cx.lineTo(L.plotW, y); cx.stroke();
+      cx.setLineDash([]);
+      cx.fillStyle = lv.color; cx.textAlign = lv.right ? &#x27;right&#x27; : &#x27;left&#x27;;
+      cx.fillText(lv.text + &#x27;  &#x27; + lv.v.toFixed(2), lv.right ? L.plotW - 8 : 8, y - 8);
+      cx.textAlign = &#x27;left&#x27;;
+    }
+  }
+
+  // Nhãn tín hiệu trên giá: BUY và BUY P nằm dưới nến, SELL và SELL P nằm trên nến; nhãn cùng nến được xếp chồng
+  const stacked = {};
+  for (const o of ovs) {
+    for (const mk of o.r.marks || []) {
+      if (mk.i &lt; iL || mk.i &gt; iR) continue;
+      const key = mk.i + (mk.up ? &#x27;u&#x27; : &#x27;d&#x27;), k = stacked[key] || 0;
+      stacked[key] = k + 1;
+      const bc = bars[mk.i], xc = xOf(mk.i);
+      if (mk.up) drawMark(xc, yOf(bc.l) + 6 + k * 16, mk.text, COL.up);
+      else drawMark(xc, yOf(bc.h) - 20 - k * 16, mk.text, COL.down);
+    }
+  }
+
+  for (const d of S.drawings) {
+    if (d.type === &#x27;fan&#x27;) { drawFan(d, bars); continue; }
+    if (TREND_TYPES.has(d.type)) { drawTrend(d, bars); continue; }
+    if (d.type === &#x27;hline&#x27;) {
+      const yh = yOf(d.p);
+      if (yh &lt; L.candleTop || yh &gt; L.candleBottom) continue;
+      const y = Math.round(yh) + 0.5;
+      cx.strokeStyle = COL.hline; cx.lineWidth = 1; cx.setLineDash([6, 4]);
+      cx.beginPath(); cx.moveTo(0, y); cx.lineTo(L.plotW, y); cx.stroke();
+      cx.setLineDash([]);
+      tags.push({ y: yh, text: d.p.toFixed(2), bg: COL.hline, fg: COL.bg });
+    }
+  }
+
+  if (selValid() &amp;&amp; S.mode === &#x27;pan&#x27;) {
+    cx.save();
+    cx.shadowColor = DRAW_COL;
+    cx.shadowBlur = 10;
+    drawSelShape(selDraw, bars);
+    cx.restore();
+    drawSelTag(bars);
+  }
+  drawPending(bars);
+  if (S.pendingFan) {
+    const i = nearestIndex(bars, S.pendingFan.t);
+    cx.fillStyle = COL.fan;
+    cx.beginPath(); cx.arc(xOf(i), yOf(S.pendingFan.p), 4, 0, Math.PI * 2); cx.fill();
+  }
+
+  const last = bars[n - 1], lastUp = last.c &gt;= last.o;
+  if (last.c &gt;= VP.pMin &amp;&amp; last.c &lt;= VP.pMax) {
+    const yl = Math.round(yOf(last.c)) + 0.5;
+    cx.strokeStyle = lastUp ? COL.up : COL.down; cx.lineWidth = 1; cx.setLineDash([2, 3]);
+    cx.beginPath(); cx.moveTo(0, yl); cx.lineTo(L.plotW, yl); cx.stroke();
+    cx.setLineDash([]);
+    tags.push({ y: yOf(last.c), text: last.c.toFixed(2), bg: lastUp ? COL.up : COL.down, fg: COL.bg });
+  }
+
+  if (crInMain) {
+    const yc = Math.round(cr.y) + 0.5;
+    cx.strokeStyle = COL.cross; cx.lineWidth = 1; cx.setLineDash([3, 3]);
+    cx.beginPath(); cx.moveTo(0, yc); cx.lineTo(L.plotW, yc); cx.stroke();
+    cx.setLineDash([]);
+    if (cr.y &gt;= L.candleTop &amp;&amp; cr.y &lt;= L.candleBottom) {
+      tags.push({ y: cr.y, text: priceAtY(cr.y).toFixed(2), bg: COL.box, fg: COL.text });
+    }
+  }
+  cx.restore();
+
+  // Các vùng chỉ báo dao động, mỗi vùng có thang riêng
+  pns.forEach((pn, k) =&gt; {
+    const def = pn.def, r = pn.r;
+    const top = L.mainH + k * L.paneH, bot = top + L.paneH;
+    let lo2 = Infinity, hi2 = -Infinity;
+    for (const ln of r.lines) {
+      for (let i = iL; i &lt;= iR; i++) {
+        const v = ln.v[i];
+        if (Number.isFinite(v)) {
+          if (v &lt; lo2) lo2 = v;
+          if (v &gt; hi2) hi2 = v;
+        }
+      }
+    }
+    for (const lv of def.levels) {
+      if (lv.v &lt; lo2) lo2 = lv.v;
+      if (lv.v &gt; hi2) hi2 = lv.v;
+    }
+    if (def.range) {
+      lo2 = def.range[0];
+      hi2 = def.range[1];
+    } else {
+      if (!Number.isFinite(lo2) || !Number.isFinite(hi2)) { lo2 = 0; hi2 = 1; }
+      if (def.zero) { lo2 = Math.min(lo2, 0); hi2 = Math.max(hi2, 0); }
+      if (hi2 - lo2 &lt; 1e-9) hi2 = lo2 + 1;
+      const pd = (hi2 - lo2) * 0.1;
+      lo2 -= pd;
+      hi2 += pd;
+    }
+    const yP = v =&gt; top + 6 + (hi2 - v) / (hi2 - lo2) * (L.paneH - 12);
+
+    cx.strokeStyle = COL.line; cx.lineWidth = 1;
+    cx.beginPath(); cx.moveTo(0, Math.round(top) + 0.5); cx.lineTo(L.w, Math.round(top) + 0.5); cx.stroke();
+
+    cx.save();
+    cx.beginPath(); cx.rect(0, top, L.plotW, L.paneH); cx.clip();
+    cx.setLineDash([4, 4]); cx.strokeStyle = COL.grid; cx.lineWidth = 1;
+    for (const lv of def.levels) {
+      const y = Math.round(yP(lv.v)) + 0.5;
+      cx.beginPath(); cx.moveTo(0, y); cx.lineTo(L.plotW, y); cx.stroke();
+    }
+    cx.setLineDash([]);
+    for (const ln of r.lines) {
+      if (ln.type === &#x27;hist&#x27;) {
+        const bw = Math.max(1, Math.round(S.barW * 0.6)), y0 = yP(0);
+        for (let i = iL; i &lt;= iR; i++) {
+          const v = ln.v[i];
+          if (!Number.isFinite(v)) continue;
+          const yv = yP(v);
+          cx.fillStyle = v &gt;= 0 ? ln.up : ln.dn;
+          cx.fillRect(Math.round(xOf(i)) - Math.floor(bw / 2), Math.min(y0, yv), bw, Math.max(1, Math.abs(yv - y0)));
+        }
+      } else {
+        polyline(ln.v, Math.max(0, iL - 1), iR, yP, ln.color, ln.thin ? 1 : 1.4);
+      }
+    }
+    // Nhãn Buy / Sell của TRIX: Buy nằm sát đáy ô, Sell nằm sát đỉnh ô
+    for (const mk of r.marks || []) {
+      if (mk.i &lt; iL || mk.i &gt; iR) continue;
+      drawMark(xOf(mk.i), mk.up ? bot - 17 : top + 3, mk.text, mk.up ? COL.up : COL.down);
+    }
+    if (crInPlot &amp;&amp; cr.y &gt;= top &amp;&amp; cr.y &lt; bot) {
+      const yc = Math.round(cr.y) + 0.5;
+      cx.strokeStyle = COL.cross; cx.lineWidth = 1; cx.setLineDash([3, 3]);
+      cx.beginPath(); cx.moveTo(0, yc); cx.lineTo(L.plotW, yc); cx.stroke();
+      cx.setLineDash([]);
+      const vv = hi2 - (cr.y - top - 6) / (L.paneH - 12) * (hi2 - lo2);
+      tags.push({ y: cr.y, text: fmtVal(vv, def.dec), bg: COL.box, fg: COL.text });
+    }
+    cx.restore();
+
+    // Nhãn trục phải: các mức tham chiếu và mốc đẹp
+    const pstep = niceStep(hi2 - lo2, 3);
+    const pdec = clamp(-Math.floor(Math.log10(pstep)), 0, 4);
+    const levelYs = [];
+    for (const lv of def.levels) {
+      const y = yP(lv.v);
+      levelYs.push(y);
+      axis.push({ y: y, text: fmtVal(lv.v, pdec), color: COL.muted });
+    }
+    for (let kk = Math.ceil(lo2 / pstep); kk * pstep &lt;= hi2; kk++) {
+      const y = yP(kk * pstep);
+      if (y &lt; top + 4 || y &gt; bot - 4) continue;
+      if (levelYs.some(ly =&gt; Math.abs(ly - y) &lt; 12)) continue;
+      axis.push({ y: y, text: (kk * pstep).toFixed(pdec), color: COL.muted });
+    }
+  });
+
+  // Đường dọc của con trỏ, trên toàn khung
+  if (crInPlot &amp;&amp; cr.y &gt;= 0 &amp;&amp; cr.y &lt;= L.totalH) {
+    const xl = Math.round(cr.x) + 0.5;
+    cx.save();
+    cx.beginPath(); cx.rect(0, 0, L.plotW, L.totalH); cx.clip();
+    cx.strokeStyle = COL.cross; cx.lineWidth = 1; cx.setLineDash([3, 3]);
+    cx.beginPath(); cx.moveTo(xl, 0); cx.lineTo(xl, L.totalH); cx.stroke();
+    cx.setLineDash([]);
+    cx.restore();
+  }
+

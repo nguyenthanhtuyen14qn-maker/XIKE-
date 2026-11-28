@@ -3335,8 +3335,8 @@ function acctSaveClick() {
 const TD_KEY = &#x27;xau-chart-twelvedata-v1&#x27;;   // khoá API (chỉ đọc giá), mã, khung gốc, chu kỳ cập nhật
 const TD_IV = { M1: &#x27;1min&#x27;, M5: &#x27;5min&#x27;, M15: &#x27;15min&#x27;, M30: &#x27;30min&#x27;, H1: &#x27;1h&#x27; };
 const OA_HOST = { practice: &#x27;https://api-fxpractice.oanda.com&#x27;, live: &#x27;https://api-fxtrade.oanda.com&#x27; };
-const FD_NAME = { twelve: &#x27;Twelve Data&#x27;, oanda: &#x27;OANDA&#x27; };
-const FD_SYM = { twelve: &#x27;XAU/USD&#x27;, oanda: &#x27;XAU_USD&#x27; };
+const FD_NAME = { twelve: &#x27;Twelve Data&#x27;, oanda: &#x27;OANDA&#x27;, vps: &#x27;Exness/MT5 qua VPS&#x27; };
+const FD_SYM = { twelve: &#x27;XAU/USD&#x27;, oanda: &#x27;XAU_USD&#x27;, vps: &#x27;&#x27; };   // VPS: để trống = mã đầu tiên trong XIKE_SYMBOLS
 let tdTimer = 0, tdBusy = false;
 
 function tdStored() {
@@ -3347,11 +3347,12 @@ function fdShow() {
   const pv = $(&#x27;fdProv&#x27;).value;
   $(&#x27;fdTwelve&#x27;).hidden = pv !== &#x27;twelve&#x27;;
   $(&#x27;fdOanda&#x27;).hidden = pv !== &#x27;oanda&#x27;;
+  if ($(&#x27;fdVps&#x27;)) $(&#x27;fdVps&#x27;).hidden = pv !== &#x27;vps&#x27;;
 }
 // Đổi nhà cung cấp: đổi mã mặc định cho đúng cách viết của nhà đó (XAU/USD ↔ XAU_USD)
 function fdProvChange() {
   const pv = $(&#x27;fdProv&#x27;).value, sym = $(&#x27;tdSym&#x27;).value.trim();
-  if (!sym || Object.values(FD_SYM).includes(sym)) $(&#x27;tdSym&#x27;).value = FD_SYM[pv];
+  if (!sym || Object.values(FD_SYM).includes(sym) || pv === &#x27;vps&#x27;) $(&#x27;tdSym&#x27;).value = FD_SYM[pv];
   fdShow();
 }
 function tdFill() {
@@ -3417,22 +3418,37 @@ async function oandaFetch(cfg, size) {
   const list = Array.isArray(data.candles) ? data.candles : [];
   return list.filter(k =&gt; k &amp;&amp; k.mid).map(k =&gt; ({ t: tdTime(k.time), o: +k.mid.o, h: +k.mid.h, l: +k.mid.l, c: +k.mid.c, v: +k.volume || 0 }));
 }
+// Nến từ cầu nối VPS (chế độ Exness API hoặc MT5): GET /candles, cùng địa chỉ và token ở thẻ Tài khoản MT5
+async function vpsFetch(cfg, size) {
+  const acc = acctStored();
+  const base = acctBase(acc.url), token = String(acc.token || &#x27;&#x27;);
+  if (!base || !token) throw new Error(&#x27;Chưa có địa chỉ VPS và token. Nhập ở thẻ Tài khoản MT5 (qua VPS) bên dưới.&#x27;);
+  const q = new URLSearchParams({ tf: cfg.tf, count: String(Math.min(5000, size)) });
+  if (cfg.sym) q.set(&#x27;symbol&#x27;, cfg.sym);
+  const { res, data } = await fdGet(base + &#x27;/candles?&#x27; + q.toString(), { &#x27;X-Token&#x27;: token }, &#x27;VPS&#x27;);
+  if (!res.ok || data.ok === false) {
+    throw new Error(res.status === 401 ? &#x27;Sai token VPS.&#x27; : res.status === 404 ? &#x27;VPS chưa có cổng /candles. Cập nhật server.py mới.&#x27;
+      : (data.error ? data.error + (data.detail ? &#x27; (&#x27; + data.detail + &#x27;)&#x27; : &#x27;&#x27;) : &#x27;VPS trả lỗi &#x27; + res.status + &#x27;.&#x27;));
+  }
+  if (data.symbol &amp;&amp; !cfg.sym) cfg.symShown = data.symbol;
+  return (Array.isArray(data.bars) ? data.bars : []).map(b =&gt; ({ t: +b.t, o: +b.o, h: +b.h, l: +b.l, c: +b.c, v: +b.v || 0 }));
+}
 async function tdFetch(cfg, size) {
-  const bars = await (cfg.prov === &#x27;oanda&#x27; ? oandaFetch(cfg, size) : twelveFetch(cfg, size));
+  const bars = await (cfg.prov === &#x27;oanda&#x27; ? oandaFetch(cfg, size) : cfg.prov === &#x27;vps&#x27; ? vpsFetch(cfg, size) : twelveFetch(cfg, size));
   return bars.filter(b =&gt; [b.t, b.o, b.h, b.l, b.c].every(Number.isFinite)).sort((a, b) =&gt; a.t - b.t);
 }
 function tdRead() {
   const prov = FD_NAME[$(&#x27;fdProv&#x27;).value] ? $(&#x27;fdProv&#x27;).value : &#x27;twelve&#x27;;
   const key = $(&#x27;tdKey&#x27;).value.trim(), oaKey = $(&#x27;oaKey&#x27;).value.trim(), oaEnv = OA_HOST[$(&#x27;oaEnv&#x27;).value] ? $(&#x27;oaEnv&#x27;).value : &#x27;practice&#x27;;
-  const sym = $(&#x27;tdSym&#x27;).value.trim() || FD_SYM[prov], tf = $(&#x27;tdTf&#x27;).value;
+  const sym = $(&#x27;tdSym&#x27;).value.trim() || FD_SYM[prov], tf = $(&#x27;tdTf&#x27;).value;   // VPS: mã trống = mã mặc định trên VPS
   const every = Math.max(0, Math.round(Number($(&#x27;tdEvery&#x27;).value) || 0));
   return { prov, key, oaKey, oaEnv, sym, tf: TD_IV[tf] ? tf : &#x27;M15&#x27;, every: every &amp;&amp; every &lt; 30 ? 30 : every };
 }
-const fdReady = cfg =&gt; (cfg.prov === &#x27;oanda&#x27; ? !!cfg.oaKey : !!cfg.key);
-const fdLabel = cfg =&gt; &#x27;Live &#x27; + FD_NAME[cfg.prov || &#x27;twelve&#x27;] + &#x27; &#x27; + cfg.sym;
+const fdReady = cfg =&gt; (cfg.prov === &#x27;oanda&#x27; ? !!cfg.oaKey : cfg.prov === &#x27;vps&#x27; ? !!(acctBase(acctStored().url) &amp;&amp; acctStored().token) : !!cfg.key);
+const fdLabel = cfg =&gt; &#x27;Live &#x27; + FD_NAME[cfg.prov || &#x27;twelve&#x27;] + &#x27; &#x27; + (cfg.sym || cfg.symShown || &#x27;&#x27;);
 async function tdLoadClick() {
   const cfg = tdRead();
-  if (!fdReady(cfg)) { tdSay(cfg.prov === &#x27;oanda&#x27; ? &#x27;Dán token OANDA trước.&#x27; : &#x27;Dán khoá API Twelve Data trước.&#x27;, &#x27;err&#x27;); return; }
+  if (!fdReady(cfg)) { tdSay(cfg.prov === &#x27;oanda&#x27; ? &#x27;Dán token OANDA trước.&#x27; : cfg.prov === &#x27;vps&#x27; ? &#x27;Nhập địa chỉ VPS và token ở thẻ Tài khoản MT5 (qua VPS), bấm Lưu và kết nối, rồi tải nến.&#x27; : &#x27;Dán khoá API Twelve Data trước.&#x27;, &#x27;err&#x27;); return; }
   try { localStorage.setItem(TD_KEY, JSON.stringify(cfg)); } catch (err) { /* không lưu được: vẫn dùng trong phiên */ }
   $(&#x27;tdEvery&#x27;).value = String(cfg.every);
   clearInterval(tdTimer);
@@ -3456,7 +3472,7 @@ async function tdLoadClick() {
 }
 // Cập nhật vài nến mới nhất; bỏ qua khi app ẩn hoặc không ở tab Biểu đồ để tiết kiệm lượt gọi
 async function tdTick() {
-  if (tdBusy || document.hidden || window.innerWidth &lt; 10 || !/^Live (Twelve Data|OANDA) /.test(baseName)) return;
+  if (tdBusy || document.hidden || window.innerWidth &lt; 10 || !/^Live (Twelve Data|OANDA|Exness\/MT5 qua VPS) /.test(baseName)) return;
   const cfg = tdStored();
   if (!fdReady(cfg)) return;
   tdBusy = true;
@@ -3506,7 +3522,7 @@ function aiSnapshot() {
   for (let i = Math.max(0, N - 100); i &lt; N; i++) { hi = Math.max(hi, h[i]); lo = Math.min(lo, l[i]); }
   const last = bars[N - 1];
   const text = [
-    &#x27;Mã: &#x27; + (baseName.replace(/^Live (Twelve Data|OANDA) /, &#x27;&#x27;) || &#x27;XAUUSD&#x27;) + &#x27; · khung &#x27; + S.tf + &#x27; · giờ VN (UTC&#x27; + (S.tz &gt;= 0 ? &#x27;+&#x27; : &#x27;&#x27;) + S.tz + &#x27;) · nguồn: &#x27; + baseName,
+    &#x27;Mã: &#x27; + (baseName.replace(/^Live (Twelve Data|OANDA|Exness\/MT5 qua VPS) /, &#x27;&#x27;) || &#x27;XAUUSD&#x27;) + &#x27; · khung &#x27; + S.tf + &#x27; · giờ VN (UTC&#x27; + (S.tz &gt;= 0 ? &#x27;+&#x27; : &#x27;&#x27;) + S.tz + &#x27;) · nguồn: &#x27; + baseName,
     &#x27;Giá hiện tại (đóng nến cuối, nến cuối có thể chưa đóng): &#x27; + f(last.c, 2) + &#x27; lúc &#x27; + fmtTs(last.t, &#x27;dhm&#x27;),
     &#x27;Đỉnh/đáy 100 nến gần nhất: &#x27; + f(hi, 2) + &#x27; / &#x27; + f(lo, 2),
     &#x27;Tín hiệu trong 60 nến gần nhất: &#x27; + (marks.length ? marks.map(m =&gt; m.t + &#x27; lúc &#x27; + fmtTs(bars[m.i].t, &#x27;dhm&#x27;)).join(&#x27;; &#x27;) : &#x27;không có&#x27;),
@@ -4105,6 +4121,7 @@ else xkBoot();
         <select id="fdProv">
           <option value="oanda" selected>OANDA (cùng nguồn với TradingView)</option>
           <option value="twelve">Twelve Data</option>
+          <option value="vps">Exness / MT5 (qua VPS): giá đúng tài khoản</option>
         </select>
       </label>
       <div id="fdTwelve" hidden>
@@ -4112,6 +4129,9 @@ else xkBoot();
         <label>Khoá API Twelve Data
           <input id="tdKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Dán khoá API">
         </label>
+      </div>
+      <div id="fdVps" hidden>
+        <p class="hint"><b>Giá đúng tài khoản giao dịch của bạn</b>: nến lấy từ cầu nối VPS (chế độ Exness API hoặc MT5). Dùng địa chỉ và token ở thẻ <b>Tài khoản MT5 (qua VPS)</b> bên dưới, không cần khoá riêng. Mã để trống thì VPS dùng mã đầu tiên trong XIKE_SYMBOLS (ví dụ XAUUSDm). Lưu ý: biểu đồ TradingView vẫn là OANDA:XAUUSD nên có thể lệch vài giá.</p>
       </div>
       <div id="fdOanda">
         <p class="hint"><b>Cùng nguồn giá với biểu đồ TradingView</b> (OANDA:XAUUSD): chỉ báo XIKE, bảng 📊 Chỉ báo và 🤖 AI tính trên đúng nến bạn đang xem. Tạo token ở OANDA, mục Manage API Access. Nên dùng tài khoản <b>demo (practice)</b>: giá vẫn là giá thật, còn token OANDA có quyền giao dịch nên dùng demo cho an toàn; app chỉ dùng để đọc giá.</p>

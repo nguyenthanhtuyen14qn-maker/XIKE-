@@ -54,6 +54,30 @@ Dùng **mật khẩu chỉ xem (investor)** nếu chỉ muốn xem; muốn đặ
   Xem đúng tên trong Market Watch của MT5, rồi điền vào `XIKE_SYMBOLS` trong `chay.bat` **và** ô Mã trong khung Đặt lệnh của app.
 - Lot tối thiểu 0.01 (tài khoản Cent tính theo cent: 0.01 lot cent nhỏ hơn 100 lần).
 
+## Cách 2: Exness Trader API (không cần MT5)
+Cầu nối gọi thẳng API của Exness, VPS Linux hay Windows đều chạy được, không cần mở MT5.
+
+1. Vào **Personal Area → Key Management** (exness-api.com) → tạo khoá:
+   - Chọn đúng **một tài khoản**; quyền **Trading – Full** nếu muốn đặt lệnh, **Read-only** nếu chỉ xem.
+   - Bật **giới hạn IP** và điền IP của VPS.
+   - Lưu lại **API key** (`exnsk-...`) và tải **khoá riêng** (private key). Khoá riêng chỉ hiện một lần.
+2. Lấy **Gateway URL** ở trang tài liệu Exness API (ô DNS / Gateway).
+3. Chép file khoá riêng lên VPS (ví dụ `~/.xike/exness_private.pem`, `chmod 600`).
+   **Không** dán khoá vào app, chat hay gửi cho ai.
+4. Cài thư viện: `pip install -r requirements.txt` (cần `cryptography`).
+5. Sửa và chạy `chay_exness.sh` (Linux) hoặc `chay_exness.bat` (Windows):
+   `XIKE_MODE=exness`, `EXN_API_KEY`, `EXN_ACCOUNT_ID`, `EXN_GATEWAY`, `EXN_PRIVATE_KEY_FILE`, `XIKE_SYMBOLS=XAUUSDm`.
+   Khi chạy thấy dòng `Exness API: đã kết nối tài khoản ...` là được.
+6. Mở https bằng Cloudflare Tunnel như mục 3, rồi trong app: **Cài đặt → Tài khoản** điền địa chỉ + token → **Lưu và kết nối**.
+   Chế độ này **không cần** nhập mật khẩu MT5.
+7. Muốn biểu đồ XIKE dùng đúng giá tài khoản: **Cài đặt → Nguồn dữ liệu → Exness / MT5 (qua VPS)** → Tải nến.
+
+| App báo | Cách sửa |
+|---|---|
+| Exness từ chối chữ ký / khoá | Sai API key, sai file khoá riêng, hoặc IP VPS chưa nằm trong giới hạn IP |
+| Khoá chỉ đọc | Tạo khoá quyền Trading – Full để đặt lệnh |
+| Mã ... không được phép | Thêm mã vào `XIKE_SYMBOLS` |
+
 ## Lỗi thường gặp
 | App báo | Cách sửa |
 |---|---|

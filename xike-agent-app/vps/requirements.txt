@@ -1,3 +1,6 @@
-MetaTrader5>=5.0.45
 flask>=3.0
 waitress>=3.0
+# Chế độ Exness API (XIKE_MODE=exness): cần cryptography để ký Ed25519
+cryptography>=42
+# Chế độ MT5 (mặc định, chỉ chạy trên Windows có cài MT5):
+MetaTrader5>=5.0.45; sys_platform == "win32"

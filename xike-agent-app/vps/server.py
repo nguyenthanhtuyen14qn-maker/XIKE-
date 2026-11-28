@@ -10,6 +10,12 @@ Cổng (mọi cổng cần header X-Token, trừ OPTIONS):
   POST /order             đặt lệnh thị trường
   POST /close             đóng lệnh theo ticket
 
+  GET  /candles?symbol=XAUUSD&tf=M15&count=500   nến cho biểu đồ XIKE
+
+Hai chế độ (biến XIKE_MODE):
+  mt5     (mặc định) qua MetaTrader 5 trên VPS Windows
+  exness  qua Exness Trader API, không cần MT5, chạy được trên Linux (xem exness_bridge.py)
+
 Chạy:  set XIKE_TOKEN=chuoi-dai-ngau-nhien  &&  python server.py
 """
 import hmac
@@ -20,7 +26,11 @@ from datetime import datetime, timedelta, timezone
 
 from flask import Flask, jsonify, request
 
-import MetaTrader5 as mt5
+MODE = os.environ.get("XIKE_MODE", "mt5").strip().lower()
+if MODE == "exness":
+    mt5 = None                     # không cần MetaTrader5
+else:
+    import MetaTrader5 as mt5
 
 TOKEN = os.environ.get("XIKE_TOKEN", "").strip()
 MT5_PATH = os.environ.get("MT5_PATH", "").strip()            # đường dẫn terminal64.exe, để trống = tự tìm
@@ -34,6 +44,14 @@ MAGIC = 14014
 HIST_LIMIT = 50
 
 app = Flask(__name__)
+EXN = None                       # ExnessBridge khi MODE == "exness" (tạo trong main)
+
+
+def exn_route(name, args=None, data=None):
+    """Chuyển request sang Exness API; trả response Flask."""
+    from exness_bridge import handle
+    code, out = handle(EXN, name, args or {}, data or {}, ALLOWED_BY_KEY, MAX_LOT, SEEN)
+    return jsonify(out), code
 LOCK = threading.Lock()          # thư viện MetaTrader5 không an toàn khi gọi song song
 SEEN = {}                        # client_id -> kết quả, chặn gửi trùng
 LOGIN_FAILS = []                 # thời điểm đăng nhập sai, chặn đoán mật khẩu
@@ -113,6 +131,8 @@ def account_dict(a):
 
 @app.get("/health")
 def health():
+    if EXN:
+        return exn_route("health")
     with LOCK:
         e = ensure_mt5()
         if e:
@@ -131,6 +151,8 @@ def health():
 
 @app.post("/login")
 def login():
+    if EXN:
+        return exn_route("login", data=body())
     b = body()
     now = time.time()
     LOGIN_FAILS[:] = [t for t in LOGIN_FAILS if now - t < 600]
@@ -162,6 +184,8 @@ def login():
 
 @app.post("/logout")
 def logout():
+    if EXN:
+        return exn_route("logout")
     with LOCK:
         mt5.shutdown()
     return ok({"ok": True})
@@ -169,6 +193,8 @@ def logout():
 
 @app.get("/account")
 def account():
+    if EXN:
+        return exn_route("account")
     with LOCK:
         bad, a = need_account()
         if bad:
@@ -178,6 +204,8 @@ def account():
 
 @app.get("/positions")
 def positions():
+    if EXN:
+        return exn_route("positions")
     with LOCK:
         bad, _ = need_account()
         if bad:
@@ -193,6 +221,8 @@ def positions():
 
 @app.get("/history")
 def history():
+    if EXN:
+        return exn_route("history", args=request.args)
     try:
         days = max(1, min(90, int(request.args.get("days", "7"))))
     except ValueError:
@@ -229,6 +259,39 @@ def history():
     return ok({"count": len(trades), "net": round(net_all, 2), "currency": a.currency, "trades": trades[:HIST_LIMIT]})
 
 
+TF_MT5 = {"M1": "TIMEFRAME_M1", "M5": "TIMEFRAME_M5", "M15": "TIMEFRAME_M15", "M30": "TIMEFRAME_M30",
+          "H1": "TIMEFRAME_H1", "H4": "TIMEFRAME_H4", "D1": "TIMEFRAME_D1"}
+
+
+@app.get("/candles")
+def candles():
+    """Nến cho biểu đồ XIKE: [{t, o, h, l, c, v}] cũ → mới, t là giây UTC."""
+    if EXN:
+        return exn_route("candles", args=request.args)
+    asked = str(request.args.get("symbol", "")).strip()
+    sym = ALLOWED_BY_KEY.get(asked.lower(), "") if asked else next(iter(ALLOWED), "")
+    if not sym:
+        return err("Mã " + asked + " không được phép trên VPS (XIKE_SYMBOLS)")
+    tf = str(request.args.get("tf", "M15")).upper()
+    if tf not in TF_MT5:
+        return err("Khung thời gian không hỗ trợ: " + tf)
+    try:
+        count = max(1, min(5000, int(request.args.get("count", "500"))))
+    except ValueError:
+        count = 500
+    with LOCK:
+        bad, _ = need_account()
+        if bad:
+            return bad
+        mt5.symbol_select(sym, True)
+        rates = mt5.copy_rates_from_pos(sym, getattr(mt5, TF_MT5[tf]), 0, count)
+    if rates is None:
+        return err("Không lấy được nến " + sym, 503, detail=mt5_error())
+    bars = [{"t": int(r["time"]), "o": float(r["open"]), "h": float(r["high"]), "l": float(r["low"]),
+             "c": float(r["close"]), "v": float(r["tick_volume"])} for r in rates]
+    return ok({"ok": True, "symbol": sym, "tf": tf, "source": "MT5", "bars": bars})
+
+
 def filling_for(sym_info):
     # Chọn kiểu khớp lệnh broker cho phép (bit 1 = FOK, bit 2 = IOC)
     fm = getattr(sym_info, "filling_mode", 0)
@@ -249,6 +312,8 @@ def remember(cid, result):
 
 @app.post("/order")
 def order():
+    if EXN:
+        return exn_route("order", data=body())
     b = body()
     cid = str(b.get("client_id", ""))[:40]
     if cid and cid in SEEN:
@@ -308,6 +373,8 @@ def order():
 
 @app.post("/close")
 def close():
+    if EXN:
+        return exn_route("close", data=body())
     b = body()
     cid = str(b.get("client_id", ""))[:40]
     if cid and cid in SEEN:
@@ -344,12 +411,22 @@ def close():
 
 
 def main():
+    global EXN
     if len(TOKEN) < 24:
         raise SystemExit("Đặt biến XIKE_TOKEN dài ít nhất 24 ký tự trước khi chạy.")
-    with LOCK:
-        e = ensure_mt5()
-    print("MT5:", e or "đã kết nối terminal")
-    print(f"XIKE MT5 Bridge chạy ở http://{HOST}:{PORT}  (mã cho phép: {', '.join(sorted(ALLOWED))}, lot tối đa {MAX_LOT})")
+    if MODE == "exness":
+        from exness_bridge import ExnessBridge
+        EXN = ExnessBridge()
+        try:
+            acc = EXN.details()
+            print("Exness API: đã kết nối tài khoản", acc.get("account_id"), acc.get("account_name", ""))
+        except Exception as e:   # vẫn chạy để app thấy lỗi rõ ràng
+            print("Exness API: chưa kết nối được:", e)
+    else:
+        with LOCK:
+            e = ensure_mt5()
+        print("MT5:", e or "đã kết nối terminal")
+    print(f"XIKE Bridge ({MODE}) chạy ở http://{HOST}:{PORT}  (mã cho phép: {', '.join(sorted(ALLOWED))}, lot tối đa {MAX_LOT})")
     from waitress import serve
     serve(app, host=HOST, port=PORT, threads=4)
 

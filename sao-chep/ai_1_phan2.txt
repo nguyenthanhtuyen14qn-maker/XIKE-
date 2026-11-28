@@ -1,333 +1,3 @@
-// Nút ↕ Tự động chỉ hiện khi đã kéo thang giá bằng tay
-function syncAutoBtn() {
-  const b = $(&#x27;bAuto&#x27;);
-  if (b &amp;&amp; b.hidden !== !Y_LOCK) b.hidden = !Y_LOCK;
-}
-function yAuto() {
-  Y_LOCK = null;
-  syncAutoBtn();
-  say(&#x27;Thang giá: tự co giãn theo nến.&#x27;);
-  schedule();
-}
-function toggleLegendInds() {
-  VIEW.inds = !VIEW.inds;
-  saveView();
-  syncSettings();
-  syncLegendBtn();
-  legendKey = &#x27;&#x27;;
-  schedule();
-}
-function syncLegendBtn() {
-  setOn(&#x27;bLegend&#x27;, VIEW.inds);
-  $(&#x27;bLegend&#x27;).setAttribute(&#x27;aria-pressed&#x27;, String(VIEW.inds));
-}
-function render() {
-  syncAutoBtn();
-  if (!cx) return;
-  LAY = layout();
-  const L = LAY;
-  cx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  cx.fillStyle = COL.bg;
-  cx.fillRect(0, 0, L.w, L.h);
-  cx.textBaseline = &#x27;middle&#x27;;
-  cx.font = smallFont();
-  if (!hasData) { drawEmpty(); updateLegend(0); return; }
-
-  const ser = series(S.tf), bars = ser.bars, n = bars.length;
-  let iL = Math.max(0, Math.floor(idxAtX(0)));
-  let iR = Math.min(n - 1, Math.ceil(idxAtX(L.plotW)));
-  if (iR &lt; iL) { iL = Math.max(0, n - 50); iR = n - 1; }
-
-  const ovs = overlayInsts().map(inst =&gt; ({ def: IND_BY_ID[inst.id], r: instResult(inst) }));
-  const pns = paneInsts().map(inst =&gt; ({ def: IND_BY_ID[inst.id], r: instResult(inst) }));
-
-  // Khoảng giá: nến, cộng thêm các đường và dải đang hiển thị
-  let lo = Infinity, hi = -Infinity, vmax = 0;
-  for (let i = iL; i &lt;= iR; i++) {
-    const b = bars[i];
-    if (b.l &lt; lo) lo = b.l;
-    if (b.h &gt; hi) hi = b.h;
-    if (b.v &gt; vmax) vmax = b.v;
-  }
-  for (const o of ovs) {
-    for (const ln of o.r.lines) {
-      if (ln.nofit) continue;
-      for (let i = iL; i &lt;= iR; i++) {
-        const v = ln.v[i];
-        if (Number.isFinite(v)) {
-          if (v &lt; lo) lo = v;
-          if (v &gt; hi) hi = v;
-        }
-      }
-    }
-    if (o.r.fit) {
-      for (const lv of o.r.levels || []) {
-        if (Number.isFinite(lv.v)) {
-          if (lv.v &lt; lo) lo = lv.v;
-          if (lv.v &gt; hi) hi = lv.v;
-        }
-      }
-    }
-  }
-  if (XK_FIT) { lo = Math.min(lo, XK_FIT.lo); hi = Math.max(hi, XK_FIT.hi); }
-  const pad = hi &gt; lo ? (hi - lo) * 0.08 : 1;
-  VP = (Y_LOCK &amp;&amp; !XK_FIT) ? { pMin: Y_LOCK.pMin, pMax: Y_LOCK.pMax } : { pMin: lo - pad, pMax: hi + pad };
-
-  const cr = S.cross;
-  const crInPlot = !!cr &amp;&amp; cr.x &gt;= 0 &amp;&amp; cr.x &lt;= L.plotW;
-  const crInMain = crInPlot &amp;&amp; cr.y &gt;= 0 &amp;&amp; cr.y &lt;= L.mainH;
-  const li = crInPlot ? clamp(Math.round(idxAtX(cr.x)), 0, n - 1) : n - 1;
-  const tags = [];   // nhãn có nền trên trục phải
-  const axis = [];   // nhãn trục phải thường
-
-  // Lưới giá
-  const step = niceStep(VP.pMax - VP.pMin, 6);
-  const dec = clamp(-Math.floor(Math.log10(step)), 0, 2);
-  for (let k = Math.ceil(VP.pMin / step); k * step &lt;= VP.pMax; k++) {
-    const y = Math.round(yOf(k * step)) + 0.5;
-    cx.strokeStyle = COL.line; cx.lineWidth = 1;
-    cx.beginPath(); cx.moveTo(0, y); cx.lineTo(L.plotW, y); cx.stroke();
-    axis.push({ y: y, text: (k * step).toFixed(dec), color: COL.muted });
-  }
-
-  // Lưới thời gian và nhãn trục thời gian
-  const P = pickPeriod(ser.sec, S.barW);
-  const tzSec = S.tz * 3600;
-  let lastDay = null;
-  cx.textAlign = &#x27;center&#x27;;
-  cx.fillStyle = COL.muted;
-  for (let i = Math.max(1, iL); i &lt;= iR; i++) {
-    const tt = bars[i].t + tzSec, tp = bars[i - 1].t + tzSec;
-    if (Math.floor(tt / P) === Math.floor(tp / P)) continue;
-    const day = Math.floor(tt / 86400);
-    const newDay = day !== lastDay;
-    lastDay = day;
-    const x = xOf(i);
-    if (x &lt; 0 || x &gt; L.plotW) continue;
-    let label;
-    if (P &lt; 86400) label = fmtTs(bars[i].t, newDay ? &#x27;dhm&#x27; : &#x27;hm&#x27;);
-    else if (P &lt; 2592000) label = fmtTs(bars[i].t, &#x27;dm&#x27;);
-    else { const d = new Date(tt * 1000); label = pad2(d.getUTCMonth() + 1) + &#x27;/&#x27; + d.getUTCFullYear(); }
-    const xl = Math.round(x) + 0.5;
-    cx.strokeStyle = COL.line; cx.lineWidth = 1;
-    cx.beginPath(); cx.moveTo(xl, 0); cx.lineTo(xl, L.totalH); cx.stroke();
-    cx.fillText(label, x, L.totalH + L.axisB / 2);
-  }
-
-  // Giờ cấm: cột chéo đỏ phủ cả vùng giá lẫn vùng chỉ báo
-  cx.save();
-  cx.beginPath(); cx.rect(0, 0, L.plotW, L.totalH); cx.clip();
-  if (S.showBlock &amp;&amp; blockPat) {
-    cx.fillStyle = blockPat;
-    for (let i = iL; i &lt;= iR; i++) {
-      if (inBlock(bars[i].t)) cx.fillRect(xOf(i) - S.barW / 2, 0, S.barW, L.totalH);
-    }
-  }
-  cx.restore();
-
-  // Vùng giá: khối lượng, dải tô, nến, đường, mức, hình vẽ, giá cuối, con trỏ
-  cx.save();
-  cx.beginPath(); cx.rect(0, 0, L.plotW, L.mainH); cx.clip();
-
-  if (L.volH &gt; 8 &amp;&amp; vmax &gt; 0) {
-    const bw = Math.max(1, S.barW * 0.7), base = L.mainH - 2, maxH = L.volH - 6;
-    for (let i = iL; i &lt;= iR; i++) {
-      const b = bars[i], h = b.v / vmax * maxH;
-      cx.fillStyle = b.c &gt;= b.o ? COL.volUp : COL.volDn;
-      cx.fillRect(xOf(i) - bw / 2, base - h, bw, h);
-    }
-  }
-
-  for (const o of ovs) if (o.r.band) drawBand(o.r, iL, iR);
-
-  const bodyW = Math.max(1, Math.round(S.barW * 0.7));
-  for (let i = iL; i &lt;= iR; i++) {
-    const bc = bars[i], xc = Math.round(xOf(i)), col = bc.c &gt;= bc.o ? COL.up : COL.down;
-    cx.fillStyle = col; cx.strokeStyle = col; cx.lineWidth = 1;
-    cx.beginPath(); cx.moveTo(xc + 0.5, yOf(bc.h)); cx.lineTo(xc + 0.5, yOf(bc.l)); cx.stroke();
-    const yo = yOf(bc.o), yc = yOf(bc.c);
-    cx.fillRect(xc - Math.floor(bodyW / 2), Math.min(yo, yc), bodyW, Math.max(1, Math.abs(yc - yo)));
-  }
-
-  for (const o of ovs) {
-    for (const ln of o.r.lines) {
-      cx.setLineDash(ln.dash || []);
-      polyline(ln.v, Math.max(0, iL - 1), iR, yOf, ln.color, ln.w || (ln.thin ? 1 : 1.5));
-      cx.setLineDash([]);
-    }
-    for (const lv of o.r.levels || []) {
-      if (lv.v &lt; VP.pMin || lv.v &gt; VP.pMax) continue;
-      const y = Math.round(yOf(lv.v)) + 0.5;
-      cx.setLineDash([5, 4]); cx.strokeStyle = lv.color; cx.lineWidth = 1;
-      cx.beginPath(); cx.moveTo(0, y); cx.lineTo(L.plotW, y); cx.stroke();
-      cx.setLineDash([]);
-      cx.fillStyle = lv.color; cx.textAlign = lv.right ? &#x27;right&#x27; : &#x27;left&#x27;;
-      cx.fillText(lv.text + &#x27;  &#x27; + lv.v.toFixed(2), lv.right ? L.plotW - 8 : 8, y - 8);
-      cx.textAlign = &#x27;left&#x27;;
-    }
-  }
-
-  // Nhãn tín hiệu trên giá: BUY và BUY P nằm dưới nến, SELL và SELL P nằm trên nến; nhãn cùng nến được xếp chồng
-  const stacked = {};
-  for (const o of ovs) {
-    for (const mk of o.r.marks || []) {
-      if (mk.i &lt; iL || mk.i &gt; iR) continue;
-      const key = mk.i + (mk.up ? &#x27;u&#x27; : &#x27;d&#x27;), k = stacked[key] || 0;
-      stacked[key] = k + 1;
-      const bc = bars[mk.i], xc = xOf(mk.i);
-      if (mk.up) drawMark(xc, yOf(bc.l) + 6 + k * 16, mk.text, COL.up);
-      else drawMark(xc, yOf(bc.h) - 20 - k * 16, mk.text, COL.down);
-    }
-  }
-
-  for (const d of S.drawings) {
-    if (d.type === &#x27;fan&#x27;) { drawFan(d, bars); continue; }
-    if (TREND_TYPES.has(d.type)) { drawTrend(d, bars); continue; }
-    if (d.type === &#x27;hline&#x27;) {
-      const yh = yOf(d.p);
-      if (yh &lt; L.candleTop || yh &gt; L.candleBottom) continue;
-      const y = Math.round(yh) + 0.5;
-      cx.strokeStyle = COL.hline; cx.lineWidth = 1; cx.setLineDash([6, 4]);
-      cx.beginPath(); cx.moveTo(0, y); cx.lineTo(L.plotW, y); cx.stroke();
-      cx.setLineDash([]);
-      tags.push({ y: yh, text: d.p.toFixed(2), bg: COL.hline, fg: COL.bg });
-    }
-  }
-
-  if (selValid() &amp;&amp; S.mode === &#x27;pan&#x27;) {
-    cx.save();
-    cx.shadowColor = DRAW_COL;
-    cx.shadowBlur = 10;
-    drawSelShape(selDraw, bars);
-    cx.restore();
-    drawSelTag(bars);
-  }
-  drawPending(bars);
-  if (S.pendingFan) {
-    const i = nearestIndex(bars, S.pendingFan.t);
-    cx.fillStyle = COL.fan;
-    cx.beginPath(); cx.arc(xOf(i), yOf(S.pendingFan.p), 4, 0, Math.PI * 2); cx.fill();
-  }
-
-  const last = bars[n - 1], lastUp = last.c &gt;= last.o;
-  if (last.c &gt;= VP.pMin &amp;&amp; last.c &lt;= VP.pMax) {
-    const yl = Math.round(yOf(last.c)) + 0.5;
-    cx.strokeStyle = lastUp ? COL.up : COL.down; cx.lineWidth = 1; cx.setLineDash([2, 3]);
-    cx.beginPath(); cx.moveTo(0, yl); cx.lineTo(L.plotW, yl); cx.stroke();
-    cx.setLineDash([]);
-    tags.push({ y: yOf(last.c), text: last.c.toFixed(2), bg: lastUp ? COL.up : COL.down, fg: COL.bg });
-  }
-
-  if (crInMain) {
-    const yc = Math.round(cr.y) + 0.5;
-    cx.strokeStyle = COL.cross; cx.lineWidth = 1; cx.setLineDash([3, 3]);
-    cx.beginPath(); cx.moveTo(0, yc); cx.lineTo(L.plotW, yc); cx.stroke();
-    cx.setLineDash([]);
-    if (cr.y &gt;= L.candleTop &amp;&amp; cr.y &lt;= L.candleBottom) {
-      tags.push({ y: cr.y, text: priceAtY(cr.y).toFixed(2), bg: COL.box, fg: COL.text });
-    }
-  }
-  cx.restore();
-
-  // Các vùng chỉ báo dao động, mỗi vùng có thang riêng
-  pns.forEach((pn, k) =&gt; {
-    const def = pn.def, r = pn.r;
-    const top = L.mainH + k * L.paneH, bot = top + L.paneH;
-    let lo2 = Infinity, hi2 = -Infinity;
-    for (const ln of r.lines) {
-      for (let i = iL; i &lt;= iR; i++) {
-        const v = ln.v[i];
-        if (Number.isFinite(v)) {
-          if (v &lt; lo2) lo2 = v;
-          if (v &gt; hi2) hi2 = v;
-        }
-      }
-    }
-    for (const lv of def.levels) {
-      if (lv.v &lt; lo2) lo2 = lv.v;
-      if (lv.v &gt; hi2) hi2 = lv.v;
-    }
-    if (def.range) {
-      lo2 = def.range[0];
-      hi2 = def.range[1];
-    } else {
-      if (!Number.isFinite(lo2) || !Number.isFinite(hi2)) { lo2 = 0; hi2 = 1; }
-      if (def.zero) { lo2 = Math.min(lo2, 0); hi2 = Math.max(hi2, 0); }
-      if (hi2 - lo2 &lt; 1e-9) hi2 = lo2 + 1;
-      const pd = (hi2 - lo2) * 0.1;
-      lo2 -= pd;
-      hi2 += pd;
-    }
-    const yP = v =&gt; top + 6 + (hi2 - v) / (hi2 - lo2) * (L.paneH - 12);
-
-    cx.strokeStyle = COL.line; cx.lineWidth = 1;
-    cx.beginPath(); cx.moveTo(0, Math.round(top) + 0.5); cx.lineTo(L.w, Math.round(top) + 0.5); cx.stroke();
-
-    cx.save();
-    cx.beginPath(); cx.rect(0, top, L.plotW, L.paneH); cx.clip();
-    cx.setLineDash([4, 4]); cx.strokeStyle = COL.grid; cx.lineWidth = 1;
-    for (const lv of def.levels) {
-      const y = Math.round(yP(lv.v)) + 0.5;
-      cx.beginPath(); cx.moveTo(0, y); cx.lineTo(L.plotW, y); cx.stroke();
-    }
-    cx.setLineDash([]);
-    for (const ln of r.lines) {
-      if (ln.type === &#x27;hist&#x27;) {
-        const bw = Math.max(1, Math.round(S.barW * 0.6)), y0 = yP(0);
-        for (let i = iL; i &lt;= iR; i++) {
-          const v = ln.v[i];
-          if (!Number.isFinite(v)) continue;
-          const yv = yP(v);
-          cx.fillStyle = v &gt;= 0 ? ln.up : ln.dn;
-          cx.fillRect(Math.round(xOf(i)) - Math.floor(bw / 2), Math.min(y0, yv), bw, Math.max(1, Math.abs(yv - y0)));
-        }
-      } else {
-        polyline(ln.v, Math.max(0, iL - 1), iR, yP, ln.color, ln.thin ? 1 : 1.4);
-      }
-    }
-    // Nhãn Buy / Sell của TRIX: Buy nằm sát đáy ô, Sell nằm sát đỉnh ô
-    for (const mk of r.marks || []) {
-      if (mk.i &lt; iL || mk.i &gt; iR) continue;
-      drawMark(xOf(mk.i), mk.up ? bot - 17 : top + 3, mk.text, mk.up ? COL.up : COL.down);
-    }
-    if (crInPlot &amp;&amp; cr.y &gt;= top &amp;&amp; cr.y &lt; bot) {
-      const yc = Math.round(cr.y) + 0.5;
-      cx.strokeStyle = COL.cross; cx.lineWidth = 1; cx.setLineDash([3, 3]);
-      cx.beginPath(); cx.moveTo(0, yc); cx.lineTo(L.plotW, yc); cx.stroke();
-      cx.setLineDash([]);
-      const vv = hi2 - (cr.y - top - 6) / (L.paneH - 12) * (hi2 - lo2);
-      tags.push({ y: cr.y, text: fmtVal(vv, def.dec), bg: COL.box, fg: COL.text });
-    }
-    cx.restore();
-
-    // Nhãn trục phải: các mức tham chiếu và mốc đẹp
-    const pstep = niceStep(hi2 - lo2, 3);
-    const pdec = clamp(-Math.floor(Math.log10(pstep)), 0, 4);
-    const levelYs = [];
-    for (const lv of def.levels) {
-      const y = yP(lv.v);
-      levelYs.push(y);
-      axis.push({ y: y, text: fmtVal(lv.v, pdec), color: COL.muted });
-    }
-    for (let kk = Math.ceil(lo2 / pstep); kk * pstep &lt;= hi2; kk++) {
-      const y = yP(kk * pstep);
-      if (y &lt; top + 4 || y &gt; bot - 4) continue;
-      if (levelYs.some(ly =&gt; Math.abs(ly - y) &lt; 12)) continue;
-      axis.push({ y: y, text: (kk * pstep).toFixed(pdec), color: COL.muted });
-    }
-  });
-
-  // Đường dọc của con trỏ, trên toàn khung
-  if (crInPlot &amp;&amp; cr.y &gt;= 0 &amp;&amp; cr.y &lt;= L.totalH) {
-    const xl = Math.round(cr.x) + 0.5;
-    cx.save();
-    cx.beginPath(); cx.rect(0, 0, L.plotW, L.totalH); cx.clip();
-    cx.strokeStyle = COL.cross; cx.lineWidth = 1; cx.setLineDash([3, 3]);
-    cx.beginPath(); cx.moveTo(xl, 0); cx.lineTo(xl, L.totalH); cx.stroke();
-    cx.setLineDash([]);
-    cx.restore();
-  }
-
   // Nhãn trục (ngoài vùng cắt xén)
   cx.textAlign = &#x27;left&#x27;;
   for (const t of axis) {
@@ -1695,8 +1365,8 @@ function acctSaveClick() {
 const TD_KEY = &#x27;xau-chart-twelvedata-v1&#x27;;   // khoá API (chỉ đọc giá), mã, khung gốc, chu kỳ cập nhật
 const TD_IV = { M1: &#x27;1min&#x27;, M5: &#x27;5min&#x27;, M15: &#x27;15min&#x27;, M30: &#x27;30min&#x27;, H1: &#x27;1h&#x27; };
 const OA_HOST = { practice: &#x27;https://api-fxpractice.oanda.com&#x27;, live: &#x27;https://api-fxtrade.oanda.com&#x27; };
-const FD_NAME = { twelve: &#x27;Twelve Data&#x27;, oanda: &#x27;OANDA&#x27; };
-const FD_SYM = { twelve: &#x27;XAU/USD&#x27;, oanda: &#x27;XAU_USD&#x27; };
+const FD_NAME = { twelve: &#x27;Twelve Data&#x27;, oanda: &#x27;OANDA&#x27;, vps: &#x27;Exness/MT5 qua VPS&#x27; };
+const FD_SYM = { twelve: &#x27;XAU/USD&#x27;, oanda: &#x27;XAU_USD&#x27;, vps: &#x27;&#x27; };   // VPS: để trống = mã đầu tiên trong XIKE_SYMBOLS
 let tdTimer = 0, tdBusy = false;
 
 function tdStored() {
@@ -1707,11 +1377,12 @@ function fdShow() {
   const pv = $(&#x27;fdProv&#x27;).value;
   $(&#x27;fdTwelve&#x27;).hidden = pv !== &#x27;twelve&#x27;;
   $(&#x27;fdOanda&#x27;).hidden = pv !== &#x27;oanda&#x27;;
+  if ($(&#x27;fdVps&#x27;)) $(&#x27;fdVps&#x27;).hidden = pv !== &#x27;vps&#x27;;
 }
 // Đổi nhà cung cấp: đổi mã mặc định cho đúng cách viết của nhà đó (XAU/USD ↔ XAU_USD)
 function fdProvChange() {
   const pv = $(&#x27;fdProv&#x27;).value, sym = $(&#x27;tdSym&#x27;).value.trim();
-  if (!sym || Object.values(FD_SYM).includes(sym)) $(&#x27;tdSym&#x27;).value = FD_SYM[pv];
+  if (!sym || Object.values(FD_SYM).includes(sym) || pv === &#x27;vps&#x27;) $(&#x27;tdSym&#x27;).value = FD_SYM[pv];
   fdShow();
 }
 function tdFill() {
@@ -1777,22 +1448,37 @@ async function oandaFetch(cfg, size) {
   const list = Array.isArray(data.candles) ? data.candles : [];
   return list.filter(k =&gt; k &amp;&amp; k.mid).map(k =&gt; ({ t: tdTime(k.time), o: +k.mid.o, h: +k.mid.h, l: +k.mid.l, c: +k.mid.c, v: +k.volume || 0 }));
 }
+// Nến từ cầu nối VPS (chế độ Exness API hoặc MT5): GET /candles, cùng địa chỉ và token ở thẻ Tài khoản MT5
+async function vpsFetch(cfg, size) {
+  const acc = acctStored();
+  const base = acctBase(acc.url), token = String(acc.token || &#x27;&#x27;);
+  if (!base || !token) throw new Error(&#x27;Chưa có địa chỉ VPS và token. Nhập ở thẻ Tài khoản MT5 (qua VPS) bên dưới.&#x27;);
+  const q = new URLSearchParams({ tf: cfg.tf, count: String(Math.min(5000, size)) });
+  if (cfg.sym) q.set(&#x27;symbol&#x27;, cfg.sym);
+  const { res, data } = await fdGet(base + &#x27;/candles?&#x27; + q.toString(), { &#x27;X-Token&#x27;: token }, &#x27;VPS&#x27;);
+  if (!res.ok || data.ok === false) {
+    throw new Error(res.status === 401 ? &#x27;Sai token VPS.&#x27; : res.status === 404 ? &#x27;VPS chưa có cổng /candles. Cập nhật server.py mới.&#x27;
+      : (data.error ? data.error + (data.detail ? &#x27; (&#x27; + data.detail + &#x27;)&#x27; : &#x27;&#x27;) : &#x27;VPS trả lỗi &#x27; + res.status + &#x27;.&#x27;));
+  }
+  if (data.symbol &amp;&amp; !cfg.sym) cfg.symShown = data.symbol;
+  return (Array.isArray(data.bars) ? data.bars : []).map(b =&gt; ({ t: +b.t, o: +b.o, h: +b.h, l: +b.l, c: +b.c, v: +b.v || 0 }));
+}
 async function tdFetch(cfg, size) {
-  const bars = await (cfg.prov === &#x27;oanda&#x27; ? oandaFetch(cfg, size) : twelveFetch(cfg, size));
+  const bars = await (cfg.prov === &#x27;oanda&#x27; ? oandaFetch(cfg, size) : cfg.prov === &#x27;vps&#x27; ? vpsFetch(cfg, size) : twelveFetch(cfg, size));
   return bars.filter(b =&gt; [b.t, b.o, b.h, b.l, b.c].every(Number.isFinite)).sort((a, b) =&gt; a.t - b.t);
 }
 function tdRead() {
   const prov = FD_NAME[$(&#x27;fdProv&#x27;).value] ? $(&#x27;fdProv&#x27;).value : &#x27;twelve&#x27;;
   const key = $(&#x27;tdKey&#x27;).value.trim(), oaKey = $(&#x27;oaKey&#x27;).value.trim(), oaEnv = OA_HOST[$(&#x27;oaEnv&#x27;).value] ? $(&#x27;oaEnv&#x27;).value : &#x27;practice&#x27;;
-  const sym = $(&#x27;tdSym&#x27;).value.trim() || FD_SYM[prov], tf = $(&#x27;tdTf&#x27;).value;
+  const sym = $(&#x27;tdSym&#x27;).value.trim() || FD_SYM[prov], tf = $(&#x27;tdTf&#x27;).value;   // VPS: mã trống = mã mặc định trên VPS
   const every = Math.max(0, Math.round(Number($(&#x27;tdEvery&#x27;).value) || 0));
   return { prov, key, oaKey, oaEnv, sym, tf: TD_IV[tf] ? tf : &#x27;M15&#x27;, every: every &amp;&amp; every &lt; 30 ? 30 : every };
 }
-const fdReady = cfg =&gt; (cfg.prov === &#x27;oanda&#x27; ? !!cfg.oaKey : !!cfg.key);
-const fdLabel = cfg =&gt; &#x27;Live &#x27; + FD_NAME[cfg.prov || &#x27;twelve&#x27;] + &#x27; &#x27; + cfg.sym;
+const fdReady = cfg =&gt; (cfg.prov === &#x27;oanda&#x27; ? !!cfg.oaKey : cfg.prov === &#x27;vps&#x27; ? !!(acctBase(acctStored().url) &amp;&amp; acctStored().token) : !!cfg.key);
+const fdLabel = cfg =&gt; &#x27;Live &#x27; + FD_NAME[cfg.prov || &#x27;twelve&#x27;] + &#x27; &#x27; + (cfg.sym || cfg.symShown || &#x27;&#x27;);
 async function tdLoadClick() {
   const cfg = tdRead();
-  if (!fdReady(cfg)) { tdSay(cfg.prov === &#x27;oanda&#x27; ? &#x27;Dán token OANDA trước.&#x27; : &#x27;Dán khoá API Twelve Data trước.&#x27;, &#x27;err&#x27;); return; }
+  if (!fdReady(cfg)) { tdSay(cfg.prov === &#x27;oanda&#x27; ? &#x27;Dán token OANDA trước.&#x27; : cfg.prov === &#x27;vps&#x27; ? &#x27;Nhập địa chỉ VPS và token ở thẻ Tài khoản MT5 (qua VPS), bấm Lưu và kết nối, rồi tải nến.&#x27; : &#x27;Dán khoá API Twelve Data trước.&#x27;, &#x27;err&#x27;); return; }
   try { localStorage.setItem(TD_KEY, JSON.stringify(cfg)); } catch (err) { /* không lưu được: vẫn dùng trong phiên */ }
   $(&#x27;tdEvery&#x27;).value = String(cfg.every);
   clearInterval(tdTimer);
@@ -1816,7 +1502,7 @@ async function tdLoadClick() {
 }
 // Cập nhật vài nến mới nhất; bỏ qua khi app ẩn hoặc không ở tab Biểu đồ để tiết kiệm lượt gọi
 async function tdTick() {
-  if (tdBusy || document.hidden || window.innerWidth &lt; 10 || !/^Live (Twelve Data|OANDA) /.test(baseName)) return;
+  if (tdBusy || document.hidden || window.innerWidth &lt; 10 || !/^Live (Twelve Data|OANDA|Exness\/MT5 qua VPS) /.test(baseName)) return;
   const cfg = tdStored();
   if (!fdReady(cfg)) return;
   tdBusy = true;
@@ -1866,7 +1552,7 @@ function aiSnapshot() {
   for (let i = Math.max(0, N - 100); i &lt; N; i++) { hi = Math.max(hi, h[i]); lo = Math.min(lo, l[i]); }
   const last = bars[N - 1];
   const text = [
-    &#x27;Mã: &#x27; + (baseName.replace(/^Live (Twelve Data|OANDA) /, &#x27;&#x27;) || &#x27;XAUUSD&#x27;) + &#x27; · khung &#x27; + S.tf + &#x27; · giờ VN (UTC&#x27; + (S.tz &gt;= 0 ? &#x27;+&#x27; : &#x27;&#x27;) + S.tz + &#x27;) · nguồn: &#x27; + baseName,
+    &#x27;Mã: &#x27; + (baseName.replace(/^Live (Twelve Data|OANDA|Exness\/MT5 qua VPS) /, &#x27;&#x27;) || &#x27;XAUUSD&#x27;) + &#x27; · khung &#x27; + S.tf + &#x27; · giờ VN (UTC&#x27; + (S.tz &gt;= 0 ? &#x27;+&#x27; : &#x27;&#x27;) + S.tz + &#x27;) · nguồn: &#x27; + baseName,
     &#x27;Giá hiện tại (đóng nến cuối, nến cuối có thể chưa đóng): &#x27; + f(last.c, 2) + &#x27; lúc &#x27; + fmtTs(last.t, &#x27;dhm&#x27;),
     &#x27;Đỉnh/đáy 100 nến gần nhất: &#x27; + f(hi, 2) + &#x27; / &#x27; + f(lo, 2),
     &#x27;Tín hiệu trong 60 nến gần nhất: &#x27; + (marks.length ? marks.map(m =&gt; m.t + &#x27; lúc &#x27; + fmtTs(bars[m.i].t, &#x27;dhm&#x27;)).join(&#x27;; &#x27;) : &#x27;không có&#x27;),
@@ -2044,5 +1730,238 @@ async function mtLogoutClick() {
   try { await ordPost(vps.base, vps.token, &#x27;/logout&#x27;, {}); mtSay(&#x27;Đã ngắt MT5 trên VPS.&#x27;, &#x27;&#x27;, true); }
   catch (err) { mtSay(err.message || &#x27;Lỗi không rõ.&#x27;, &#x27;err&#x27;, true); }
   acctRefresh();
+}
+
+/* ===== Đặt lệnh MT5 qua VPS (POST /order, POST /close) =====
+   Chốt an toàn: tắt sẵn, bắt buộc SL, giới hạn lot, xác nhận hai lần, không tự gửi lại khi lỗi mạng. */
+const ORD_KEY = &#x27;xau-chart-order-v1&#x27;;      // mã, lot, lot tối đa, ghi chú (không lưu SL/TP, không lưu trạng thái bật)
+const ORD_ARM_MS = 6000;
+let ordArm = null, ordArmTimer = 0, ordBusy = false;
+
+function ordLoad() {
+  let v = {};
+  try { v = JSON.parse(localStorage.getItem(ORD_KEY) || &#x27;null&#x27;) || {}; } catch (err) { v = {}; }
+  if (v.sym) $(&#x27;ordSym&#x27;).value = v.sym;
+  if (v.vol) $(&#x27;ordVol&#x27;).value = v.vol;
+  if (v.max) $(&#x27;ordMax&#x27;).value = v.max;
+  if (v.note) $(&#x27;ordNote&#x27;).value = v.note;
+  $(&#x27;ordEnable&#x27;).checked = false;
+  ordSync();
+}
+function ordStep(dir) {
+  const v = ordNum(&#x27;ordVol&#x27;);
+  const cur = Number.isFinite(v) &amp;&amp; v &gt; 0 ? v : 0.01;
+  const nx = Math.max(0.01, Math.round((cur + dir * 0.01) * 100) / 100);
+  $(&#x27;ordVol&#x27;).value = nx.toFixed(2);
+  $(&#x27;ordVol&#x27;).dispatchEvent(new Event(&#x27;input&#x27;));
+  ordStore();
+}
+// Giá tham khảo trên nút BUY/SELL (giá đóng nến mới nhất của biểu đồ live)
+function ordPrices() {
+  const px = ordChartPrice();
+  const t = px === null ? &#x27;chưa có giá live&#x27; : String(px);
+  $(&#x27;ordBuyPx&#x27;).textContent = t;
+  $(&#x27;ordSellPx&#x27;).textContent = t;
+}
+function ordStore() {
+  const v = { sym: $(&#x27;ordSym&#x27;).value.trim(), vol: $(&#x27;ordVol&#x27;).value, max: $(&#x27;ordMax&#x27;).value, note: $(&#x27;ordNote&#x27;).value.trim() };
+  try { localStorage.setItem(ORD_KEY, JSON.stringify(v)); } catch (err) { /* không lưu được: vẫn dùng trong phiên */ }
+}
+function ordSay(text, kind) {
+  const el = $(&#x27;ordMsg&#x27;);
+  el.textContent = text;
+  el.className = &#x27;note ord-msg&#x27; + (kind ? &#x27; &#x27; + kind : &#x27;&#x27;);
+}
+function ordDisarm() {
+  clearTimeout(ordArmTimer);
+  ordArmTimer = 0;
+  ordArm = null;
+  $(&#x27;ordBuy&#x27;).classList.remove(&#x27;arm&#x27;);
+  $(&#x27;ordSell&#x27;).classList.remove(&#x27;arm&#x27;);
+  $(&#x27;ordBuy&#x27;).querySelector(&#x27;b&#x27;).textContent = &#x27;BUY&#x27;;
+  $(&#x27;ordSell&#x27;).querySelector(&#x27;b&#x27;).textContent = &#x27;SELL&#x27;;
+}
+function ordSync() {
+  const on = $(&#x27;ordEnable&#x27;).checked &amp;&amp; !ordBusy;
+  $(&#x27;ordBuy&#x27;).disabled = !on;
+  $(&#x27;ordSell&#x27;).disabled = !on;
+  if (!on) ordDisarm();
+  if (!$(&#x27;ordEnable&#x27;).checked &amp;&amp; !ordBusy) ordSay(&#x27;Đặt lệnh đang tắt.&#x27;);
+  else if (on &amp;&amp; !ordArm) ordSay(&#x27;Nhập lot và SL, rồi bấm BUY hoặc SELL.&#x27;);
+}
+// Giá cuối trên biểu đồ, chỉ dùng khi đang nhận nến live (nến demo/file có thể lệch xa giá thật)
+function ordChartPrice() {
+  if (!hasData || !BASE.length || !/^Live/.test(baseName)) return null;
+  const c = Number(BASE[BASE.length - 1].c);
+  return Number.isFinite(c) ? Math.round(c * 100) / 100 : null;
+}
+function ordNum(id) {
+  const raw = String($(id).value || &#x27;&#x27;).trim().replace(&#x27;,&#x27;, &#x27;.&#x27;);
+  if (!raw) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : NaN;
+}
+// Trả về { order } nếu hợp lệ, hoặc { error }
+function ordRead(side) {
+  const cfg = acctStored();
+  const base = acctBase(cfg.url), token = String(cfg.token || &#x27;&#x27;);
+  if (!base || !token) return { error: &#x27;Chưa kết nối VPS. Nhập địa chỉ và token ở trên trước.&#x27; };
+  const symbol = $(&#x27;ordSym&#x27;).value.trim();   // giữ hoa/thường: Exness Standard dùng XAUUSDm
+  if (!/^[A-Za-z0-9._#-]{3,20}$/.test(symbol)) return { error: &#x27;Mã không hợp lệ.&#x27; };
+  const vol = ordNum(&#x27;ordVol&#x27;), max = ordNum(&#x27;ordMax&#x27;), sl = ordNum(&#x27;ordSl&#x27;), tp = ordNum(&#x27;ordTp&#x27;);
+  if (!(vol &gt; 0)) return { error: &#x27;Khối lượng phải lớn hơn 0.&#x27; };
+  if (Math.abs(vol * 100 - Math.round(vol * 100)) &gt; 1e-6) return { error: &#x27;Khối lượng chỉ lấy 2 số lẻ (bước 0.01).&#x27; };
+  if (!(max &gt; 0)) return { error: &#x27;Lot tối đa phải lớn hơn 0.&#x27; };
+  if (vol &gt; max + 1e-9) return { error: &#x27;Khối lượng &#x27; + vol + &#x27; vượt lot tối đa &#x27; + max + &#x27;.&#x27; };
+  if (sl === null) return { error: &#x27;Phải có SL.&#x27; };
+  if (!(sl &gt; 0)) return { error: &#x27;SL không hợp lệ.&#x27; };
+  if (tp !== null &amp;&amp; !(tp &gt; 0)) return { error: &#x27;TP không hợp lệ.&#x27; };
+  if (tp !== null) {
+    if (side === &#x27;BUY&#x27; &amp;&amp; !(tp &gt; sl)) return { error: &#x27;Lệnh BUY: TP phải cao hơn SL.&#x27; };
+    if (side === &#x27;SELL&#x27; &amp;&amp; !(tp &lt; sl)) return { error: &#x27;Lệnh SELL: TP phải thấp hơn SL.&#x27; };
+  }
+  const px = ordChartPrice();
+  if (px !== null) {
+    if (side === &#x27;BUY&#x27; &amp;&amp; !(sl &lt; px)) return { error: &#x27;Lệnh BUY: SL phải thấp hơn giá hiện tại &#x27; + px + &#x27;.&#x27; };
+    if (side === &#x27;SELL&#x27; &amp;&amp; !(sl &gt; px)) return { error: &#x27;Lệnh SELL: SL phải cao hơn giá hiện tại &#x27; + px + &#x27;.&#x27; };
+    if (tp !== null &amp;&amp; side === &#x27;BUY&#x27; &amp;&amp; !(tp &gt; px)) return { error: &#x27;Lệnh BUY: TP phải cao hơn giá hiện tại &#x27; + px + &#x27;.&#x27; };
+    if (tp !== null &amp;&amp; side === &#x27;SELL&#x27; &amp;&amp; !(tp &lt; px)) return { error: &#x27;Lệnh SELL: TP phải thấp hơn giá hiện tại &#x27; + px + &#x27;.&#x27; };
+  }
+  const note = $(&#x27;ordNote&#x27;).value.trim().replace(/[^\w .-]/g, &#x27;&#x27;).slice(0, 20);
+  return { base, token, px, order: { symbol, side, volume: Math.round(vol * 100) / 100, sl, tp: tp === null ? 0 : tp, comment: note || &#x27;XIKE&#x27; } };
+}
+// Gửi POST tới VPS. Không tự thử lại: lỗi mạng có thể là lệnh đã khớp mà chưa kịp trả lời.
+async function ordPost(base, token, path, body) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() =&gt; ctl.abort(), 15000);
+  try {
+    const res = await fetch(base + path, {
+      method: &#x27;POST&#x27;, cache: &#x27;no-store&#x27;, signal: ctl.signal,
+      headers: { &#x27;X-Token&#x27;: token, &#x27;Content-Type&#x27;: &#x27;application/json&#x27; },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json().catch(() =&gt; ({}));
+    if (res.status === 401) throw new Error(&#x27;Sai token.&#x27;);
+    if (res.status === 404 || res.status === 405) throw new Error(&#x27;VPS chưa có cổng &#x27; + path + &#x27;. Cần cập nhật code VPS.&#x27;);
+    if (!res.ok || data.ok === false) {
+      const why = data.error || data.comment || (&#x27;VPS trả lỗi &#x27; + res.status);
+      throw new Error(String(why) + (data.retcode ? &#x27; (mã &#x27; + data.retcode + &#x27;)&#x27; : &#x27;&#x27;) + &#x27;.&#x27;);
+    }
+    return data;
+  } catch (err) {
+    if (err.name === &#x27;AbortError&#x27;) throw new Error(&#x27;Hết thời gian chờ VPS. Lệnh CÓ THỂ đã khớp: xem lại Lệnh đang mở trước khi đặt lại.&#x27;);
+    if (err instanceof TypeError) throw new Error(&#x27;Không gửi được tới VPS. Lệnh CÓ THỂ đã tới VPS: xem lại Lệnh đang mở trước khi đặt lại.&#x27;);
+    throw err;
+  } finally { clearTimeout(timer); }
+}
+function ordId() {
+  const a = new Uint32Array(2);
+  (window.crypto || {}).getRandomValues ? crypto.getRandomValues(a) : (a[0] = Math.random() * 4e9, a[1] = Date.now());
+  return &#x27;xk&#x27; + a[0].toString(36) + a[1].toString(36);
+}
+async function ordClick(side) {
+  if (ordBusy || !$(&#x27;ordEnable&#x27;).checked) return;
+  const r = ordRead(side);
+  if (r.error) { ordDisarm(); ordSay(r.error, &#x27;err&#x27;); return; }
+  const o = r.order;
+  const sig = JSON.stringify(o);
+  // Bấm lần đầu: hiện lại lệnh và chờ xác nhận
+  if (!ordArm || ordArm.side !== side || ordArm.sig !== sig) {
+    ordDisarm();
+    ordArm = { side, sig, id: ordId() };
+    const bt = $(side === &#x27;BUY&#x27; ? &#x27;ordBuy&#x27; : &#x27;ordSell&#x27;);
+    bt.classList.add(&#x27;arm&#x27;);
+    bt.querySelector(&#x27;b&#x27;).textContent = &#x27;Xác nhận &#x27; + side;
+    const dist = r.px !== null ? &#x27; · SL cách &#x27; + Math.round(Math.abs(r.px - o.sl) * 10) + &#x27; pip&#x27; : &#x27;&#x27;;
+    ordSay(&#x27;Bấm lần nữa để gửi: &#x27; + side + &#x27; &#x27; + o.volume.toFixed(2) + &#x27; lot &#x27; + o.symbol + &#x27; · SL &#x27; + o.sl + &#x27; · TP &#x27; + (o.tp || &#x27;—&#x27;) + dist, &#x27;&#x27;);
+    ordArmTimer = setTimeout(() =&gt; { ordDisarm(); ordSay(&#x27;Đã huỷ xác nhận (quá 6 giây).&#x27;); }, ORD_ARM_MS);
+    return;
+  }
+  // Bấm lần hai: gửi đúng một lần
+  const id = ordArm.id;
+  ordDisarm();
+  ordBusy = true;
+  ordSync();
+  ordSay(&#x27;Đang gửi &#x27; + side + &#x27; &#x27; + o.volume.toFixed(2) + &#x27; lot...&#x27;);
+  try {
+    const d = await ordPost(r.base, r.token, &#x27;/order&#x27;, Object.assign({ client_id: id }, o));
+    ordSay(&#x27;Đã khớp &#x27; + side + &#x27; &#x27; + o.volume.toFixed(2) + &#x27; lot&#x27; + (d.price ? &#x27; giá &#x27; + d.price : &#x27;&#x27;) + (d.ticket ? &#x27; · ticket &#x27; + d.ticket : &#x27;&#x27;) + &#x27;.&#x27;, &#x27;ok&#x27;);
+    $(&#x27;ordSl&#x27;).value = &#x27;&#x27;;
+    $(&#x27;ordTp&#x27;).value = &#x27;&#x27;;
+    say(&#x27;Đã đặt lệnh &#x27; + side + (d.ticket ? &#x27; #&#x27; + d.ticket : &#x27;&#x27;));
+  } catch (err) {
+    ordSay(&#x27;Không đặt được lệnh: &#x27; + (err.message || &#x27;Lỗi không rõ.&#x27;), &#x27;err&#x27;);
+  } finally {
+    ordBusy = false;
+    $(&#x27;ordBuy&#x27;).disabled = $(&#x27;ordSell&#x27;).disabled = !$(&#x27;ordEnable&#x27;).checked;
+    acctRefresh();
+  }
+}
+// Đóng một lệnh đang mở theo ticket (bấm 2 lần trong 6 giây)
+let closeArm = 0, closeArmTimer = 0;
+async function ordCloseClick(bt, ticket) {
+  if (ordBusy || !$(&#x27;ordEnable&#x27;).checked) return;
+  if (closeArm !== ticket) {
+    closeArm = ticket;
+    bt.textContent = &#x27;Xác nhận đóng&#x27;;
+    clearTimeout(closeArmTimer);
+    closeArmTimer = setTimeout(() =&gt; { closeArm = 0; bt.textContent = &#x27;Đóng&#x27;; }, ORD_ARM_MS);
+    return;
+  }
+  clearTimeout(closeArmTimer);
+  closeArm = 0;
+  const cfg = acctStored();
+  const base = acctBase(cfg.url), token = String(cfg.token || &#x27;&#x27;);
+  if (!base || !token) { ordSay(&#x27;Chưa kết nối VPS.&#x27;, &#x27;err&#x27;); return; }
+  ordBusy = true;
+  ordSync();
+  bt.disabled = true;
+  bt.textContent = &#x27;Đang đóng...&#x27;;
+  try {
+    const d = await ordPost(base, token, &#x27;/close&#x27;, { ticket, client_id: ordId() });
+    ordSay(&#x27;Đã đóng lệnh #&#x27; + ticket + (d.price ? &#x27; giá &#x27; + d.price : &#x27;&#x27;) + &#x27;.&#x27;, &#x27;ok&#x27;);
+  } catch (err) {
+    ordSay(&#x27;Không đóng được #&#x27; + ticket + &#x27;: &#x27; + (err.message || &#x27;Lỗi không rõ.&#x27;), &#x27;err&#x27;);
+  } finally {
+    ordBusy = false;
+    $(&#x27;ordBuy&#x27;).disabled = $(&#x27;ordSell&#x27;).disabled = !$(&#x27;ordEnable&#x27;).checked;
+    acctRefresh();
+  }
+}
+
+function start(st) {
+  cv = $(&#x27;cv&#x27;);
+  cx = cv.getContext(&#x27;2d&#x27;);
+  wrapEl = $(&#x27;wrap&#x27;);
+  statusEl = $(&#x27;status&#x27;);
+  DPR = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+  readTokens();
+  blockPat = makeHatch();
+  applyState(st || {});
+  loadView();
+  if (!st || !Array.isArray(st.drawings)) loadDrawings();
+  if (!st || !Array.isArray(st.inds)) loadInds();
+  setIcon($(&#x27;sheetBack&#x27;), &#x27;back&#x27;);
+  setIcon($(&#x27;sheetClose&#x27;), &#x27;close&#x27;);
+  buildChips();
+  buildTFButtons();
+  setOn(&#x27;bBlock&#x27;, S.showBlock);
+  syncSettings();
+  acctFill();
+  mtFill();
+  tdFill();
+  ordLoad();
+  updateIndBadge();
+  setMode(&#x27;pan&#x27;);
+  bindUI();
+  bindPointer();
+  resize();
+  if (typeof ResizeObserver !== &#x27;undefined&#x27;) new ResizeObserver(() =&gt; resize()).observe(wrapEl);
+  window.addEventListener(&#x27;resize&#x27;, resize);
+  if (XK_APP) { $(&#x27;bFull&#x27;).hidden = false; setFullBtn(); }
+  if (document.fonts &amp;&amp; document.fonts.ready) document.fonts.ready.then(schedule);
+  if (!XK_APP) loadDemo();                       // bản artifact: dữ liệu mô phỏng
+  else if (!xkLoadBars()) { updateInfo(); say(&#x27;Chưa có nến. Bấm Nạp file để nạp CSV, hoặc Demo.&#x27;); }
+  tdAutoStart();                                  // đã có khoá Twelve Data: tự tải nến thật
 }
 
