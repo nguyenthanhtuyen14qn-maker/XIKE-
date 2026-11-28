@@ -3480,6 +3480,10 @@ function fdShow() {
 function fdProvChange() {
   const pv = $(&#x27;fdProv&#x27;).value, sym = $(&#x27;tdSym&#x27;).value.trim();
   if (!sym || Object.values(FD_SYM).includes(sym) || pv === &#x27;vps&#x27;) $(&#x27;tdSym&#x27;).value = FD_SYM[pv];
+  // OANDA, VPS: mặc định thời gian thực (2 giây). Twelve Data miễn phí: 120 giây để không hết lượt gọi
+  const ev = Number($(&#x27;tdEvery&#x27;).value) || 0;
+  if (pv === &#x27;twelve&#x27; &amp;&amp; ev &gt; 0 &amp;&amp; ev &lt; 30) $(&#x27;tdEvery&#x27;).value = &#x27;120&#x27;;
+  if (pv !== &#x27;twelve&#x27; &amp;&amp; ev &gt;= 30) $(&#x27;tdEvery&#x27;).value = &#x27;2&#x27;;
   fdShow();
 }
 function tdFill() {
@@ -3569,7 +3573,9 @@ function tdRead() {
   const key = $(&#x27;tdKey&#x27;).value.trim(), oaKey = $(&#x27;oaKey&#x27;).value.trim(), oaEnv = OA_HOST[$(&#x27;oaEnv&#x27;).value] ? $(&#x27;oaEnv&#x27;).value : &#x27;practice&#x27;;
   const sym = $(&#x27;tdSym&#x27;).value.trim() || FD_SYM[prov], tf = $(&#x27;tdTf&#x27;).value;   // VPS: mã trống = mã mặc định trên VPS
   const every = Math.max(0, Math.round(Number($(&#x27;tdEvery&#x27;).value) || 0));
-  return { prov, key, oaKey, oaEnv, sym, tf: TD_IV[tf] ? tf : &#x27;M15&#x27;, every: every &amp;&amp; every &lt; 30 ? 30 : every };
+  // Twelve Data miễn phí: ít nhất 30 giây. OANDA, VPS: từ 1 giây (thời gian thực)
+  const minEv = prov === &#x27;twelve&#x27; ? 30 : 1;
+  return { prov, key, oaKey, oaEnv, sym, tf: TD_IV[tf] ? tf : &#x27;M15&#x27;, every: every &amp;&amp; every &lt; minEv ? minEv : every };
 }
 const fdReady = cfg =&gt; (cfg.prov === &#x27;oanda&#x27; ? !!cfg.oaKey : cfg.prov === &#x27;vps&#x27; ? !!(acctBase(acctStored().url) &amp;&amp; acctStored().token) : !!cfg.key);
 const fdLabel = cfg =&gt; &#x27;Live &#x27; + FD_NAME[cfg.prov || &#x27;twelve&#x27;] + &#x27; &#x27; + (cfg.sym || cfg.symShown || &#x27;&#x27;);
@@ -3590,7 +3596,7 @@ async function tdLoadClick() {
     clampAnchor();
     schedule();
     tdSay(FD_NAME[cfg.prov] + &#x27;: đã tải &#x27; + bars.length + &#x27; nến &#x27; + cfg.tf + &#x27; · nến cuối &#x27; + fmtTs(bars[bars.length - 1].t, &#x27;dhm&#x27;) +
-      (cfg.every ? &#x27; · tự cập nhật mỗi &#x27; + cfg.every + &#x27; giây&#x27; : &#x27;&#x27;), &#x27;ok&#x27;);
+      (cfg.every ? (cfg.every &lt;= 5 ? &#x27; · thời gian thực (mỗi &#x27; + cfg.every + &#x27; giây)&#x27; : &#x27; · tự cập nhật mỗi &#x27; + cfg.every + &#x27; giây&#x27;) : &#x27;&#x27;), &#x27;ok&#x27;);
     if (cfg.every) tdTimer = setInterval(tdTick, cfg.every * 1000);
   } catch (err) {
     tdSay(&#x27;Không kết nối được: &#x27; + (err.message || &#x27;Lỗi không rõ.&#x27;), &#x27;err&#x27;);
@@ -3605,9 +3611,10 @@ async function tdTick() {
   try {
     const bars = await tdFetch(cfg, 3);
     let n = 0;
-    for (const b of bars) if (xkUpsertBar(Object.assign({ sec: baseSec }, b))) n++;
+    XK_SAVE_LAZY = true;   // cập nhật dày: lưu nến vào máy thưa thôi, đỡ nặng máy
+    try { for (const b of bars) if (xkUpsertBar(Object.assign({ sec: baseSec }, b))) n++; } finally { XK_SAVE_LAZY = false; }
     baseName = fdLabel(cfg);
-    if (n) tdSay(FD_NAME[cfg.prov || &#x27;twelve&#x27;] + &#x27;: cập nhật &#x27; + acctClock() + &#x27; · giá &#x27; + bars[bars.length - 1].c);
+    if (n) tdSay(FD_NAME[cfg.prov || &#x27;twelve&#x27;] + (cfg.every &lt;= 5 ? &#x27; · thời gian thực · &#x27; : &#x27;: cập nhật &#x27;) + acctClock() + &#x27; · giá &#x27; + bars[bars.length - 1].c);
   } catch (err) {
     tdSay(err.message + &#x27; (lần cập nhật &#x27; + acctClock() + &#x27;)&#x27;);
   } finally { tdBusy = false; }
@@ -4100,8 +4107,11 @@ function xkBarFrom(o) {
   return b;
 }
 
+let XK_SAVE_LAZY = false, xkSavedAt = 0;
 function xkSaveBars() {
   if (!XK_APP) return;
+  if (XK_SAVE_LAZY &amp;&amp; Date.now() - xkSavedAt &lt; 30000) return;
+  xkSavedAt = Date.now();
   try { localStorage.setItem(XK_STORE, JSON.stringify({ sec: baseSec, name: baseName, bars: BASE.slice(-XK_KEEP) })); }
   catch (err) { /* hết bộ nhớ: biểu đồ vẫn chạy, chỉ không lưu được */ }
 }
@@ -4288,8 +4298,9 @@ else xkBoot();
           </select>
         </label>
         <label>Tự cập nhật (giây, 0 = tắt)
-          <input id="tdEvery" type="text" inputmode="numeric" value="120">
+          <input id="tdEvery" type="text" inputmode="numeric" value="2">
         </label>
+        <p class="hint"><b>Thời gian thực</b>: OANDA và Exness/MT5 qua VPS cập nhật được mỗi 1–2 giây, nến đang chạy nhảy theo giá. Twelve Data gói miễn phí chỉ 800 lượt/ngày nên tối thiểu 30 giây (nên để 120).</p>
       </details>
     </div>
 

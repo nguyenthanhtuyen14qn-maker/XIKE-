@@ -1,238 +1,3 @@
-/* ===== Chọn bản vẽ rồi bấm Xóa (chế độ xem) ===== */
-let selDraw = null, selAt = null;
-function selValid() { return !!selDraw &amp;&amp; S.drawings.indexOf(selDraw) &gt;= 0; }
-function delTagRect(bars) {
-  if (!selValid() || !selAt || S.mode !== &#x27;pan&#x27;) return null;
-  const x = xOf(nearestIndex(bars, selAt.t)), y = yOf(selAt.p);
-  if (x &lt; 0 || x &gt; LAY.plotW || y &lt; LAY.candleTop || y &gt; LAY.candleBottom) return null;
-  cx.save();
-  cx.font = &#x27;600 12px &#x27; + FONT.num;
-  const w = Math.ceil(cx.measureText(&#x27;Xóa&#x27;).width) + 20, h = 26;
-  cx.restore();
-  let tx = x + 12;
-  if (tx + w &gt; LAY.plotW - 4) tx = x - w - 12;
-  tx = clamp(tx, 4, LAY.plotW - w - 4);
-  const ty = clamp(y - h - 10, LAY.candleTop + 2, LAY.candleBottom - h - 2);
-  return { x: Math.round(tx), y: Math.round(ty), w, h };
-}
-function drawSelTag(bars) {
-  const r = delTagRect(bars);
-  if (!r) return;
-  cx.save();
-  cx.fillStyle = COL.down;
-  cx.fillRect(r.x, r.y, r.w, r.h);
-  cx.fillStyle = &#x27;#ffffff&#x27;;
-  cx.font = &#x27;600 12px &#x27; + FONT.num;
-  cx.textAlign = &#x27;center&#x27;;
-  cx.textBaseline = &#x27;middle&#x27;;
-  cx.fillText(&#x27;Xóa&#x27;, r.x + r.w / 2, r.y + r.h / 2 + 0.5);
-  cx.restore();
-}
-function drawSelShape(d, bars) {
-  if (d.type === &#x27;fan&#x27;) { drawFan(d, bars); return; }
-  if (TREND_TYPES.has(d.type)) { drawTrend(d, bars); return; }
-  if (d.type === &#x27;hline&#x27;) {
-    const yh = yOf(d.p);
-    if (yh &lt; LAY.candleTop || yh &gt; LAY.candleBottom) return;
-    const y = Math.round(yh) + 0.5;
-    cx.strokeStyle = COL.hline; cx.lineWidth = 1.5; cx.setLineDash([6, 4]);
-    cx.beginPath(); cx.moveTo(0, y); cx.lineTo(LAY.plotW, y); cx.stroke();
-    cx.setLineDash([]);
-  }
-}
-/* ===== Xóa từng bản vẽ ở chế độ xem, và khôi phục ===== */
-const DEL_TOL = 12;
-let lastDel = null, undoTimer = 0;
-function segDist(px, py, x0, y0, x1, y1) {
-  const dx = x1 - x0, dy = y1 - y0, len2 = dx * dx + dy * dy;
-  const t = len2 ? clamp(((px - x0) * dx + (py - y0) * dy) / len2, 0, 1) : 0;
-  return Math.hypot(px - (x0 + t * dx), py - (y0 + t * dy));
-}
-function rayDist(px, py, x0, y0, x1, y1) {
-  const dx = x1 - x0, dy = y1 - y0, len2 = dx * dx + dy * dy;
-  if (!len2) return Math.hypot(px - x0, py - y0);
-  const t = ((px - x0) * dx + (py - y0) * dy) / len2;
-  if (t &lt;= 0) return Math.hypot(px - x0, py - y0);
-  return Math.hypot(px - (x0 + t * dx), py - (y0 + t * dy));
-}
-function lineDist(px, py, x0, y0, x1, y1) {
-  const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy);
-  if (!len) return Math.hypot(px - x0, py - y0);
-  return Math.abs(dx * (py - y0) - dy * (px - x0)) / len;
-}
-function regDist(P, bars, px, py) {
-  const a = Math.min(P[0].i, P[1].i), b = Math.max(P[0].i, P[1].i);
-  if (b - a &lt; 2) return Infinity;
-  const n = b - a + 1;
-  let sx = 0, sy = 0, sxy = 0, sxx = 0;
-  for (let i = a; i &lt;= b; i++) { const x = i - a, y = bars[i].c; sx += x; sy += y; sxy += x * y; sxx += x * x; }
-  const den = n * sxx - sx * sx;
-  const slope = den ? (n * sxy - sx * sy) / den : 0;
-  const icpt = (sy - slope * sx) / n;
-  let ss = 0;
-  for (let i = a; i &lt;= b; i++) { const r = bars[i].c - (icpt + slope * (i - a)); ss += r * r; }
-  const sd = Math.sqrt(ss / n);
-  let best = Infinity;
-  for (const k of [-2, 0, 2]) {
-    for (let i = a; i &lt; b; i++) {
-      const ya = yOf(icpt + slope * (i - a) + k * sd), yb = yOf(icpt + slope * (i + 1 - a) + k * sd);
-      best = Math.min(best, segDist(px, py, xOf(i), ya, xOf(i + 1), yb));
-    }
-  }
-  return best;
-}
-function drawingDist(d, bars, px, py) {
-  if (d.type === &#x27;hline&#x27;) {
-    const yh = yOf(d.p);
-    return yh &lt; LAY.candleTop || yh &gt; LAY.candleBottom ? Infinity : Math.abs(py - yh);
-  }
-  if (d.type === &#x27;fan&#x27;) {
-    const i1 = nearestIndex(bars, d.p1.t), i2 = nearestIndex(bars, d.p2.t);
-    if (i1 === i2 || xOf(i1) &gt; LAY.plotW) return Infinity;
-    const x1 = xOf(i1), y1 = yOf(d.p1.p), perBar = (d.p2.p - d.p1.p) / (i2 - i1), iR = idxAtX(LAY.plotW);
-    let best = Infinity;
-    for (const r of FAN_RATIOS) best = Math.min(best, segDist(px, py, x1, y1, LAY.plotW, yOf(d.p1.p + perBar * r * (iR - i1))));
-    return best;
-  }
-  if (!TREND_TYPES.has(d.type)) return Infinity;
-  const P = trendPts(d, bars);
-  if (!P.length) return Infinity;
-  switch (d.type) {
-    case &#x27;tl&#x27;: case &#x27;info&#x27;: case &#x27;angle&#x27;:
-      return P.length &lt; 2 ? Infinity : segDist(px, py, P[0].x, P[0].y, P[1].x, P[1].y);
-    case &#x27;ext&#x27;:
-      return P.length &lt; 2 ? Infinity : lineDist(px, py, P[0].x, P[0].y, P[1].x, P[1].y);
-    case &#x27;ray&#x27;:
-      return P.length &lt; 2 ? Infinity : rayDist(px, py, P[0].x, P[0].y, P[1].x, P[1].y);
-    case &#x27;hray&#x27;:
-      return segDist(px, py, P[0].x, P[0].y, LAY.plotW, P[0].y);
-    case &#x27;vl&#x27;:
-      return Math.abs(px - P[0].x);
-    case &#x27;cross&#x27;:
-      return Math.min(Math.abs(px - P[0].x), Math.abs(py - P[0].y));
-    case &#x27;chan&#x27;: {
-      if (P.length &lt; 3 || P[1].x === P[0].x) return Infinity;
-      const m = (P[1].y - P[0].y) / (P[1].x - P[0].x);
-      const yMain = x =&gt; P[0].y + m * (x - P[0].x);
-      const dyOff = P[2].y - yMain(P[2].x);
-      const xL = -20, xR = LAY.plotW + 20;
-      return Math.min(segDist(px, py, xL, yMain(xL), xR, yMain(xR)), segDist(px, py, xL, yMain(xL) + dyOff, xR, yMain(xR) + dyOff));
-    }
-    case &#x27;reg&#x27;:
-      return regDist(P, bars, px, py);
-    case &#x27;flat&#x27;: {
-      if (P.length &lt; 3 || P[0].x === P[1].x) return Infinity;
-      const x0 = Math.min(P[0].x, P[1].x), x1 = Math.max(P[0].x, P[1].x), yTop = P[0].y, yBot = P[2].y;
-      return Math.min(segDist(px, py, x0, yTop, x1, yTop), segDist(px, py, x0, yBot, x1, yBot), segDist(px, py, x0, yTop, x0, yBot), segDist(px, py, x1, yTop, x1, yBot));
-    }
-    default: return Infinity;
-  }
-}
-function drawingName(d) {
-  if (d.type === &#x27;fan&#x27;) return &#x27;Gann Fan&#x27;;
-  const t = DRAW_TOOLS.find(q =&gt; q.type === d.type);
-  return t ? t.name.charAt(0).toLowerCase() + t.name.slice(1) : &#x27;bản vẽ&#x27;;
-}
-function drawingAt(bars, px, py) {
-  let best = -1, bestD = Infinity;
-  S.drawings.forEach((d, k) =&gt; {
-    const dist = drawingDist(d, bars, px, py);
-    if (dist &lt;= DEL_TOL &amp;&amp; dist &lt;= bestD) { best = k; bestD = dist; }
-  });
-  return best;
-}
-function hideUndo() {
-  clearTimeout(undoTimer);
-  const bar = document.getElementById(&#x27;undoBar&#x27;);
-  if (bar) bar.style.display = &#x27;none&#x27;;
-  lastDel = null;
-}
-function showUndo(msg) {
-  let bar = document.getElementById(&#x27;undoBar&#x27;);
-  if (!bar) {
-    bar = document.createElement(&#x27;div&#x27;);
-    bar.id = &#x27;undoBar&#x27;;
-    bar.style.cssText = &#x27;position:fixed;left:50%;bottom:44px;transform:translateX(-50%);z-index:15;display:none;align-items:center;gap:10px;max-width:92vw;padding:6px 8px 6px 12px;border-radius:10px;background:var(--panel);color:var(--text);border:1px solid &#x27; + DRAW_COL + &#x27;;box-shadow:0 6px 18px rgba(0,0,0,.45);font:500 12px/1.2 var(--f-ui);white-space:nowrap;&#x27;;
-    const span = document.createElement(&#x27;span&#x27;);
-    span.id = &#x27;undoMsg&#x27;;
-    const btn = document.createElement(&#x27;button&#x27;);
-    btn.type = &#x27;button&#x27;;
-    btn.id = &#x27;undoBtn&#x27;;
-    btn.textContent = &#x27;Khôi phục&#x27;;
-    btn.style.cssText = &#x27;font:inherit;font-weight:600;color:&#x27; + DRAW_COL + &#x27;;background:none;border:1px solid &#x27; + DRAW_COL + &#x27;;border-radius:6px;padding:2px 8px;&#x27;;
-    btn.addEventListener(&#x27;click&#x27;, undoDelete);
-    bar.appendChild(span);
-    bar.appendChild(btn);
-    document.body.appendChild(bar);
-  }
-  document.getElementById(&#x27;undoMsg&#x27;).textContent = msg;
-  bar.style.display = &#x27;flex&#x27;;
-  clearTimeout(undoTimer);
-  undoTimer = setTimeout(hideUndo, 10000);
-}
-function deleteAt(k) {
-  if (k &lt; 0) return;
-  const [d] = S.drawings.splice(k, 1);
-  lastDel = { items: [{ d, idx: k }] };
-  selDraw = null;
-  saveDrawings();
-  showUndo(&#x27;Đã xóa &#x27; + drawingName(d) + &#x27;.&#x27;);
-}
-function panTap(bars, px, py) {
-  const r = delTagRect(bars);
-  if (r &amp;&amp; px &gt;= r.x - 8 &amp;&amp; px &lt;= r.x + r.w + 8 &amp;&amp; py &gt;= r.y - 8 &amp;&amp; py &lt;= r.y + r.h + 8) {
-    deleteAt(S.drawings.indexOf(selDraw));
-    return;
-  }
-  const k = drawingAt(bars, px, py);
-  if (k &gt;= 0) {
-    selDraw = S.drawings[k];
-    selAt = { t: bars[clamp(Math.round(idxAtX(px)), 0, bars.length - 1)].t, p: r2(priceAtY(py)) };
-    say(&#x27;Đã chọn &#x27; + drawingName(selDraw) + &#x27;. Chạm Xóa để xóa.&#x27;);
-    return;
-  }
-  selDraw = null;
-}
-function undoDelete() {
-  if (!lastDel) { hideUndo(); return; }
-  const items = lastDel.items.slice().sort((a, b) =&gt; a.idx - b.idx);
-  for (const it of items) S.drawings.splice(Math.min(it.idx, S.drawings.length), 0, it.d);
-  hideUndo();
-  saveDrawings();
-  say(&#x27;Đã khôi phục hình vẽ.&#x27;);
-  schedule();
-}
-function onTap(x, y) {
-  if (x &gt; LAY.plotW || y &lt; 0 || y &gt; LAY.candleBottom) return;
-  const bars = series(S.tf).bars;
-  if (S.mode === &#x27;pan&#x27;) { panTap(bars, x, y); schedule(); return; }
-  const i = clamp(Math.round(idxAtX(x)), 0, bars.length - 1);
-  const p = r2(priceAtY(y));
-  if (S.mode === &#x27;hline&#x27;) {
-    S.drawings.push({ type: &#x27;hline&#x27;, p });
-    saveDrawings();
-    setMode(&#x27;pan&#x27;);
-    say(&#x27;Đã ghim đường ngang &#x27; + p.toFixed(2) + &#x27;.&#x27;);
-  } else if (S.mode === &#x27;draw&#x27;) {
-    tapDraw(bars, i, p);
-  } else if (S.mode === &#x27;fan&#x27;) {
-    const pt = { t: bars[i].t, p };
-    if (!S.pendingFan) {
-      S.pendingFan = pt;
-      say(&#x27;Đã đặt điểm gốc. Chạm điểm thứ hai để định nghĩa 1x1.&#x27;);
-    } else if (S.pendingFan.t === pt.t) {
-      say(&#x27;Hai điểm đang nằm trên cùng một nến. Chạm nến khác.&#x27;);
-    } else {
-      S.drawings.push({ type: &#x27;fan&#x27;, p1: S.pendingFan, p2: pt });
-      S.pendingFan = null;
-      saveDrawings();
-      setMode(&#x27;pan&#x27;);
-      say(&#x27;Đã vẽ Gann Fan. Bấm Gann Fan để vẽ thêm.&#x27;);
-    }
-  }
-  schedule();
-}
-
 function bindPointer() {
   const pts = new Map();
   let drag = null, pinch = null;
@@ -792,6 +557,10 @@ function fdShow() {
 function fdProvChange() {
   const pv = $(&#x27;fdProv&#x27;).value, sym = $(&#x27;tdSym&#x27;).value.trim();
   if (!sym || Object.values(FD_SYM).includes(sym) || pv === &#x27;vps&#x27;) $(&#x27;tdSym&#x27;).value = FD_SYM[pv];
+  // OANDA, VPS: mặc định thời gian thực (2 giây). Twelve Data miễn phí: 120 giây để không hết lượt gọi
+  const ev = Number($(&#x27;tdEvery&#x27;).value) || 0;
+  if (pv === &#x27;twelve&#x27; &amp;&amp; ev &gt; 0 &amp;&amp; ev &lt; 30) $(&#x27;tdEvery&#x27;).value = &#x27;120&#x27;;
+  if (pv !== &#x27;twelve&#x27; &amp;&amp; ev &gt;= 30) $(&#x27;tdEvery&#x27;).value = &#x27;2&#x27;;
   fdShow();
 }
 function tdFill() {
@@ -881,7 +650,9 @@ function tdRead() {
   const key = $(&#x27;tdKey&#x27;).value.trim(), oaKey = $(&#x27;oaKey&#x27;).value.trim(), oaEnv = OA_HOST[$(&#x27;oaEnv&#x27;).value] ? $(&#x27;oaEnv&#x27;).value : &#x27;practice&#x27;;
   const sym = $(&#x27;tdSym&#x27;).value.trim() || FD_SYM[prov], tf = $(&#x27;tdTf&#x27;).value;   // VPS: mã trống = mã mặc định trên VPS
   const every = Math.max(0, Math.round(Number($(&#x27;tdEvery&#x27;).value) || 0));
-  return { prov, key, oaKey, oaEnv, sym, tf: TD_IV[tf] ? tf : &#x27;M15&#x27;, every: every &amp;&amp; every &lt; 30 ? 30 : every };
+  // Twelve Data miễn phí: ít nhất 30 giây. OANDA, VPS: từ 1 giây (thời gian thực)
+  const minEv = prov === &#x27;twelve&#x27; ? 30 : 1;
+  return { prov, key, oaKey, oaEnv, sym, tf: TD_IV[tf] ? tf : &#x27;M15&#x27;, every: every &amp;&amp; every &lt; minEv ? minEv : every };
 }
 const fdReady = cfg =&gt; (cfg.prov === &#x27;oanda&#x27; ? !!cfg.oaKey : cfg.prov === &#x27;vps&#x27; ? !!(acctBase(acctStored().url) &amp;&amp; acctStored().token) : !!cfg.key);
 const fdLabel = cfg =&gt; &#x27;Live &#x27; + FD_NAME[cfg.prov || &#x27;twelve&#x27;] + &#x27; &#x27; + (cfg.sym || cfg.symShown || &#x27;&#x27;);
@@ -902,7 +673,7 @@ async function tdLoadClick() {
     clampAnchor();
     schedule();
     tdSay(FD_NAME[cfg.prov] + &#x27;: đã tải &#x27; + bars.length + &#x27; nến &#x27; + cfg.tf + &#x27; · nến cuối &#x27; + fmtTs(bars[bars.length - 1].t, &#x27;dhm&#x27;) +
-      (cfg.every ? &#x27; · tự cập nhật mỗi &#x27; + cfg.every + &#x27; giây&#x27; : &#x27;&#x27;), &#x27;ok&#x27;);
+      (cfg.every ? (cfg.every &lt;= 5 ? &#x27; · thời gian thực (mỗi &#x27; + cfg.every + &#x27; giây)&#x27; : &#x27; · tự cập nhật mỗi &#x27; + cfg.every + &#x27; giây&#x27;) : &#x27;&#x27;), &#x27;ok&#x27;);
     if (cfg.every) tdTimer = setInterval(tdTick, cfg.every * 1000);
   } catch (err) {
     tdSay(&#x27;Không kết nối được: &#x27; + (err.message || &#x27;Lỗi không rõ.&#x27;), &#x27;err&#x27;);
@@ -917,9 +688,10 @@ async function tdTick() {
   try {
     const bars = await tdFetch(cfg, 3);
     let n = 0;
-    for (const b of bars) if (xkUpsertBar(Object.assign({ sec: baseSec }, b))) n++;
+    XK_SAVE_LAZY = true;   // cập nhật dày: lưu nến vào máy thưa thôi, đỡ nặng máy
+    try { for (const b of bars) if (xkUpsertBar(Object.assign({ sec: baseSec }, b))) n++; } finally { XK_SAVE_LAZY = false; }
     baseName = fdLabel(cfg);
-    if (n) tdSay(FD_NAME[cfg.prov || &#x27;twelve&#x27;] + &#x27;: cập nhật &#x27; + acctClock() + &#x27; · giá &#x27; + bars[bars.length - 1].c);
+    if (n) tdSay(FD_NAME[cfg.prov || &#x27;twelve&#x27;] + (cfg.every &lt;= 5 ? &#x27; · thời gian thực · &#x27; : &#x27;: cập nhật &#x27;) + acctClock() + &#x27; · giá &#x27; + bars[bars.length - 1].c);
   } catch (err) {
     tdSay(err.message + &#x27; (lần cập nhật &#x27; + acctClock() + &#x27;)&#x27;);
   } finally { tdBusy = false; }
@@ -1412,8 +1184,11 @@ function xkBarFrom(o) {
   return b;
 }
 
+let XK_SAVE_LAZY = false, xkSavedAt = 0;
 function xkSaveBars() {
   if (!XK_APP) return;
+  if (XK_SAVE_LAZY &amp;&amp; Date.now() - xkSavedAt &lt; 30000) return;
+  xkSavedAt = Date.now();
   try { localStorage.setItem(XK_STORE, JSON.stringify({ sec: baseSec, name: baseName, bars: BASE.slice(-XK_KEEP) })); }
   catch (err) { /* hết bộ nhớ: biểu đồ vẫn chạy, chỉ không lưu được */ }
 }
@@ -1427,88 +1202,4 @@ function xkLoadBars() {
     return hasData;
   } catch (err) { return false; }
 }
-
-// Nhận một nến đã đóng từ app: cùng thời điểm thì thay nến cuối, mới hơn thì thêm vào cuối.
-function xkUpsertBar(o) {
-  const b = xkBarFrom(o);
-  if (!b) return false;
-  const step = Number(o.sec) || 0;
-  if (hasData &amp;&amp; step &amp;&amp; step !== baseSec) return false;     // khác khung đang vẽ: bỏ
-  const first = !hasData, n = BASE.length, last = n ? BASE[n - 1] : null;
-  if (!first &amp;&amp; last &amp;&amp; b.t &lt; last.t) return false;          // nến cũ hơn nến cuối: bỏ
-  const margin = first ? 4 : S.anchor - (n - 1);
-  const follow = first || (margin &gt;= -1 &amp;&amp; margin &lt;= 6);     // đang nhìn sát nến mới nhất thì giữ mép phải
-  if (first) {
-    BASE = [b]; baseSec = step || 60; baseName = &#x27;Live XAUUSD&#x27;; hasData = true;
-    const ok = TFS.filter(x =&gt; x.sec &gt;= baseSec);
-    if (ok.length &amp;&amp; !ok.some(x =&gt; x.id === S.tf)) S.tf = (ok.find(x =&gt; x.id === &#x27;M15&#x27;) || ok[0]).id;
-  } else if (last &amp;&amp; b.t === last.t) BASE[n - 1] = b;
-  else BASE.push(b);
-  cache = {}; dataGen += 1; legendKey = &#x27;&#x27;;
-  if (first) fitView();
-  else { if (follow) S.anchor = BASE.length - 1 + margin; clampAnchor(); }
-  xkSaveBars();
-  if (!$(&#x27;trade&#x27;).hidden) ordPrices();
-  updateTFButtons();
-  updateInfo();
-  say(&#x27;Live · &#x27; + BASE.length + &#x27; nến · nến mới nhất &#x27; + fmtTs(b.t, &#x27;dhm&#x27;));
-  schedule();
-  return true;
-}
-
-window.claude?.hot?.snapshot?.(snapshotState);
-function xkBoot() { window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {}); }
-if (XK_HOST &amp;&amp; XK_HOST.readyState === &#x27;loading&#x27;) XK_HOST.addEventListener(&#x27;DOMContentLoaded&#x27;, xkBoot);
-else xkBoot();
-&lt;/script&gt;
-&lt;/body&gt;
-&lt;/html&gt;
-"></iframe>
-  </div>
-  <div id="trade" class="trade" hidden>
-    <div class="tr-row">
-      <input id="ordSym" class="tr-sym" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" value="XAUUSD" aria-label="Mã (Exness Standard: XAUUSDm)" placeholder="XAUUSD hoặc XAUUSDm">
-      <div class="tr-lot" role="group" aria-label="Khối lượng">
-        <button type="button" id="ordLotDn" aria-label="Giảm lot">−</button>
-        <input id="ordVol" type="text" inputmode="decimal" value="0.01" aria-label="Khối lượng (lot)">
-        <button type="button" id="ordLotUp" aria-label="Tăng lot">+</button>
-      </div>
-      <label class="tr-on"><input type="checkbox" id="ordEnable"> Bật</label>
-    </div>
-    <div class="tr-row">
-      <label class="tr-f">SL<input id="ordSl" type="text" inputmode="decimal" placeholder="bắt buộc"></label>
-      <label class="tr-f">TP<input id="ordTp" type="text" inputmode="decimal" placeholder="có thể trống"></label>
-    </div>
-    <div class="tr-side">
-      <button type="button" id="ordSell" disabled><b>SELL</b><small id="ordSellPx">—</small></button>
-      <button type="button" id="ordBuy" disabled><b>BUY</b><small id="ordBuyPx">—</small></button>
-    </div>
-    <p class="note ord-msg" id="ordMsg">Đặt lệnh đang tắt.</p>
-    <div class="acct-pos" id="tradePos"></div>
-    <details class="tr-more">
-      <summary>Tuỳ chọn</summary>
-      <div class="tr-row">
-        <label class="tr-f">Lot tối đa<input id="ordMax" type="text" inputmode="decimal" value="0.10"></label>
-        <label class="tr-f">Ghi chú<input id="ordNote" type="text" autocomplete="off" maxlength="20" placeholder="XIKE"></label>
-      </div>
-      <p class="note">Lệnh thị trường qua VPS trong Cài đặt. Bấm BUY/SELL một lần để xem lại, bấm lần nữa trong 6 giây mới gửi. Giá trên nút là giá đóng nến mới nhất của biểu đồ, giá khớp thật do MT5 quyết định.</p>
-    </details>
-  </div>
-  <div class="chart-actions" role="toolbar" aria-label="Công cụ biểu đồ">
-    <button type="button" id="actAI">🤖 AI</button>
-    <button type="button" id="actInd">📊 Chỉ báo</button>
-    <button type="button" id="actOrd">💰 Đặt lệnh</button>
-    <button type="button" id="actDraw">✏️ Ẩn vẽ</button>
-  </div>
-  <!-- Bảng tín hiệu XIKE -->
-  <div id="sigSheet" class="sig-sheet" hidden>
-    <div class="sig-head">
-      <b>Chỉ báo XIKE</b>
-      <span id="sigSrc" class="sig-src"></span>
-      <button type="button" id="sigClose" class="mini">✕</button>
-    </div>
-    <div id="sigTfs" class="sig-tfs"></div>
-    <div id="sigBody" class="sig-body"></div>
-  </div>
-</section>
 

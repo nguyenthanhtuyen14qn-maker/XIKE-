@@ -1,3 +1,87 @@
+// Nhận một nến đã đóng từ app: cùng thời điểm thì thay nến cuối, mới hơn thì thêm vào cuối.
+function xkUpsertBar(o) {
+  const b = xkBarFrom(o);
+  if (!b) return false;
+  const step = Number(o.sec) || 0;
+  if (hasData &amp;&amp; step &amp;&amp; step !== baseSec) return false;     // khác khung đang vẽ: bỏ
+  const first = !hasData, n = BASE.length, last = n ? BASE[n - 1] : null;
+  if (!first &amp;&amp; last &amp;&amp; b.t &lt; last.t) return false;          // nến cũ hơn nến cuối: bỏ
+  const margin = first ? 4 : S.anchor - (n - 1);
+  const follow = first || (margin &gt;= -1 &amp;&amp; margin &lt;= 6);     // đang nhìn sát nến mới nhất thì giữ mép phải
+  if (first) {
+    BASE = [b]; baseSec = step || 60; baseName = &#x27;Live XAUUSD&#x27;; hasData = true;
+    const ok = TFS.filter(x =&gt; x.sec &gt;= baseSec);
+    if (ok.length &amp;&amp; !ok.some(x =&gt; x.id === S.tf)) S.tf = (ok.find(x =&gt; x.id === &#x27;M15&#x27;) || ok[0]).id;
+  } else if (last &amp;&amp; b.t === last.t) BASE[n - 1] = b;
+  else BASE.push(b);
+  cache = {}; dataGen += 1; legendKey = &#x27;&#x27;;
+  if (first) fitView();
+  else { if (follow) S.anchor = BASE.length - 1 + margin; clampAnchor(); }
+  xkSaveBars();
+  if (!$(&#x27;trade&#x27;).hidden) ordPrices();
+  updateTFButtons();
+  updateInfo();
+  say(&#x27;Live · &#x27; + BASE.length + &#x27; nến · nến mới nhất &#x27; + fmtTs(b.t, &#x27;dhm&#x27;));
+  schedule();
+  return true;
+}
+
+window.claude?.hot?.snapshot?.(snapshotState);
+function xkBoot() { window.claude?.hot?.ready ? window.claude.hot.ready(start) : start(window.claude?.hot?.data ?? {}); }
+if (XK_HOST &amp;&amp; XK_HOST.readyState === &#x27;loading&#x27;) XK_HOST.addEventListener(&#x27;DOMContentLoaded&#x27;, xkBoot);
+else xkBoot();
+&lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+"></iframe>
+  </div>
+  <div id="trade" class="trade" hidden>
+    <div class="tr-row">
+      <input id="ordSym" class="tr-sym" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" value="XAUUSD" aria-label="Mã (Exness Standard: XAUUSDm)" placeholder="XAUUSD hoặc XAUUSDm">
+      <div class="tr-lot" role="group" aria-label="Khối lượng">
+        <button type="button" id="ordLotDn" aria-label="Giảm lot">−</button>
+        <input id="ordVol" type="text" inputmode="decimal" value="0.01" aria-label="Khối lượng (lot)">
+        <button type="button" id="ordLotUp" aria-label="Tăng lot">+</button>
+      </div>
+      <label class="tr-on"><input type="checkbox" id="ordEnable"> Bật</label>
+    </div>
+    <div class="tr-row">
+      <label class="tr-f">SL<input id="ordSl" type="text" inputmode="decimal" placeholder="bắt buộc"></label>
+      <label class="tr-f">TP<input id="ordTp" type="text" inputmode="decimal" placeholder="có thể trống"></label>
+    </div>
+    <div class="tr-side">
+      <button type="button" id="ordSell" disabled><b>SELL</b><small id="ordSellPx">—</small></button>
+      <button type="button" id="ordBuy" disabled><b>BUY</b><small id="ordBuyPx">—</small></button>
+    </div>
+    <p class="note ord-msg" id="ordMsg">Đặt lệnh đang tắt.</p>
+    <div class="acct-pos" id="tradePos"></div>
+    <details class="tr-more">
+      <summary>Tuỳ chọn</summary>
+      <div class="tr-row">
+        <label class="tr-f">Lot tối đa<input id="ordMax" type="text" inputmode="decimal" value="0.10"></label>
+        <label class="tr-f">Ghi chú<input id="ordNote" type="text" autocomplete="off" maxlength="20" placeholder="XIKE"></label>
+      </div>
+      <p class="note">Lệnh thị trường qua VPS trong Cài đặt. Bấm BUY/SELL một lần để xem lại, bấm lần nữa trong 6 giây mới gửi. Giá trên nút là giá đóng nến mới nhất của biểu đồ, giá khớp thật do MT5 quyết định.</p>
+    </details>
+  </div>
+  <div class="chart-actions" role="toolbar" aria-label="Công cụ biểu đồ">
+    <button type="button" id="actAI">🤖 AI</button>
+    <button type="button" id="actInd">📊 Chỉ báo</button>
+    <button type="button" id="actOrd">💰 Đặt lệnh</button>
+    <button type="button" id="actDraw">✏️ Ẩn vẽ</button>
+  </div>
+  <!-- Bảng tín hiệu XIKE -->
+  <div id="sigSheet" class="sig-sheet" hidden>
+    <div class="sig-head">
+      <b>Chỉ báo XIKE</b>
+      <span id="sigSrc" class="sig-src"></span>
+      <button type="button" id="sigClose" class="mini">✕</button>
+    </div>
+    <div id="sigTfs" class="sig-tfs"></div>
+    <div id="sigBody" class="sig-body"></div>
+  </div>
+</section>
+
 <!-- QUY TẮC -->
 <section id="view-rules" class="view">
   <div class="scroll">
@@ -86,8 +170,9 @@
           </select>
         </label>
         <label>Tự cập nhật (giây, 0 = tắt)
-          <input id="tdEvery" type="text" inputmode="numeric" value="120">
+          <input id="tdEvery" type="text" inputmode="numeric" value="2">
         </label>
+        <p class="hint"><b>Thời gian thực</b>: OANDA và Exness/MT5 qua VPS cập nhật được mỗi 1–2 giây, nến đang chạy nhảy theo giá. Twelve Data gói miễn phí chỉ 800 lượt/ngày nên tối thiểu 30 giây (nên để 120).</p>
       </details>
     </div>
 

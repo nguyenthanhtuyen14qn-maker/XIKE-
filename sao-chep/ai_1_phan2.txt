@@ -1304,3 +1304,238 @@ function setMode(m) {
   schedule();
 }
 
+/* ===== Chọn bản vẽ rồi bấm Xóa (chế độ xem) ===== */
+let selDraw = null, selAt = null;
+function selValid() { return !!selDraw &amp;&amp; S.drawings.indexOf(selDraw) &gt;= 0; }
+function delTagRect(bars) {
+  if (!selValid() || !selAt || S.mode !== &#x27;pan&#x27;) return null;
+  const x = xOf(nearestIndex(bars, selAt.t)), y = yOf(selAt.p);
+  if (x &lt; 0 || x &gt; LAY.plotW || y &lt; LAY.candleTop || y &gt; LAY.candleBottom) return null;
+  cx.save();
+  cx.font = &#x27;600 12px &#x27; + FONT.num;
+  const w = Math.ceil(cx.measureText(&#x27;Xóa&#x27;).width) + 20, h = 26;
+  cx.restore();
+  let tx = x + 12;
+  if (tx + w &gt; LAY.plotW - 4) tx = x - w - 12;
+  tx = clamp(tx, 4, LAY.plotW - w - 4);
+  const ty = clamp(y - h - 10, LAY.candleTop + 2, LAY.candleBottom - h - 2);
+  return { x: Math.round(tx), y: Math.round(ty), w, h };
+}
+function drawSelTag(bars) {
+  const r = delTagRect(bars);
+  if (!r) return;
+  cx.save();
+  cx.fillStyle = COL.down;
+  cx.fillRect(r.x, r.y, r.w, r.h);
+  cx.fillStyle = &#x27;#ffffff&#x27;;
+  cx.font = &#x27;600 12px &#x27; + FONT.num;
+  cx.textAlign = &#x27;center&#x27;;
+  cx.textBaseline = &#x27;middle&#x27;;
+  cx.fillText(&#x27;Xóa&#x27;, r.x + r.w / 2, r.y + r.h / 2 + 0.5);
+  cx.restore();
+}
+function drawSelShape(d, bars) {
+  if (d.type === &#x27;fan&#x27;) { drawFan(d, bars); return; }
+  if (TREND_TYPES.has(d.type)) { drawTrend(d, bars); return; }
+  if (d.type === &#x27;hline&#x27;) {
+    const yh = yOf(d.p);
+    if (yh &lt; LAY.candleTop || yh &gt; LAY.candleBottom) return;
+    const y = Math.round(yh) + 0.5;
+    cx.strokeStyle = COL.hline; cx.lineWidth = 1.5; cx.setLineDash([6, 4]);
+    cx.beginPath(); cx.moveTo(0, y); cx.lineTo(LAY.plotW, y); cx.stroke();
+    cx.setLineDash([]);
+  }
+}
+/* ===== Xóa từng bản vẽ ở chế độ xem, và khôi phục ===== */
+const DEL_TOL = 12;
+let lastDel = null, undoTimer = 0;
+function segDist(px, py, x0, y0, x1, y1) {
+  const dx = x1 - x0, dy = y1 - y0, len2 = dx * dx + dy * dy;
+  const t = len2 ? clamp(((px - x0) * dx + (py - y0) * dy) / len2, 0, 1) : 0;
+  return Math.hypot(px - (x0 + t * dx), py - (y0 + t * dy));
+}
+function rayDist(px, py, x0, y0, x1, y1) {
+  const dx = x1 - x0, dy = y1 - y0, len2 = dx * dx + dy * dy;
+  if (!len2) return Math.hypot(px - x0, py - y0);
+  const t = ((px - x0) * dx + (py - y0) * dy) / len2;
+  if (t &lt;= 0) return Math.hypot(px - x0, py - y0);
+  return Math.hypot(px - (x0 + t * dx), py - (y0 + t * dy));
+}
+function lineDist(px, py, x0, y0, x1, y1) {
+  const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy);
+  if (!len) return Math.hypot(px - x0, py - y0);
+  return Math.abs(dx * (py - y0) - dy * (px - x0)) / len;
+}
+function regDist(P, bars, px, py) {
+  const a = Math.min(P[0].i, P[1].i), b = Math.max(P[0].i, P[1].i);
+  if (b - a &lt; 2) return Infinity;
+  const n = b - a + 1;
+  let sx = 0, sy = 0, sxy = 0, sxx = 0;
+  for (let i = a; i &lt;= b; i++) { const x = i - a, y = bars[i].c; sx += x; sy += y; sxy += x * y; sxx += x * x; }
+  const den = n * sxx - sx * sx;
+  const slope = den ? (n * sxy - sx * sy) / den : 0;
+  const icpt = (sy - slope * sx) / n;
+  let ss = 0;
+  for (let i = a; i &lt;= b; i++) { const r = bars[i].c - (icpt + slope * (i - a)); ss += r * r; }
+  const sd = Math.sqrt(ss / n);
+  let best = Infinity;
+  for (const k of [-2, 0, 2]) {
+    for (let i = a; i &lt; b; i++) {
+      const ya = yOf(icpt + slope * (i - a) + k * sd), yb = yOf(icpt + slope * (i + 1 - a) + k * sd);
+      best = Math.min(best, segDist(px, py, xOf(i), ya, xOf(i + 1), yb));
+    }
+  }
+  return best;
+}
+function drawingDist(d, bars, px, py) {
+  if (d.type === &#x27;hline&#x27;) {
+    const yh = yOf(d.p);
+    return yh &lt; LAY.candleTop || yh &gt; LAY.candleBottom ? Infinity : Math.abs(py - yh);
+  }
+  if (d.type === &#x27;fan&#x27;) {
+    const i1 = nearestIndex(bars, d.p1.t), i2 = nearestIndex(bars, d.p2.t);
+    if (i1 === i2 || xOf(i1) &gt; LAY.plotW) return Infinity;
+    const x1 = xOf(i1), y1 = yOf(d.p1.p), perBar = (d.p2.p - d.p1.p) / (i2 - i1), iR = idxAtX(LAY.plotW);
+    let best = Infinity;
+    for (const r of FAN_RATIOS) best = Math.min(best, segDist(px, py, x1, y1, LAY.plotW, yOf(d.p1.p + perBar * r * (iR - i1))));
+    return best;
+  }
+  if (!TREND_TYPES.has(d.type)) return Infinity;
+  const P = trendPts(d, bars);
+  if (!P.length) return Infinity;
+  switch (d.type) {
+    case &#x27;tl&#x27;: case &#x27;info&#x27;: case &#x27;angle&#x27;:
+      return P.length &lt; 2 ? Infinity : segDist(px, py, P[0].x, P[0].y, P[1].x, P[1].y);
+    case &#x27;ext&#x27;:
+      return P.length &lt; 2 ? Infinity : lineDist(px, py, P[0].x, P[0].y, P[1].x, P[1].y);
+    case &#x27;ray&#x27;:
+      return P.length &lt; 2 ? Infinity : rayDist(px, py, P[0].x, P[0].y, P[1].x, P[1].y);
+    case &#x27;hray&#x27;:
+      return segDist(px, py, P[0].x, P[0].y, LAY.plotW, P[0].y);
+    case &#x27;vl&#x27;:
+      return Math.abs(px - P[0].x);
+    case &#x27;cross&#x27;:
+      return Math.min(Math.abs(px - P[0].x), Math.abs(py - P[0].y));
+    case &#x27;chan&#x27;: {
+      if (P.length &lt; 3 || P[1].x === P[0].x) return Infinity;
+      const m = (P[1].y - P[0].y) / (P[1].x - P[0].x);
+      const yMain = x =&gt; P[0].y + m * (x - P[0].x);
+      const dyOff = P[2].y - yMain(P[2].x);
+      const xL = -20, xR = LAY.plotW + 20;
+      return Math.min(segDist(px, py, xL, yMain(xL), xR, yMain(xR)), segDist(px, py, xL, yMain(xL) + dyOff, xR, yMain(xR) + dyOff));
+    }
+    case &#x27;reg&#x27;:
+      return regDist(P, bars, px, py);
+    case &#x27;flat&#x27;: {
+      if (P.length &lt; 3 || P[0].x === P[1].x) return Infinity;
+      const x0 = Math.min(P[0].x, P[1].x), x1 = Math.max(P[0].x, P[1].x), yTop = P[0].y, yBot = P[2].y;
+      return Math.min(segDist(px, py, x0, yTop, x1, yTop), segDist(px, py, x0, yBot, x1, yBot), segDist(px, py, x0, yTop, x0, yBot), segDist(px, py, x1, yTop, x1, yBot));
+    }
+    default: return Infinity;
+  }
+}
+function drawingName(d) {
+  if (d.type === &#x27;fan&#x27;) return &#x27;Gann Fan&#x27;;
+  const t = DRAW_TOOLS.find(q =&gt; q.type === d.type);
+  return t ? t.name.charAt(0).toLowerCase() + t.name.slice(1) : &#x27;bản vẽ&#x27;;
+}
+function drawingAt(bars, px, py) {
+  let best = -1, bestD = Infinity;
+  S.drawings.forEach((d, k) =&gt; {
+    const dist = drawingDist(d, bars, px, py);
+    if (dist &lt;= DEL_TOL &amp;&amp; dist &lt;= bestD) { best = k; bestD = dist; }
+  });
+  return best;
+}
+function hideUndo() {
+  clearTimeout(undoTimer);
+  const bar = document.getElementById(&#x27;undoBar&#x27;);
+  if (bar) bar.style.display = &#x27;none&#x27;;
+  lastDel = null;
+}
+function showUndo(msg) {
+  let bar = document.getElementById(&#x27;undoBar&#x27;);
+  if (!bar) {
+    bar = document.createElement(&#x27;div&#x27;);
+    bar.id = &#x27;undoBar&#x27;;
+    bar.style.cssText = &#x27;position:fixed;left:50%;bottom:44px;transform:translateX(-50%);z-index:15;display:none;align-items:center;gap:10px;max-width:92vw;padding:6px 8px 6px 12px;border-radius:10px;background:var(--panel);color:var(--text);border:1px solid &#x27; + DRAW_COL + &#x27;;box-shadow:0 6px 18px rgba(0,0,0,.45);font:500 12px/1.2 var(--f-ui);white-space:nowrap;&#x27;;
+    const span = document.createElement(&#x27;span&#x27;);
+    span.id = &#x27;undoMsg&#x27;;
+    const btn = document.createElement(&#x27;button&#x27;);
+    btn.type = &#x27;button&#x27;;
+    btn.id = &#x27;undoBtn&#x27;;
+    btn.textContent = &#x27;Khôi phục&#x27;;
+    btn.style.cssText = &#x27;font:inherit;font-weight:600;color:&#x27; + DRAW_COL + &#x27;;background:none;border:1px solid &#x27; + DRAW_COL + &#x27;;border-radius:6px;padding:2px 8px;&#x27;;
+    btn.addEventListener(&#x27;click&#x27;, undoDelete);
+    bar.appendChild(span);
+    bar.appendChild(btn);
+    document.body.appendChild(bar);
+  }
+  document.getElementById(&#x27;undoMsg&#x27;).textContent = msg;
+  bar.style.display = &#x27;flex&#x27;;
+  clearTimeout(undoTimer);
+  undoTimer = setTimeout(hideUndo, 10000);
+}
+function deleteAt(k) {
+  if (k &lt; 0) return;
+  const [d] = S.drawings.splice(k, 1);
+  lastDel = { items: [{ d, idx: k }] };
+  selDraw = null;
+  saveDrawings();
+  showUndo(&#x27;Đã xóa &#x27; + drawingName(d) + &#x27;.&#x27;);
+}
+function panTap(bars, px, py) {
+  const r = delTagRect(bars);
+  if (r &amp;&amp; px &gt;= r.x - 8 &amp;&amp; px &lt;= r.x + r.w + 8 &amp;&amp; py &gt;= r.y - 8 &amp;&amp; py &lt;= r.y + r.h + 8) {
+    deleteAt(S.drawings.indexOf(selDraw));
+    return;
+  }
+  const k = drawingAt(bars, px, py);
+  if (k &gt;= 0) {
+    selDraw = S.drawings[k];
+    selAt = { t: bars[clamp(Math.round(idxAtX(px)), 0, bars.length - 1)].t, p: r2(priceAtY(py)) };
+    say(&#x27;Đã chọn &#x27; + drawingName(selDraw) + &#x27;. Chạm Xóa để xóa.&#x27;);
+    return;
+  }
+  selDraw = null;
+}
+function undoDelete() {
+  if (!lastDel) { hideUndo(); return; }
+  const items = lastDel.items.slice().sort((a, b) =&gt; a.idx - b.idx);
+  for (const it of items) S.drawings.splice(Math.min(it.idx, S.drawings.length), 0, it.d);
+  hideUndo();
+  saveDrawings();
+  say(&#x27;Đã khôi phục hình vẽ.&#x27;);
+  schedule();
+}
+function onTap(x, y) {
+  if (x &gt; LAY.plotW || y &lt; 0 || y &gt; LAY.candleBottom) return;
+  const bars = series(S.tf).bars;
+  if (S.mode === &#x27;pan&#x27;) { panTap(bars, x, y); schedule(); return; }
+  const i = clamp(Math.round(idxAtX(x)), 0, bars.length - 1);
+  const p = r2(priceAtY(y));
+  if (S.mode === &#x27;hline&#x27;) {
+    S.drawings.push({ type: &#x27;hline&#x27;, p });
+    saveDrawings();
+    setMode(&#x27;pan&#x27;);
+    say(&#x27;Đã ghim đường ngang &#x27; + p.toFixed(2) + &#x27;.&#x27;);
+  } else if (S.mode === &#x27;draw&#x27;) {
+    tapDraw(bars, i, p);
+  } else if (S.mode === &#x27;fan&#x27;) {
+    const pt = { t: bars[i].t, p };
+    if (!S.pendingFan) {
+      S.pendingFan = pt;
+      say(&#x27;Đã đặt điểm gốc. Chạm điểm thứ hai để định nghĩa 1x1.&#x27;);
+    } else if (S.pendingFan.t === pt.t) {
+      say(&#x27;Hai điểm đang nằm trên cùng một nến. Chạm nến khác.&#x27;);
+    } else {
+      S.drawings.push({ type: &#x27;fan&#x27;, p1: S.pendingFan, p2: pt });
+      S.pendingFan = null;
+      saveDrawings();
+      setMode(&#x27;pan&#x27;);
+      say(&#x27;Đã vẽ Gann Fan. Bấm Gann Fan để vẽ thêm.&#x27;);
+    }
+  }
+  schedule();
+}
+
