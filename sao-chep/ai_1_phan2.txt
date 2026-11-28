@@ -1,3 +1,649 @@
+// Thư viện chỉ hiện các chỉ báo trong IND_ON, theo đúng thứ tự này. Mã của mọi chỉ báo vẫn nằm trong IND_ALL.
+// Muốn hiện lại một chỉ báo, thêm id của nó vào IND_ON.
+const IND_ON = [&#x27;ema_zone&#x27;, &#x27;trix&#x27;, &#x27;macd&#x27;, &#x27;stoch_rsi&#x27;, &#x27;gann_fan&#x27;];
+const IND_BY_ID = {};
+for (const d of IND_ALL) IND_BY_ID[d.id] = d;
+const IND_LIST = IND_ON.map(id =&gt; IND_BY_ID[id]).filter(Boolean);
+const IND_ENABLED = {};
+for (const d of IND_LIST) IND_ENABLED[d.id] = true;
+
+// Chuẩn hóa một tham số: trống hoặc sai thì lấy mặc định, ngoài khoảng thì kẹp lại.
+function cleanParam(f, v) {
+  const blank = v === null || v === undefined || (typeof v === &#x27;string&#x27; &amp;&amp; v.trim() === &#x27;&#x27;);
+  const x = blank ? NaN : Number(v);
+  const val = clamp(Number.isFinite(x) ? x : f.def, f.min, f.max);
+  return f.float ? r2(val) : Math.round(val);
+}
+
+// Đọc danh sách chỉ báo đã lưu: bỏ id lạ, chuẩn hóa tham số, cấp uid mới.
+function sanitizeInds(arr) {
+  const out = [];
+  for (const it of arr) {
+    if (out.length &gt;= MAX_INDS) break;
+    if (!it || typeof it !== &#x27;object&#x27; || !IND_ENABLED[it.id]) continue;
+    const def = IND_BY_ID[it.id];
+    const src = it.p &amp;&amp; typeof it.p === &#x27;object&#x27; ? it.p : {};
+    const p = {};
+    for (const f of def.params) p[f.k] = cleanParam(f, src[f.k]);
+    out.push({ uid: newUid(), id: def.id, p, on: it.on !== false });
+  }
+  return out;
+}
+
+function defaultInds() {
+  return sanitizeInds(IND_ON.map(id =&gt; ({ id })));
+}
+
+/* ----- Kết quả chỉ báo theo khung hiện tại, bố cục và khung nhìn ----- */
+function instResult(inst) {
+  const ser = series(S.tf);
+  const key = inst.id + &#x27;|&#x27; + JSON.stringify(inst.p);
+  if (!ser.ind[key]) ser.ind[key] = IND_BY_ID[inst.id].calc(ser.bars, inst.p);
+  return ser.ind[key];
+}
+
+function paneInsts() { return S.inds.filter(x =&gt; x.on &amp;&amp; IND_BY_ID[x.id].pane); }
+function overlayInsts() { return S.inds.filter(x =&gt; x.on &amp;&amp; !IND_BY_ID[x.id].pane &amp;&amp; !IND_BY_ID[x.id].volume); }
+function volumeOn() { return hasData &amp;&amp; S.inds.some(x =&gt; x.on &amp;&amp; IND_BY_ID[x.id].volume) &amp;&amp; series(S.tf).hasVol; }
+
+// Vùng giá chính ở trên, mỗi chỉ báo dao động có một ô riêng ở dưới, cuối cùng là trục thời gian.
+function layout() {
+  const w = view.w, h = view.h;
+  const axisR = 64, axisB = 22;
+  const plotW = Math.max(40, w - axisR);
+  const totalH = Math.max(120, h - axisB);
+  const nPanes = paneInsts().length;
+  let paneH = 0, mainH = totalH;
+  if (nPanes) {
+    paneH = clamp(Math.floor(totalH * 0.2), 56, 112);
+    mainH = totalH - nPanes * paneH;
+    if (mainH &lt; 130) {
+      mainH = 130;
+      paneH = Math.max(40, Math.floor((totalH - 130) / nPanes));
+    }
+  }
+  const volH = volumeOn() ? Math.round(mainH * 0.16) : 0;
+  return {
+    w, h, axisR, axisB, plotW, totalH, mainH, paneH, nPanes, volH,
+    candleTop: 8, candleBottom: mainH - volH - 6
+  };
+}
+
+const xOf = i =&gt; LAY.plotW - (S.anchor - i + 0.5) * S.barW;
+const idxAtX = x =&gt; S.anchor + 0.5 - (LAY.plotW - x) / S.barW;
+const yOf = p =&gt; LAY.candleTop + (VP.pMax - p) / (VP.pMax - VP.pMin) * (LAY.candleBottom - LAY.candleTop);
+const priceAtY = y =&gt; VP.pMax - (y - LAY.candleTop) / (LAY.candleBottom - LAY.candleTop) * (VP.pMax - VP.pMin);
+
+function clampAnchor() {
+  if (!hasData) return;
+  const n = series(S.tf).bars.length;
+  const lo = Math.min(5, n - 1);
+  const hi = Math.max(lo, n - 1 + (LAY.plotW * 0.3) / S.barW);
+  S.anchor = clamp(S.anchor, lo, hi);
+}
+
+function fitView() {
+  Y_LOCK = null;
+  LAY = layout();
+  const n = series(S.tf).bars.length;
+  S.barW = clamp(LAY.plotW / 72, 4, 16);
+  S.anchor = n - 1 + 4;
+  clampAnchor();
+}
+
+function zoomAt(x, factor) {
+  const iC = idxAtX(x);
+  S.barW = clamp(S.barW * factor, 1.5, 40);
+  S.anchor = iC - 0.5 + (LAY.plotW - x) / S.barW;
+  clampAnchor();
+}
+
+function snapshotState() {
+  const o = {};
+  for (const k of STATE_KEYS) o[k] = S[k];
+  o.inds = S.inds.map(x =&gt; ({ id: x.id, p: x.p, on: x.on }));
+  return o;
+}
+
+function applyState(st) {
+  if (!st || typeof st !== &#x27;object&#x27;) return;
+  if (TFS.some(t =&gt; t.id === st.tf)) S.tf = st.tf;
+  if (typeof st.showBlock === &#x27;boolean&#x27;) S.showBlock = st.showBlock;
+  S.tz = clampInt(st.tz, -12, 14, S.tz);
+  if (Array.isArray(st.drawings)) S.drawings = st.drawings;
+  if (Array.isArray(st.inds)) S.inds = sanitizeInds(st.inds);
+}
+&lt;/script&gt;
+&lt;script id=&quot;app-js&quot;&gt;
+/* ===== Giao diện, vẽ và sự kiện ===== */
+// Các ô kết nối (nguồn dữ liệu, tài khoản MT5) nằm ở tab Cài đặt của trang app: tìm thêm ở trang cha
+const XK_HOST = (() =&gt; { try { return window.parent !== window &amp;&amp; window.parent.document ? window.parent.document : null; } catch (err) { return null; } })();
+const $ = id =&gt; document.getElementById(id) || (XK_HOST ? XK_HOST.getElementById(id) : null);
+const DEMO_LABEL = &#x27;Demo (mô phỏng, không phải giá thật)&#x27;;
+const LS_KEY = &#x27;xau-chart-drawings-v1&#x27;;
+const IND_KEY = &#x27;xau-chart-indicators-v2&#x27;;
+const COL = {
+  bg: &#x27;#000000&#x27;, panel: &#x27;#000000&#x27;, line: &#x27;#15181f&#x27;, text: &#x27;#d1d4dc&#x27;, muted: &#x27;#787b86&#x27;,
+  accent: &#x27;#2962ff&#x27;, up: &#x27;#089981&#x27;, down: &#x27;#f23645&#x27;,
+  fan: &#x27;#9598a1&#x27;, hline: &#x27;#2962ff&#x27;, levels: &#x27;#7e57c2&#x27;,
+  zoneUp: &#x27;rgba(8,153,129,0.14)&#x27;, zoneDn: &#x27;rgba(242,54,69,0.14)&#x27;,
+  volUp: &#x27;rgba(8,153,129,0.45)&#x27;, volDn: &#x27;rgba(242,54,69,0.45)&#x27;,
+  grid: &#x27;rgba(120,123,134,0.45)&#x27;, cross: &#x27;#9598a1&#x27;, box: &#x27;#363a45&#x27;,
+  axis: &#x27;#b2b5be&#x27;, border: &#x27;#2a2e39&#x27;
+};
+const FONT = {
+  num: &#x27;-apple-system, BlinkMacSystemFont, &quot;Trebuchet MS&quot;, Roboto, Ubuntu, sans-serif&#x27;,
+  ui: &#x27;-apple-system, BlinkMacSystemFont, &quot;Trebuchet MS&quot;, Roboto, Ubuntu, sans-serif&#x27;
+};
+const GROUPS = [[&#x27;all&#x27;, &#x27;Tất cả&#x27;], [&#x27;trend&#x27;, &#x27;Trên giá&#x27;], [&#x27;osc&#x27;, &#x27;Dao động&#x27;]];
+const ICONS = {
+  plus: &#x27;&lt;path d=&quot;M12 5v14M5 12h14&quot;/&gt;&#x27;,
+  eye: &#x27;&lt;path d=&quot;M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z&quot;/&gt;&lt;circle cx=&quot;12&quot; cy=&quot;12&quot; r=&quot;3&quot;/&gt;&#x27;,
+  eyeO: &#x27;&lt;path d=&quot;M3 3l18 18&quot;/&gt;&lt;path d=&quot;M10.6 6.1A9.8 9.8 0 0 1 12 6c6.5 0 10 6 10 6a17 17 0 0 1-3.2 3.9&quot;/&gt;&lt;path d=&quot;M6.6 6.6A17 17 0 0 0 2 12s3.5 6 10 6a9.8 9.8 0 0 0 5.4-1.6&quot;/&gt;&#x27;,
+  sliders: &#x27;&lt;path d=&quot;M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1&quot;/&gt;&lt;circle cx=&quot;15&quot; cy=&quot;6&quot; r=&quot;2&quot;/&gt;&lt;circle cx=&quot;9&quot; cy=&quot;12&quot; r=&quot;2&quot;/&gt;&lt;circle cx=&quot;17&quot; cy=&quot;18&quot; r=&quot;2&quot;/&gt;&#x27;,
+  x: &#x27;&lt;path d=&quot;M6 6l12 12M18 6L6 18&quot;/&gt;&#x27;,
+  back: &#x27;&lt;path d=&quot;M15 6l-6 6 6 6&quot;/&gt;&#x27;,
+  close: &#x27;&lt;path d=&quot;M6 6l12 12M18 6L6 18&quot;/&gt;&#x27;,
+  expand: &#x27;&lt;path d=&quot;M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5&quot;/&gt;&#x27;,
+  shrink: &#x27;&lt;path d=&quot;M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5&quot;/&gt;&#x27;,
+  candle: &#x27;&lt;path d=&quot;M7 3v18M17 3v18&quot;/&gt;&lt;rect x=&quot;5&quot; y=&quot;7&quot; width=&quot;4&quot; height=&quot;9&quot; fill=&quot;currentColor&quot;/&gt;&lt;rect x=&quot;15&quot; y=&quot;9&quot; width=&quot;4&quot; height=&quot;7&quot;/&gt;&#x27;,
+  vcandle: &#x27;&lt;path d=&quot;M6 3v18M16 3v18&quot;/&gt;&lt;rect x=&quot;4.8&quot; y=&quot;7&quot; width=&quot;2.4&quot; height=&quot;9&quot; fill=&quot;currentColor&quot;/&gt;&lt;rect x=&quot;12&quot; y=&quot;9&quot; width=&quot;8&quot; height=&quot;7&quot;/&gt;&#x27;,
+  cursor: &#x27;&lt;path d=&quot;M6 3l12 9-5.5 1.2L15 20l-2.4 1-2.6-6.6L6 18z&quot;/&gt;&#x27;,
+  trend: &#x27;&lt;path d=&quot;M5 19L19 5&quot;/&gt;&lt;circle cx=&quot;5&quot; cy=&quot;19&quot; r=&quot;1.8&quot;/&gt;&lt;circle cx=&quot;19&quot; cy=&quot;5&quot; r=&quot;1.8&quot;/&gt;&#x27;,
+  hline: &#x27;&lt;path d=&quot;M2 12H22&quot;/&gt;&lt;circle cx=&quot;12&quot; cy=&quot;12&quot; r=&quot;2&quot;/&gt;&#x27;,
+  fan: &#x27;&lt;path d=&quot;M4 20L20 4M4 20L20 11M4 20L20 17M4 20L13 4&quot;/&gt;&lt;circle cx=&quot;4&quot; cy=&quot;20&quot; r=&quot;1.6&quot;/&gt;&#x27;,
+  trash: &#x27;&lt;path d=&quot;M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6&quot;/&gt;&#x27;
+};
+function setIcon(el, name) {
+  el.innerHTML = &#x27;&lt;svg viewBox=&quot;0 0 24 24&quot; width=&quot;18&quot; height=&quot;18&quot; fill=&quot;none&quot; stroke=&quot;currentColor&quot; stroke-width=&quot;2&quot; stroke-linecap=&quot;round&quot; stroke-linejoin=&quot;round&quot; aria-hidden=&quot;true&quot;&gt;&#x27; + ICONS[name] + &#x27;&lt;/svg&gt;&#x27;;
+}
+function iconBtn(name, label) {
+  const bt = document.createElement(&#x27;button&#x27;);
+  bt.type = &#x27;button&#x27;;
+  bt.className = &#x27;icon-btn&#x27;;
+  bt.title = label;
+  bt.setAttribute(&#x27;aria-label&#x27;, label);
+  setIcon(bt, name);
+  return bt;
+}
+
+let cv = null, cx = null, wrapEl = null, statusEl = null, DPR = 1, raf = 0, blockPat = null;
+let libGroup = &#x27;all&#x27;, libQuery = &#x27;&#x27;, editUid = null, legendKey = &#x27;&#x27;, indsVer = 0;
+
+function say(msg) { if (statusEl) statusEl.textContent = msg; }
+function smallFont() { return &#x27;12px &#x27; + FONT.num; }
+// Vẽ sắc nét: đường mảnh đúng 1 điểm ảnh CSS, đặt trùng lưới điểm ảnh thật của màn hình
+function hair() { return Math.max(1, Math.round(DPR)) / DPR; }
+function crisp(v) { const w = Math.max(1, Math.round(DPR)); return (Math.round(v * DPR) + (w % 2 ? 0.5 : 0)) / DPR; }
+const TF_LABEL = { M1: &#x27;1m&#x27;, M5: &#x27;5m&#x27;, M15: &#x27;15m&#x27;, M30: &#x27;30m&#x27;, H1: &#x27;1h&#x27;, H4: &#x27;4h&#x27;, D1: &#x27;D&#x27; };
+function tfLabel(id) { return TF_LABEL[id] || id; }
+// Kiểu nến: &#x27;candles&#x27; (nến thường) hoặc &#x27;vol&#x27; (nến khối lượng: thân rộng theo khối lượng, như TradingView)
+const CTYPE_KEY = &#x27;xk-ctype&#x27;;
+let CTYPE = &#x27;candles&#x27;;
+try { CTYPE = localStorage.getItem(CTYPE_KEY) === &#x27;vol&#x27; ? &#x27;vol&#x27; : &#x27;candles&#x27;; } catch (err) { /* bỏ qua */ }
+function syncTypeBtn() {
+  const bt = $(&#x27;bType&#x27;);
+  if (!bt) return;
+  setIcon(bt, CTYPE === &#x27;vol&#x27; ? &#x27;vcandle&#x27; : &#x27;candle&#x27;);
+  bt.title = CTYPE === &#x27;vol&#x27; ? &#x27;Nến khối lượng (bấm: nến thường)&#x27; : &#x27;Nến thường (bấm: nến khối lượng)&#x27;;
+}
+function toggleCtype() {
+  CTYPE = CTYPE === &#x27;vol&#x27; ? &#x27;candles&#x27; : &#x27;vol&#x27;;
+  try { localStorage.setItem(CTYPE_KEY, CTYPE); } catch (err) { /* bỏ qua */ }
+  syncTypeBtn();
+  say(CTYPE === &#x27;vol&#x27; ? &#x27;Nến khối lượng: thân nến rộng theo khối lượng.&#x27; : &#x27;Nến thường.&#x27;);
+  schedule();
+}
+// Ẩn / hiện thanh công cụ vẽ bên trái (nút ✏️ Ẩn vẽ của app gọi hàm này)
+const DTB_KEY = &#x27;xk-dtb-hide&#x27;;
+function xkDrawBar(hide) {
+  if (hide === undefined) { try { hide = localStorage.getItem(DTB_KEY) === &#x27;1&#x27;; } catch (err) { hide = false; } }
+  document.body.classList.toggle(&#x27;nodtb&#x27;, !!hide);
+  if (hide &amp;&amp; S.mode !== &#x27;pan&#x27;) setMode(&#x27;pan&#x27;);
+  resize();
+}
+function setOn(id, on) {
+  const el = $(id);
+  el.classList.toggle(&#x27;on&#x27;, !!on);
+  el.setAttribute(&#x27;aria-pressed&#x27;, on ? &#x27;true&#x27; : &#x27;false&#x27;);
+}
+
+function polyline(arr, iA, iB, yfn, color, width) {
+  cx.beginPath();
+  let pen = false;
+  for (let i = iA; i &lt;= iB &amp;&amp; i &lt; arr.length; i++) {
+    const v = arr[i];
+    if (!Number.isFinite(v)) { pen = false; continue; }
+    const x = xOf(i), y = yfn(v);
+    if (pen) cx.lineTo(x, y);
+    else { cx.moveTo(x, y); pen = true; }
+  }
+  cx.strokeStyle = color;
+  cx.lineWidth = width;
+  cx.stroke();
+}
+
+// Dải tô giữa hai đường của chỉ báo (EMA zone, Bollinger, Donchian)
+function drawBand(r, iL, iR) {
+  const bd = r.band, A = r.lines[bd.a].v, B = r.lines[bd.b].v;
+  const last = Math.min(A.length - 1, iR + 1);
+  for (let i = Math.max(0, iL - 1); i &lt; last; i++) {
+    const a1 = A[i], b1 = B[i], a2 = A[i + 1], b2 = B[i + 1];
+    if (!(Number.isFinite(a1) &amp;&amp; Number.isFinite(b1) &amp;&amp; Number.isFinite(a2) &amp;&amp; Number.isFinite(b2))) continue;
+    cx.fillStyle = a2 &gt;= b2 ? bd.up : bd.dn;
+    cx.beginPath();
+    cx.moveTo(xOf(i), yOf(a1));
+    cx.lineTo(xOf(i + 1), yOf(a2));
+    cx.lineTo(xOf(i + 1), yOf(b2));
+    cx.lineTo(xOf(i), yOf(b1));
+    cx.closePath();
+    cx.fill();
+  }
+}
+
+// Nhãn tín hiệu: hộp màu có chữ trắng, góc trên trái tại (x, y0), căn giữa theo x.
+function drawMark(x, y0, text, color) {
+  cx.font = smallFont();
+  const w = Math.ceil(cx.measureText(text).width) + 8, h = 16;
+  const x0 = Math.round(x - w / 2), yt = Math.round(y0);
+  cx.fillStyle = color;
+  cx.fillRect(x0, yt, w, h);
+  cx.fillStyle = &#x27;#ffffff&#x27;;
+  cx.textAlign = &#x27;center&#x27;;
+  cx.fillText(text, x0 + w / 2, yt + h / 2);
+  cx.textAlign = &#x27;left&#x27;;
+}
+
+function drawFan(d, bars) {
+  const i1 = nearestIndex(bars, d.p1.t), i2 = nearestIndex(bars, d.p2.t);
+  if (i1 === i2) return;
+  const x1 = xOf(i1);
+  if (x1 &gt; LAY.plotW) return;
+  const y1 = yOf(d.p1.p);
+  const perBar = (d.p2.p - d.p1.p) / (i2 - i1);   // giá mỗi nến của đường 1x1
+  const iR = idxAtX(LAY.plotW);
+  FAN_RATIOS.forEach((r, k) =&gt; {
+    const yr = yOf(d.p1.p + perBar * r * (iR - i1));
+    cx.strokeStyle = COL.fan;
+    cx.lineWidth = r === 1 ? 1.6 : 1;
+    cx.beginPath(); cx.moveTo(x1, y1); cx.lineTo(LAY.plotW, yr); cx.stroke();
+    cx.fillStyle = COL.fan;
+    cx.textAlign = &#x27;right&#x27;;
+    cx.fillText(FAN_LABELS[k], LAY.plotW - 6, yr - 8);
+  });
+  cx.fillStyle = COL.fan;
+  cx.beginPath(); cx.arc(x1, y1, 3, 0, Math.PI * 2); cx.fill();
+}
+
+function drawEmpty() {
+  cx.fillStyle = COL.muted;
+  cx.textAlign = &#x27;center&#x27;;
+  cx.font = &#x27;14px &#x27; + FONT.ui;
+  cx.fillText(&#x27;Chưa có dữ liệu&#x27;, LAY.w / 2, LAY.h / 2 - 12);
+  cx.fillText(&#x27;Bấm Nạp file hoặc Demo&#x27;, LAY.w / 2, LAY.h / 2 + 12);
+}
+
+function updateReadout(cur, prv) {
+  const px = $(&#x27;px&#x27;), chg = $(&#x27;chg&#x27;);
+  if (!px || !chg) return;
+  px.textContent = cur.c.toFixed(2);
+  px.style.color = cur.c &gt;= cur.o ? COL.up : COL.down;
+  const d = cur.c - prv.c, pct = prv.c ? d / prv.c * 100 : 0;
+  chg.textContent = (d &gt;= 0 ? &#x27;+&#x27; : &#x27;&#x27;) + d.toFixed(2) + &#x27;  (&#x27; + (pct &gt;= 0 ? &#x27;+&#x27; : &#x27;&#x27;) + pct.toFixed(2) + &#x27;%)&#x27;;
+  chg.style.color = d &gt;= 0 ? COL.up : COL.down;
+}
+
+function readTokens() {
+  const cs = getComputedStyle(document.documentElement);
+  const g = n =&gt; cs.getPropertyValue(n).trim();
+  for (const k of [&#x27;bg&#x27;, &#x27;panel&#x27;, &#x27;line&#x27;, &#x27;text&#x27;, &#x27;muted&#x27;, &#x27;accent&#x27;, &#x27;up&#x27;, &#x27;down&#x27;]) {
+    COL[k] = g(&#x27;--&#x27; + k) || COL[k];
+  }
+  FONT.num = g(&#x27;--f-num&#x27;) || FONT.num;
+  FONT.ui = g(&#x27;--f-ui&#x27;) || FONT.ui;
+}
+
+function makeHatch() {
+  try {
+    const c = document.createElement(&#x27;canvas&#x27;);
+    c.width = 8; c.height = 8;
+    const g = c.getContext(&#x27;2d&#x27;);
+    g.strokeStyle = &#x27;rgba(239,100,113,0.24)&#x27;;
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(0, 8); g.lineTo(8, 0);
+    g.moveTo(-2, 2); g.lineTo(2, -2);
+    g.moveTo(6, 10); g.lineTo(10, 6);
+    g.stroke();
+    return cx.createPattern(c, &#x27;repeat&#x27;);
+  } catch (err) {
+    return null;
+  }
+}
+
+// Nút ↕ Tự động chỉ hiện khi đã kéo thang giá bằng tay
+function syncAutoBtn() {
+  const b = $(&#x27;bAuto&#x27;);
+  if (b &amp;&amp; b.hidden !== !Y_LOCK) b.hidden = !Y_LOCK;
+}
+function yAuto() {
+  Y_LOCK = null;
+  syncAutoBtn();
+  say(&#x27;Thang giá: tự co giãn theo nến.&#x27;);
+  schedule();
+}
+function toggleLegendInds() {
+  VIEW.inds = !VIEW.inds;
+  saveView();
+  syncSettings();
+  syncLegendBtn();
+  legendKey = &#x27;&#x27;;
+  schedule();
+}
+function syncLegendBtn() {
+  setOn(&#x27;bLegend&#x27;, VIEW.inds);
+  $(&#x27;bLegend&#x27;).setAttribute(&#x27;aria-pressed&#x27;, String(VIEW.inds));
+}
+function render() {
+  syncAutoBtn();
+  if (!cx) return;
+  LAY = layout();
+  const L = LAY;
+  cx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  cx.fillStyle = COL.bg;
+  cx.fillRect(0, 0, L.w, L.h);
+  cx.textBaseline = &#x27;middle&#x27;;
+  cx.font = smallFont();
+  if (!hasData) { drawEmpty(); updateLegend(0); return; }
+
+  const ser = series(S.tf), bars = ser.bars, n = bars.length;
+  let iL = Math.max(0, Math.floor(idxAtX(0)));
+  let iR = Math.min(n - 1, Math.ceil(idxAtX(L.plotW)));
+  if (iR &lt; iL) { iL = Math.max(0, n - 50); iR = n - 1; }
+
+  const ovs = overlayInsts().map(inst =&gt; ({ def: IND_BY_ID[inst.id], r: instResult(inst) }));
+  const pns = paneInsts().map(inst =&gt; ({ def: IND_BY_ID[inst.id], r: instResult(inst) }));
+
+  // Khoảng giá: nến, cộng thêm các đường và dải đang hiển thị
+  let lo = Infinity, hi = -Infinity, vmax = 0;
+  for (let i = iL; i &lt;= iR; i++) {
+    const b = bars[i];
+    if (b.l &lt; lo) lo = b.l;
+    if (b.h &gt; hi) hi = b.h;
+    if (b.v &gt; vmax) vmax = b.v;
+  }
+  for (const o of ovs) {
+    for (const ln of o.r.lines) {
+      if (ln.nofit) continue;
+      for (let i = iL; i &lt;= iR; i++) {
+        const v = ln.v[i];
+        if (Number.isFinite(v)) {
+          if (v &lt; lo) lo = v;
+          if (v &gt; hi) hi = v;
+        }
+      }
+    }
+    if (o.r.fit) {
+      // Mức SL/TP chỉ nới thang giá khi ở gần nến (như TradingView: nến luôn đủ lớn để đọc)
+      const rg = hi &gt; lo ? hi - lo : 1, fLo = lo - rg * 0.5, fHi = hi + rg * 0.5;
+      for (const lv of o.r.levels || []) {
+        if (Number.isFinite(lv.v) &amp;&amp; lv.v &gt;= fLo &amp;&amp; lv.v &lt;= fHi) {
+          if (lv.v &lt; lo) lo = lv.v;
+          if (lv.v &gt; hi) hi = lv.v;
+        }
+      }
+    }
+  }
+  if (XK_FIT) { lo = Math.min(lo, XK_FIT.lo); hi = Math.max(hi, XK_FIT.hi); }
+  const pad = hi &gt; lo ? (hi - lo) * 0.08 : 1;
+  VP = (Y_LOCK &amp;&amp; !XK_FIT) ? { pMin: Y_LOCK.pMin, pMax: Y_LOCK.pMax } : { pMin: lo - pad, pMax: hi + pad };
+
+  const cr = S.cross;
+  const crInPlot = !!cr &amp;&amp; cr.x &gt;= 0 &amp;&amp; cr.x &lt;= L.plotW;
+  const crInMain = crInPlot &amp;&amp; cr.y &gt;= 0 &amp;&amp; cr.y &lt;= L.mainH;
+  const li = crInPlot ? clamp(Math.round(idxAtX(cr.x)), 0, n - 1) : n - 1;
+  const tags = [];   // nhãn có nền trên trục phải
+  const lvTxt = [];  // vị trí chữ của các mức SL/TP/Entry đã vẽ
+  const axis = [];   // nhãn trục phải thường
+
+  // Lưới giá
+  const step = niceStep(VP.pMax - VP.pMin, 6);
+  const dec = clamp(-Math.floor(Math.log10(step)), 0, 2);
+  for (let k = Math.ceil(VP.pMin / step); k * step &lt;= VP.pMax; k++) {
+    const y = crisp(yOf(k * step));
+    cx.strokeStyle = COL.line; cx.lineWidth = hair();
+    cx.beginPath(); cx.moveTo(0, y); cx.lineTo(L.plotW, y); cx.stroke();
+    axis.push({ y: y, text: (k * step).toFixed(dec), color: COL.axis });
+  }
+
+  // Lưới thời gian và nhãn trục thời gian
+  const P = pickPeriod(ser.sec, S.barW);
+  const tzSec = S.tz * 3600;
+  let lastDay = null;
+  cx.textAlign = &#x27;center&#x27;;
+  cx.fillStyle = COL.axis;
+  for (let i = Math.max(1, iL); i &lt;= iR; i++) {
+    const tt = bars[i].t + tzSec, tp = bars[i - 1].t + tzSec;
+    if (Math.floor(tt / P) === Math.floor(tp / P)) continue;
+    const day = Math.floor(tt / 86400);
+    const newDay = day !== lastDay;
+    lastDay = day;
+    const x = xOf(i);
+    if (x &lt; 0 || x &gt; L.plotW) continue;
+    let label;
+    if (P &lt; 86400) label = newDay ? fmtTs(bars[i].t, &#x27;dm&#x27;) : fmtTs(bars[i].t, &#x27;hm&#x27;);
+    else if (P &lt; 2592000) label = fmtTs(bars[i].t, &#x27;dm&#x27;);
+    else { const d = new Date(tt * 1000); label = pad2(d.getUTCMonth() + 1) + &#x27;/&#x27; + d.getUTCFullYear(); }
+    const xl = crisp(x);
+    cx.strokeStyle = COL.line; cx.lineWidth = hair();
+    cx.beginPath(); cx.moveTo(xl, 0); cx.lineTo(xl, L.totalH); cx.stroke();
+    cx.fillText(label, x, L.totalH + L.axisB / 2);
+  }
+
+  // Giờ cấm: cột chéo đỏ phủ cả vùng giá lẫn vùng chỉ báo
+  cx.save();
+  cx.beginPath(); cx.rect(0, 0, L.plotW, L.totalH); cx.clip();
+  if (S.showBlock &amp;&amp; blockPat) {
+    cx.fillStyle = blockPat;
+    for (let i = iL; i &lt;= iR; i++) {
+      if (inBlock(bars[i].t)) cx.fillRect(xOf(i) - S.barW / 2, 0, S.barW, L.totalH);
+    }
+  }
+  cx.restore();
+
+  // Vùng giá: khối lượng, dải tô, nến, đường, mức, hình vẽ, giá cuối, con trỏ
+  cx.save();
+  cx.beginPath(); cx.rect(0, 0, L.plotW, L.mainH); cx.clip();
+
+  if (L.volH &gt; 8 &amp;&amp; vmax &gt; 0) {
+    const bw = Math.max(1, S.barW * 0.7), base = L.mainH - 2, maxH = L.volH - 6;
+    for (let i = iL; i &lt;= iR; i++) {
+      const b = bars[i], h = b.v / vmax * maxH;
+      cx.fillStyle = b.c &gt;= b.o ? COL.volUp : COL.volDn;
+      cx.fillRect(xOf(i) - bw / 2, base - h, bw, h);
+    }
+  }
+
+  for (const o of ovs) if (o.r.band) drawBand(o.r, iL, iR);
+
+  // Nến vẽ theo điểm ảnh thật: thân và bấc thẳng hàng, mép sắc như TradingView
+  const vt = CTYPE === &#x27;vol&#x27; &amp;&amp; ser.hasVol &amp;&amp; vmax &gt; 0;
+  const wd = Math.max(1, Math.floor(DPR));
+  for (let i = iL; i &lt;= iR; i++) {
+    const bc = bars[i], col = bc.c &gt;= bc.o ? COL.up : COL.down;
+    const bw = vt ? Math.max(1, S.barW * 0.94 * Math.max(0.12, bc.v / vmax)) : Math.max(1, S.barW * 0.72);
+    let bwd = Math.max(wd, Math.round(bw * DPR));
+    if ((bwd - wd) % 2) bwd += 1;
+    const xl = Math.round(xOf(i) * DPR - bwd / 2), xw = xl + (bwd - wd) / 2;
+    const yh = Math.round(yOf(bc.h) * DPR), yl = Math.round(yOf(bc.l) * DPR);
+    const yt = Math.round(yOf(Math.max(bc.o, bc.c)) * DPR);
+    const yb = Math.max(yt + Math.max(1, Math.round(DPR)), Math.round(yOf(Math.min(bc.o, bc.c)) * DPR));
+    cx.fillStyle = col;
+    cx.fillRect(xw / DPR, yh / DPR, wd / DPR, Math.max(1, yl - yh) / DPR);
+    cx.fillRect(xl / DPR, yt / DPR, bwd / DPR, (yb - yt) / DPR);
+  }
+
+  for (const o of ovs) {
+    for (const ln of o.r.lines) {
+      cx.setLineDash(ln.dash || []);
+      polyline(ln.v, Math.max(0, iL - 1), iR, yOf, ln.color, ln.w || (ln.thin ? 1 : 1.5));
+      cx.setLineDash([]);
+    }
+    for (const lv of o.r.levels || []) {
+      if (lv.v &lt; VP.pMin || lv.v &gt; VP.pMax) continue;
+      const y = crisp(yOf(lv.v));
+      cx.setLineDash([5, 4]); cx.strokeStyle = lv.color; cx.lineWidth = hair();
+      cx.beginPath(); cx.moveTo(0, y); cx.lineTo(L.plotW, y); cx.stroke();
+      cx.setLineDash([]);
+      cx.fillStyle = lv.color; cx.textAlign = &#x27;right&#x27;;
+      let ty = y - 9;
+      if (lvTxt.some(v =&gt; Math.abs(v - ty) &lt; 14)) ty = y + 9;
+      if (!lvTxt.some(v =&gt; Math.abs(v - ty) &lt; 14)) { cx.fillText(lv.text, L.plotW - 6, ty); lvTxt.push(ty); }
+      tags.push({ y: y, text: lv.v.toFixed(2), bg: lv.color, fg: &#x27;#000000&#x27; });
+      cx.textAlign = &#x27;left&#x27;;
+    }
+  }
+
+  // Nhãn tín hiệu trên giá: BUY và BUY P nằm dưới nến, SELL và SELL P nằm trên nến; nhãn cùng nến được xếp chồng
+  const stacked = {};
+  for (const o of ovs) {
+    for (const mk of o.r.marks || []) {
+      if (mk.i &lt; iL || mk.i &gt; iR) continue;
+      const key = mk.i + (mk.up ? &#x27;u&#x27; : &#x27;d&#x27;), k = stacked[key] || 0;
+      stacked[key] = k + 1;
+      const bc = bars[mk.i], xc = xOf(mk.i);
+      if (mk.up) drawMark(xc, yOf(bc.l) + 6 + k * 16, mk.text, COL.up);
+      else drawMark(xc, yOf(bc.h) - 20 - k * 16, mk.text, COL.down);
+    }
+  }
+
+  for (const d of S.drawings) {
+    if (d.type === &#x27;fan&#x27;) { drawFan(d, bars); continue; }
+    if (TREND_TYPES.has(d.type)) { drawTrend(d, bars); continue; }
+    if (d.type === &#x27;hline&#x27;) {
+      const yh = yOf(d.p);
+      if (yh &lt; L.candleTop || yh &gt; L.candleBottom) continue;
+      const y = crisp(yh);
+      cx.strokeStyle = COL.hline; cx.lineWidth = hair(); cx.setLineDash([6, 4]);
+      cx.beginPath(); cx.moveTo(0, y); cx.lineTo(L.plotW, y); cx.stroke();
+      cx.setLineDash([]);
+      tags.push({ y: yh, text: d.p.toFixed(2), bg: COL.hline, fg: COL.bg });
+    }
+  }
+
+  if (selValid() &amp;&amp; S.mode === &#x27;pan&#x27;) {
+    cx.save();
+    cx.shadowColor = DRAW_COL;
+    cx.shadowBlur = 10;
+    drawSelShape(selDraw, bars);
+    cx.restore();
+    drawSelTag(bars);
+  }
+  drawPending(bars);
+  if (S.pendingFan) {
+    const i = nearestIndex(bars, S.pendingFan.t);
+    cx.fillStyle = COL.fan;
+    cx.beginPath(); cx.arc(xOf(i), yOf(S.pendingFan.p), 4, 0, Math.PI * 2); cx.fill();
+  }
+
+  const last = bars[n - 1], lastUp = last.c &gt;= last.o;
+  if (last.c &gt;= VP.pMin &amp;&amp; last.c &lt;= VP.pMax) {
+    const yl = crisp(yOf(last.c));
+    cx.strokeStyle = lastUp ? COL.up : COL.down; cx.lineWidth = hair(); cx.setLineDash([2, 3]);
+    cx.beginPath(); cx.moveTo(0, yl); cx.lineTo(L.plotW, yl); cx.stroke();
+    cx.setLineDash([]);
+    // Giá cuối kèm đồng hồ đếm ngược tới lúc đóng nến (như TradingView), chỉ khi dữ liệu live
+    const left = last.t + ser.sec - Date.now() / 1000;
+    let sub = &#x27;&#x27;;
+    if (/^Live/.test(baseName) &amp;&amp; left &gt; 0 &amp;&amp; left &lt;= ser.sec) {
+      const sl = Math.floor(left), hh = Math.floor(sl / 3600), mm = Math.floor(sl % 3600 / 60), ss = sl % 60;
+      sub = (hh ? hh + &#x27;:&#x27; + pad2(mm) : pad2(mm)) + &#x27;:&#x27; + pad2(ss);
+    }
+    tags.push({ y: yOf(last.c), text: last.c.toFixed(2), sub: sub, bg: lastUp ? COL.up : COL.down, fg: &#x27;#ffffff&#x27;, keep: true });
+  }
+
+  if (crInMain) {
+    const yc = crisp(cr.y);
+    cx.strokeStyle = COL.cross; cx.lineWidth = hair(); cx.setLineDash([3, 3]);
+    cx.beginPath(); cx.moveTo(0, yc); cx.lineTo(L.plotW, yc); cx.stroke();
+    cx.setLineDash([]);
+    if (cr.y &gt;= L.candleTop &amp;&amp; cr.y &lt;= L.candleBottom) {
+      tags.push({ y: cr.y, text: priceAtY(cr.y).toFixed(2), bg: COL.box, fg: COL.text });
+    }
+  }
+  cx.restore();
+
+  // Các vùng chỉ báo dao động, mỗi vùng có thang riêng
+  pns.forEach((pn, k) =&gt; {
+    const def = pn.def, r = pn.r;
+    const top = L.mainH + k * L.paneH, bot = top + L.paneH;
+    let lo2 = Infinity, hi2 = -Infinity;
+    for (const ln of r.lines) {
+      for (let i = iL; i &lt;= iR; i++) {
+        const v = ln.v[i];
+        if (Number.isFinite(v)) {
+          if (v &lt; lo2) lo2 = v;
+          if (v &gt; hi2) hi2 = v;
+        }
+      }
+    }
+    for (const lv of def.levels) {
+      if (lv.v &lt; lo2) lo2 = lv.v;
+      if (lv.v &gt; hi2) hi2 = lv.v;
+    }
+    if (def.range) {
+      lo2 = def.range[0];
+      hi2 = def.range[1];
+    } else {
+      if (!Number.isFinite(lo2) || !Number.isFinite(hi2)) { lo2 = 0; hi2 = 1; }
+      if (def.zero) { lo2 = Math.min(lo2, 0); hi2 = Math.max(hi2, 0); }
+      if (hi2 - lo2 &lt; 1e-9) hi2 = lo2 + 1;
+      const pd = (hi2 - lo2) * 0.1;
+      lo2 -= pd;
+      hi2 += pd;
+    }
+    const yP = v =&gt; top + 6 + (hi2 - v) / (hi2 - lo2) * (L.paneH - 12);
+
+    cx.strokeStyle = COL.line; cx.lineWidth = hair();
+    cx.beginPath(); cx.moveTo(0, crisp(top)); cx.lineTo(L.w, crisp(top)); cx.stroke();
+
+    cx.save();
+    cx.beginPath(); cx.rect(0, top, L.plotW, L.paneH); cx.clip();
+    cx.setLineDash([4, 4]); cx.strokeStyle = COL.grid; cx.lineWidth = hair();
+    for (const lv of def.levels) {
+      const y = crisp(yP(lv.v));
+      cx.beginPath(); cx.moveTo(0, y); cx.lineTo(L.plotW, y); cx.stroke();
+    }
+    cx.setLineDash([]);
+    for (const ln of r.lines) {
+      if (ln.type === &#x27;hist&#x27;) {
+        const bw = Math.max(1, Math.round(S.barW * 0.6)), y0 = yP(0);
+        for (let i = iL; i &lt;= iR; i++) {
+          const v = ln.v[i];
+          if (!Number.isFinite(v)) continue;
+          const yv = yP(v);
+          cx.fillStyle = v &gt;= 0 ? ln.up : ln.dn;
+          cx.fillRect(Math.round(xOf(i)) - Math.floor(bw / 2), Math.min(y0, yv), bw, Math.max(1, Math.abs(yv - y0)));
+        }
+      } else {
+        polyline(ln.v, Math.max(0, iL - 1), iR, yP, ln.color, ln.thin ? 1 : 1.4);
+      }
+    }
+    // Nhãn Buy / Sell của TRIX: Buy nằm sát đáy ô, Sell nằm sát đỉnh ô
+    for (const mk of r.marks || []) {
+      if (mk.i &lt; iL || mk.i &gt; iR) continue;
+      drawMark(xOf(mk.i), mk.up ? bot - 18 : top + 22, mk.text, mk.up ? COL.up : COL.down);
+    }
+    if (crInPlot &amp;&amp; cr.y &gt;= top &amp;&amp; cr.y &lt; bot) {
+      const yc = crisp(cr.y);
+      cx.strokeStyle = COL.cross; cx.lineWidth = hair(); cx.setLineDash([3, 3]);
+      cx.beginPath(); cx.moveTo(0, yc); cx.lineTo(L.plotW, yc); cx.stroke();
+      cx.setLineDash([]);
+      const vv = hi2 - (cr.y - top - 6) / (L.paneH - 12) * (hi2 - lo2);
+      tags.push({ y: cr.y, text: fmtVal(vv, def.dec), bg: COL.box, fg: COL.text });
+    }
+    cx.restore();
+
     // Nhãn trục phải: các mức tham chiếu và mốc đẹp
     const pstep = niceStep(hi2 - lo2, 3);
     const pdec = clamp(-Math.floor(Math.log10(pstep)), 0, 4);
@@ -656,1344 +1302,5 @@ function setMode(m) {
   else if (m === &#x27;draw&#x27;) say(DRAW_BY_ID[S.tool].hint);
   else say(&#x27;Kéo để xem biểu đồ. Chạm nút vẽ để bắt đầu vẽ.&#x27;);
   schedule();
-}
-
-/* ===== Chọn bản vẽ rồi bấm Xóa (chế độ xem) ===== */
-let selDraw = null, selAt = null;
-function selValid() { return !!selDraw &amp;&amp; S.drawings.indexOf(selDraw) &gt;= 0; }
-function delTagRect(bars) {
-  if (!selValid() || !selAt || S.mode !== &#x27;pan&#x27;) return null;
-  const x = xOf(nearestIndex(bars, selAt.t)), y = yOf(selAt.p);
-  if (x &lt; 0 || x &gt; LAY.plotW || y &lt; LAY.candleTop || y &gt; LAY.candleBottom) return null;
-  cx.save();
-  cx.font = &#x27;600 12px &#x27; + FONT.num;
-  const w = Math.ceil(cx.measureText(&#x27;Xóa&#x27;).width) + 20, h = 26;
-  cx.restore();
-  let tx = x + 12;
-  if (tx + w &gt; LAY.plotW - 4) tx = x - w - 12;
-  tx = clamp(tx, 4, LAY.plotW - w - 4);
-  const ty = clamp(y - h - 10, LAY.candleTop + 2, LAY.candleBottom - h - 2);
-  return { x: Math.round(tx), y: Math.round(ty), w, h };
-}
-function drawSelTag(bars) {
-  const r = delTagRect(bars);
-  if (!r) return;
-  cx.save();
-  cx.fillStyle = COL.down;
-  cx.fillRect(r.x, r.y, r.w, r.h);
-  cx.fillStyle = &#x27;#ffffff&#x27;;
-  cx.font = &#x27;600 12px &#x27; + FONT.num;
-  cx.textAlign = &#x27;center&#x27;;
-  cx.textBaseline = &#x27;middle&#x27;;
-  cx.fillText(&#x27;Xóa&#x27;, r.x + r.w / 2, r.y + r.h / 2 + 0.5);
-  cx.restore();
-}
-function drawSelShape(d, bars) {
-  if (d.type === &#x27;fan&#x27;) { drawFan(d, bars); return; }
-  if (TREND_TYPES.has(d.type)) { drawTrend(d, bars); return; }
-  if (d.type === &#x27;hline&#x27;) {
-    const yh = yOf(d.p);
-    if (yh &lt; LAY.candleTop || yh &gt; LAY.candleBottom) return;
-    const y = Math.round(yh) + 0.5;
-    cx.strokeStyle = COL.hline; cx.lineWidth = 1.5; cx.setLineDash([6, 4]);
-    cx.beginPath(); cx.moveTo(0, y); cx.lineTo(LAY.plotW, y); cx.stroke();
-    cx.setLineDash([]);
-  }
-}
-/* ===== Xóa từng bản vẽ ở chế độ xem, và khôi phục ===== */
-const DEL_TOL = 12;
-let lastDel = null, undoTimer = 0;
-function segDist(px, py, x0, y0, x1, y1) {
-  const dx = x1 - x0, dy = y1 - y0, len2 = dx * dx + dy * dy;
-  const t = len2 ? clamp(((px - x0) * dx + (py - y0) * dy) / len2, 0, 1) : 0;
-  return Math.hypot(px - (x0 + t * dx), py - (y0 + t * dy));
-}
-function rayDist(px, py, x0, y0, x1, y1) {
-  const dx = x1 - x0, dy = y1 - y0, len2 = dx * dx + dy * dy;
-  if (!len2) return Math.hypot(px - x0, py - y0);
-  const t = ((px - x0) * dx + (py - y0) * dy) / len2;
-  if (t &lt;= 0) return Math.hypot(px - x0, py - y0);
-  return Math.hypot(px - (x0 + t * dx), py - (y0 + t * dy));
-}
-function lineDist(px, py, x0, y0, x1, y1) {
-  const dx = x1 - x0, dy = y1 - y0, len = Math.hypot(dx, dy);
-  if (!len) return Math.hypot(px - x0, py - y0);
-  return Math.abs(dx * (py - y0) - dy * (px - x0)) / len;
-}
-function regDist(P, bars, px, py) {
-  const a = Math.min(P[0].i, P[1].i), b = Math.max(P[0].i, P[1].i);
-  if (b - a &lt; 2) return Infinity;
-  const n = b - a + 1;
-  let sx = 0, sy = 0, sxy = 0, sxx = 0;
-  for (let i = a; i &lt;= b; i++) { const x = i - a, y = bars[i].c; sx += x; sy += y; sxy += x * y; sxx += x * x; }
-  const den = n * sxx - sx * sx;
-  const slope = den ? (n * sxy - sx * sy) / den : 0;
-  const icpt = (sy - slope * sx) / n;
-  let ss = 0;
-  for (let i = a; i &lt;= b; i++) { const r = bars[i].c - (icpt + slope * (i - a)); ss += r * r; }
-  const sd = Math.sqrt(ss / n);
-  let best = Infinity;
-  for (const k of [-2, 0, 2]) {
-    for (let i = a; i &lt; b; i++) {
-      const ya = yOf(icpt + slope * (i - a) + k * sd), yb = yOf(icpt + slope * (i + 1 - a) + k * sd);
-      best = Math.min(best, segDist(px, py, xOf(i), ya, xOf(i + 1), yb));
-    }
-  }
-  return best;
-}
-function drawingDist(d, bars, px, py) {
-  if (d.type === &#x27;hline&#x27;) {
-    const yh = yOf(d.p);
-    return yh &lt; LAY.candleTop || yh &gt; LAY.candleBottom ? Infinity : Math.abs(py - yh);
-  }
-  if (d.type === &#x27;fan&#x27;) {
-    const i1 = nearestIndex(bars, d.p1.t), i2 = nearestIndex(bars, d.p2.t);
-    if (i1 === i2 || xOf(i1) &gt; LAY.plotW) return Infinity;
-    const x1 = xOf(i1), y1 = yOf(d.p1.p), perBar = (d.p2.p - d.p1.p) / (i2 - i1), iR = idxAtX(LAY.plotW);
-    let best = Infinity;
-    for (const r of FAN_RATIOS) best = Math.min(best, segDist(px, py, x1, y1, LAY.plotW, yOf(d.p1.p + perBar * r * (iR - i1))));
-    return best;
-  }
-  if (!TREND_TYPES.has(d.type)) return Infinity;
-  const P = trendPts(d, bars);
-  if (!P.length) return Infinity;
-  switch (d.type) {
-    case &#x27;tl&#x27;: case &#x27;info&#x27;: case &#x27;angle&#x27;:
-      return P.length &lt; 2 ? Infinity : segDist(px, py, P[0].x, P[0].y, P[1].x, P[1].y);
-    case &#x27;ext&#x27;:
-      return P.length &lt; 2 ? Infinity : lineDist(px, py, P[0].x, P[0].y, P[1].x, P[1].y);
-    case &#x27;ray&#x27;:
-      return P.length &lt; 2 ? Infinity : rayDist(px, py, P[0].x, P[0].y, P[1].x, P[1].y);
-    case &#x27;hray&#x27;:
-      return segDist(px, py, P[0].x, P[0].y, LAY.plotW, P[0].y);
-    case &#x27;vl&#x27;:
-      return Math.abs(px - P[0].x);
-    case &#x27;cross&#x27;:
-      return Math.min(Math.abs(px - P[0].x), Math.abs(py - P[0].y));
-    case &#x27;chan&#x27;: {
-      if (P.length &lt; 3 || P[1].x === P[0].x) return Infinity;
-      const m = (P[1].y - P[0].y) / (P[1].x - P[0].x);
-      const yMain = x =&gt; P[0].y + m * (x - P[0].x);
-      const dyOff = P[2].y - yMain(P[2].x);
-      const xL = -20, xR = LAY.plotW + 20;
-      return Math.min(segDist(px, py, xL, yMain(xL), xR, yMain(xR)), segDist(px, py, xL, yMain(xL) + dyOff, xR, yMain(xR) + dyOff));
-    }
-    case &#x27;reg&#x27;:
-      return regDist(P, bars, px, py);
-    case &#x27;flat&#x27;: {
-      if (P.length &lt; 3 || P[0].x === P[1].x) return Infinity;
-      const x0 = Math.min(P[0].x, P[1].x), x1 = Math.max(P[0].x, P[1].x), yTop = P[0].y, yBot = P[2].y;
-      return Math.min(segDist(px, py, x0, yTop, x1, yTop), segDist(px, py, x0, yBot, x1, yBot), segDist(px, py, x0, yTop, x0, yBot), segDist(px, py, x1, yTop, x1, yBot));
-    }
-    default: return Infinity;
-  }
-}
-function drawingName(d) {
-  if (d.type === &#x27;fan&#x27;) return &#x27;Gann Fan&#x27;;
-  const t = DRAW_TOOLS.find(q =&gt; q.type === d.type);
-  return t ? t.name.charAt(0).toLowerCase() + t.name.slice(1) : &#x27;bản vẽ&#x27;;
-}
-function drawingAt(bars, px, py) {
-  let best = -1, bestD = Infinity;
-  S.drawings.forEach((d, k) =&gt; {
-    const dist = drawingDist(d, bars, px, py);
-    if (dist &lt;= DEL_TOL &amp;&amp; dist &lt;= bestD) { best = k; bestD = dist; }
-  });
-  return best;
-}
-function hideUndo() {
-  clearTimeout(undoTimer);
-  const bar = document.getElementById(&#x27;undoBar&#x27;);
-  if (bar) bar.style.display = &#x27;none&#x27;;
-  lastDel = null;
-}
-function showUndo(msg) {
-  let bar = document.getElementById(&#x27;undoBar&#x27;);
-  if (!bar) {
-    bar = document.createElement(&#x27;div&#x27;);
-    bar.id = &#x27;undoBar&#x27;;
-    bar.style.cssText = &#x27;position:fixed;left:50%;bottom:44px;transform:translateX(-50%);z-index:15;display:none;align-items:center;gap:10px;max-width:92vw;padding:6px 8px 6px 12px;border-radius:10px;background:var(--panel);color:var(--text);border:1px solid &#x27; + DRAW_COL + &#x27;;box-shadow:0 6px 18px rgba(0,0,0,.45);font:500 12px/1.2 var(--f-ui);white-space:nowrap;&#x27;;
-    const span = document.createElement(&#x27;span&#x27;);
-    span.id = &#x27;undoMsg&#x27;;
-    const btn = document.createElement(&#x27;button&#x27;);
-    btn.type = &#x27;button&#x27;;
-    btn.id = &#x27;undoBtn&#x27;;
-    btn.textContent = &#x27;Khôi phục&#x27;;
-    btn.style.cssText = &#x27;font:inherit;font-weight:600;color:&#x27; + DRAW_COL + &#x27;;background:none;border:1px solid &#x27; + DRAW_COL + &#x27;;border-radius:6px;padding:2px 8px;&#x27;;
-    btn.addEventListener(&#x27;click&#x27;, undoDelete);
-    bar.appendChild(span);
-    bar.appendChild(btn);
-    document.body.appendChild(bar);
-  }
-  document.getElementById(&#x27;undoMsg&#x27;).textContent = msg;
-  bar.style.display = &#x27;flex&#x27;;
-  clearTimeout(undoTimer);
-  undoTimer = setTimeout(hideUndo, 10000);
-}
-function deleteAt(k) {
-  if (k &lt; 0) return;
-  const [d] = S.drawings.splice(k, 1);
-  lastDel = { items: [{ d, idx: k }] };
-  selDraw = null;
-  saveDrawings();
-  showUndo(&#x27;Đã xóa &#x27; + drawingName(d) + &#x27;.&#x27;);
-}
-function panTap(bars, px, py) {
-  const r = delTagRect(bars);
-  if (r &amp;&amp; px &gt;= r.x - 8 &amp;&amp; px &lt;= r.x + r.w + 8 &amp;&amp; py &gt;= r.y - 8 &amp;&amp; py &lt;= r.y + r.h + 8) {
-    deleteAt(S.drawings.indexOf(selDraw));
-    return;
-  }
-  const k = drawingAt(bars, px, py);
-  if (k &gt;= 0) {
-    selDraw = S.drawings[k];
-    selAt = { t: bars[clamp(Math.round(idxAtX(px)), 0, bars.length - 1)].t, p: r2(priceAtY(py)) };
-    say(&#x27;Đã chọn &#x27; + drawingName(selDraw) + &#x27;. Chạm Xóa để xóa.&#x27;);
-    return;
-  }
-  selDraw = null;
-}
-function undoDelete() {
-  if (!lastDel) { hideUndo(); return; }
-  const items = lastDel.items.slice().sort((a, b) =&gt; a.idx - b.idx);
-  for (const it of items) S.drawings.splice(Math.min(it.idx, S.drawings.length), 0, it.d);
-  hideUndo();
-  saveDrawings();
-  say(&#x27;Đã khôi phục hình vẽ.&#x27;);
-  schedule();
-}
-function onTap(x, y) {
-  if (x &gt; LAY.plotW || y &lt; 0 || y &gt; LAY.candleBottom) return;
-  const bars = series(S.tf).bars;
-  if (S.mode === &#x27;pan&#x27;) { panTap(bars, x, y); schedule(); return; }
-  const i = clamp(Math.round(idxAtX(x)), 0, bars.length - 1);
-  const p = r2(priceAtY(y));
-  if (S.mode === &#x27;hline&#x27;) {
-    S.drawings.push({ type: &#x27;hline&#x27;, p });
-    saveDrawings();
-    setMode(&#x27;pan&#x27;);
-    say(&#x27;Đã ghim đường ngang &#x27; + p.toFixed(2) + &#x27;.&#x27;);
-  } else if (S.mode === &#x27;draw&#x27;) {
-    tapDraw(bars, i, p);
-  } else if (S.mode === &#x27;fan&#x27;) {
-    const pt = { t: bars[i].t, p };
-    if (!S.pendingFan) {
-      S.pendingFan = pt;
-      say(&#x27;Đã đặt điểm gốc. Chạm điểm thứ hai để định nghĩa 1x1.&#x27;);
-    } else if (S.pendingFan.t === pt.t) {
-      say(&#x27;Hai điểm đang nằm trên cùng một nến. Chạm nến khác.&#x27;);
-    } else {
-      S.drawings.push({ type: &#x27;fan&#x27;, p1: S.pendingFan, p2: pt });
-      S.pendingFan = null;
-      saveDrawings();
-      setMode(&#x27;pan&#x27;);
-      say(&#x27;Đã vẽ Gann Fan. Bấm Gann Fan để vẽ thêm.&#x27;);
-    }
-  }
-  schedule();
-}
-
-function bindPointer() {
-  const pts = new Map();
-  let drag = null, pinch = null;
-  const rel = e =&gt; {
-    const r = cv.getBoundingClientRect();
-    return { x: e.clientX - r.left, y: e.clientY - r.top };
-  };
-
-  cv.addEventListener(&#x27;pointerdown&#x27;, e =&gt; {
-    e.preventDefault();
-    try { cv.setPointerCapture(e.pointerId); } catch (err) { /* không bắt được con trỏ */ }
-    const p = rel(e);
-    pts.set(e.pointerId, p);
-    if (pts.size === 1) {
-      drag = {
-        x0: p.x, y0: p.y, a0: S.anchor, moved: false,
-        // Kéo trong ô giá: dọc = dời thang giá; kéo trên cột giá bên phải = co giãn thang giá
-        inMain: p.y &lt; LAY.candleBottom + 6, onAxis: p.x &gt; LAY.plotW &amp;&amp; p.y &lt; LAY.candleBottom + 6,
-        vp0: { pMin: VP.pMin, pMax: VP.pMax }, vert: false
-      };
-      pinch = null;
-      S.cross = p;
-    } else {
-      // Hai ngón: không còn là một lần chạm. Co giãn ở chế độ vẽ chỉ bắt đầu khi hai ngón thật sự kéo đi.
-      drag = null;
-      if (pts.size === 2 &amp;&amp; hasData) {
-        const [p1, p2] = [...pts.values()];
-        pinch = {
-          d0: Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1,
-          w0: S.barW,
-          iMid: idxAtX((p1.x + p2.x) / 2),
-          mx0: (p1.x + p2.x) / 2,
-          my0: (p1.y + p2.y) / 2,
-          armed: S.mode === &#x27;pan&#x27;
-        };
-      }
-    }
-    schedule();
-  });
-
-  cv.addEventListener(&#x27;pointermove&#x27;, e =&gt; {
-    const p = rel(e);
-    if (pts.has(e.pointerId)) pts.set(e.pointerId, p);
-    else if (e.pointerType !== &#x27;mouse&#x27;) return;
-    if (!hasData) return;
-    if (pinch &amp;&amp; pts.size &gt;= 2) {
-      const [p1, p2] = [...pts.values()];
-      const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
-      const d = Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1;
-      if (!pinch.armed) {
-        // Chế độ vẽ: ngón thứ hai chạm nhẹ không được làm biểu đồ phóng to hay trôi đi
-        if (Math.abs(d - pinch.d0) &lt; 20 &amp;&amp; Math.hypot(mx - pinch.mx0, my - pinch.my0) &lt; 20) return;
-        pinch.armed = true;
-        pinch.d0 = d;
-        pinch.w0 = S.barW;
-        pinch.iMid = idxAtX(mx);
-      }
-      S.barW = clamp(pinch.w0 * d / pinch.d0, 1.5, 40);
-      S.anchor = pinch.iMid - 0.5 + (LAY.plotW - mx) / S.barW;
-      clampAnchor();
-      S.cross = null;
-    } else if (drag &amp;&amp; pts.size === 1) {
-      // Chế độ vẽ/Gann/đường ngang: một ngón chỉ để ngắm và đặt điểm, không kéo biểu đồ
-      const dx = p.x - drag.x0, dy = p.y - drag.y0;
-      if (!drag.moved &amp;&amp; Math.hypot(dx, dy) &gt; 6) drag.moved = true;
-      if (drag.moved &amp;&amp; S.mode === &#x27;pan&#x27;) {
-        const ppx = (drag.vp0.pMax - drag.vp0.pMin) / Math.max(1, LAY.candleBottom - LAY.candleTop);
-        if (drag.onAxis) {
-          // Cột giá: kéo lên = giãn nến (thu hẹp khoảng giá), kéo xuống = co lại
-          const k = Math.exp(dy * 0.006), mid = (drag.vp0.pMin + drag.vp0.pMax) / 2, half = (drag.vp0.pMax - drag.vp0.pMin) / 2 * k;
-          Y_LOCK = { pMin: mid - half, pMax: mid + half };
-        } else {
-          S.anchor = drag.a0 - dx / S.barW;
-          clampAnchor();
-          if (drag.inMain &amp;&amp; (drag.vert || Math.abs(dy) &gt; 6)) {
-            drag.vert = true;
-            Y_LOCK = { pMin: drag.vp0.pMin + dy * ppx, pMax: drag.vp0.pMax + dy * ppx };
-          }
-        }
-      }
-      S.cross = p;
-    } else if (e.pointerType === &#x27;mouse&#x27;) {
-      S.cross = p;
-    }
-    schedule();
-  });
-
-  const end = (e, cancelled) =&gt; {
-    pts.delete(e.pointerId);
-    if (drag &amp;&amp; pts.size === 0) {
-      // Chế độ vẽ: điểm đặt ở chỗ nhấc ngón; dấu thập đã theo ngón tay lúc đang giữ
-      if (!cancelled &amp;&amp; hasData &amp;&amp; (S.mode !== &#x27;pan&#x27; || !drag.moved)) {
-        const q = S.mode === &#x27;pan&#x27; ? { x: drag.x0, y: drag.y0 } : rel(e);
-        // Chạm vào cột giá khi đang chỉnh tay: trở lại tự co giãn
-        if (drag.onAxis &amp;&amp; Y_LOCK) yAuto();
-        else onTap(q.x, q.y);
-      }
-      drag = null;
-    }
-    if (pts.size &lt; 2) pinch = null;
-    if (pts.size === 0 &amp;&amp; e.pointerType !== &#x27;mouse&#x27;) S.cross = null;
-    schedule();
-  };
-  cv.addEventListener(&#x27;pointerup&#x27;, e =&gt; end(e, false));
-  cv.addEventListener(&#x27;pointercancel&#x27;, e =&gt; end(e, true));
-  cv.addEventListener(&#x27;pointerleave&#x27;, e =&gt; {
-    if (e.pointerType === &#x27;mouse&#x27; &amp;&amp; pts.size === 0) {
-      S.cross = null;
-      schedule();
-    }
-  });
-  cv.addEventListener(&#x27;wheel&#x27;, e =&gt; {
-    if (!hasData) return;
-    e.preventDefault();
-    const p = rel(e);
-    zoomAt(p.x, Math.exp(-e.deltaY * 0.0015));
-    S.cross = p;
-    schedule();
-  }, { passive: false });
-}
-
-function syncSettings() {
-  $(&#x27;iTz&#x27;).value = String(S.tz);
-  $(&#x27;vInds&#x27;).checked = VIEW.inds;
-  $(&#x27;vOhlc&#x27;).checked = VIEW.ohlc;
-  if ($(&#x27;bLegend&#x27;)) syncLegendBtn();
-}
-
-function applyTz() {
-  S.tz = clampInt($(&#x27;iTz&#x27;).value, -12, 14, 7);
-  syncSettings();
-  updateInfo();
-  legendKey = &#x27;&#x27;;
-  schedule();
-}
-
-function updateInfo() {
-  if (!hasData) {
-    $(&#x27;tfinfo&#x27;).textContent = &#x27;Chưa có dữ liệu&#x27;;
-    $(&#x27;info&#x27;).textContent = &#x27;Chưa có dữ liệu.&#x27;;
-    return;
-  }
-  const a = BASE[0], z = BASE[BASE.length - 1];
-  $(&#x27;tfinfo&#x27;).textContent = tfLabel(S.tf) + &#x27; · &#x27; + baseName;
-  $(&#x27;info&#x27;).textContent = baseName + &#x27;: &#x27; + BASE.length + &#x27; nến gốc &#x27; + Math.round(baseSec / 60) +
-    &#x27; phút, từ &#x27; + fmtTs(a.t, &#x27;full&#x27;) + &#x27; đến &#x27; + fmtTs(z.t, &#x27;full&#x27;) +
-    &#x27;. Đang hiển thị UTC&#x27; + (S.tz &gt;= 0 ? &#x27;+&#x27; : &#x27;&#x27;) + S.tz + &#x27;.&#x27;;
-}
-
-function updateTFButtons() {
-  for (const b of Array.from($(&#x27;tfs&#x27;).children)) {
-    const def = TFS.find(x =&gt; x.id === b.dataset.id);
-    b.disabled = !hasData || !def || def.sec &lt; baseSec;
-    b.classList.toggle(&#x27;on&#x27;, hasData &amp;&amp; b.dataset.id === S.tf);
-  }
-}
-
-function buildTFButtons() {
-  const box = $(&#x27;tfs&#x27;);
-  box.textContent = &#x27;&#x27;;
-  for (const tf of TFS) {
-    const b = document.createElement(&#x27;button&#x27;);
-    b.type = &#x27;button&#x27;;
-    b.textContent = tfLabel(tf.id);
-    b.dataset.id = tf.id;
-    b.addEventListener(&#x27;click&#x27;, () =&gt; {
-      if (!hasData || tf.sec &lt; baseSec) return;
-      S.tf = tf.id;
-      fitView();
-      updateTFButtons();
-      updateInfo();
-      legendKey = &#x27;&#x27;;
-      schedule();
-    });
-    box.appendChild(b);
-  }
-  updateTFButtons();
-}
-
-function setBase(bars, name) {
-  const step = bars.length ? baseStep(bars) : 60;
-  const ok = TFS.filter(t =&gt; t.sec &gt;= step);
-  if (!bars.length || !ok.length) {
-    say(&#x27;Không đọc được nến nào. File cần cột time (hoặc date và time), open, high, low, close.&#x27;);
-    return;
-  }
-  BASE = bars;
-  baseName = name;
-  baseSec = step;
-  cache = {};
-  dataGen += 1;
-  legendKey = &#x27;&#x27;;
-  hasData = true;
-  if (!ok.some(t =&gt; t.id === S.tf)) S.tf = (ok.find(t =&gt; t.id === &#x27;M15&#x27;) || ok[0]).id;
-  fitView();
-  updateTFButtons();
-  updateInfo();
-  say(&#x27;Đã nạp &#x27; + bars.length + &#x27; nến từ &#x27; + name + &#x27;, khung gốc &#x27; + Math.round(step / 60) + &#x27; phút.&#x27;);
-  xkSaveBars();
-  schedule();
-}
-
-function loadDemo() {
-  setBase(makeDemo(8000, 4000, 60, Math.floor(Date.now() / 60000) * 60), DEMO_LABEL);
-}
-
-function saveDrawings() {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(S.drawings)); } catch (err) { /* không có bộ nhớ trình duyệt */ }
-}
-
-function loadDrawings() {
-  try {
-    const v = JSON.parse(localStorage.getItem(LS_KEY) || &#x27;[]&#x27;);
-    if (Array.isArray(v)) S.drawings = v;
-  } catch (err) { /* bỏ qua dữ liệu hỏng */ }
-}
-
-function resize() {
-  if (!wrapEl || !cv) return;
-  const r = wrapEl.getBoundingClientRect();
-  view.w = Math.max(160, Math.floor(r.width));
-  view.h = Math.max(160, Math.floor(r.height));
-  cv.width = Math.floor(view.w * DPR);
-  cv.height = Math.floor(view.h * DPR);
-  cv.style.width = view.w + &#x27;px&#x27;;
-  cv.style.height = view.h + &#x27;px&#x27;;
-  LAY = layout();
-  if (hasData) clampAnchor();
-  legendKey = &#x27;&#x27;;
-  schedule();
-}
-
-/* ===== Gắn sự kiện và khởi động ===== */
-function bindUI() {
-  $(&#x27;bFile&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; $(&#x27;picker&#x27;).click());
-  $(&#x27;picker&#x27;).addEventListener(&#x27;change&#x27;, () =&gt; {
-    const f = $(&#x27;picker&#x27;).files &amp;&amp; $(&#x27;picker&#x27;).files[0];
-    if (!f) return;
-    const rd = new FileReader();
-    rd.onload = () =&gt; {
-      try { setBase(parseCSV(String(rd.result)), f.name); }
-      catch (err) { say(&#x27;Lỗi đọc file: &#x27; + err.message); }
-      $(&#x27;picker&#x27;).value = &#x27;&#x27;;
-    };
-    rd.onerror = () =&gt; say(&#x27;Không đọc được file này.&#x27;);
-    rd.readAsText(f);
-  });
-  $(&#x27;bDemo&#x27;).addEventListener(&#x27;click&#x27;, loadDemo);
-  $(&#x27;bType&#x27;).addEventListener(&#x27;click&#x27;, toggleCtype);
-  $(&#x27;bCur&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; setMode(&#x27;pan&#x27;));
-  $(&#x27;bSig&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; { closeSheet(); try { window.parent.toggleSignals(true); } catch (err) { /* bỏ qua */ } });
-  $(&#x27;bFull&#x27;).addEventListener(&#x27;click&#x27;, toggleFull);
-  $(&#x27;bFan&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; setMode(S.mode === &#x27;fan&#x27; ? &#x27;pan&#x27; : &#x27;fan&#x27;));
-  $(&#x27;bHl&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; setMode(S.mode === &#x27;hline&#x27; ? &#x27;pan&#x27; : &#x27;hline&#x27;));
-  $(&#x27;bDraw&#x27;).addEventListener(&#x27;click&#x27;, drawSheetOpen);
-  bindDraw();
-  $(&#x27;bClr&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; {
-    if (S.drawings.length) { lastDel = { items: S.drawings.map((d, idx) =&gt; ({ d, idx })) }; showUndo(&#x27;Đã xóa toàn bộ hình vẽ.&#x27;); }
-    selDraw = null;
-    S.drawings = [];
-    S.pendingFan = null;
-    S.pendingDraw = [];
-    saveDrawings();
-    say(&#x27;Đã xóa toàn bộ hình vẽ.&#x27;);
-    schedule();
-  });
-  $(&#x27;bBlock&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; {
-    S.showBlock = !S.showBlock;
-    setOn(&#x27;bBlock&#x27;, S.showBlock);
-    legendKey = &#x27;&#x27;;
-    schedule();
-  });
-  $(&#x27;bSet&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; {
-    const panel = $(&#x27;settings&#x27;);
-    panel.hidden = !panel.hidden;
-    setOn(&#x27;bSet&#x27;, !panel.hidden);
-    resize();
-    acctPanelChanged(acctWanted());
-    updateInfo();
-  });
-  $(&#x27;bOrd&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; {
-    const panel = $(&#x27;trade&#x27;);
-    panel.hidden = !panel.hidden;
-    setOn(&#x27;bOrd&#x27;, !panel.hidden);
-    resize();
-    ordPrices();
-    acctPanelChanged(acctWanted());
-    if (!panel.hidden &amp;&amp; !mtVps()) ordSay(&#x27;Chưa kết nối VPS: vào Cài đặt, nhập địa chỉ VPS, token và đăng nhập MT5.&#x27;, &#x27;err&#x27;);
-  });
-  $(&#x27;ordLotDn&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; ordStep(-1));
-  $(&#x27;ordLotUp&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; ordStep(1));
-  $(&#x27;iTz&#x27;).addEventListener(&#x27;change&#x27;, applyTz);
-  for (const [id, k] of [[&#x27;vInds&#x27;, &#x27;inds&#x27;], [&#x27;vOhlc&#x27;, &#x27;ohlc&#x27;]]) {
-    $(id).addEventListener(&#x27;change&#x27;, () =&gt; { VIEW[k] = $(id).checked; saveView(); syncLegendBtn(); legendKey = &#x27;&#x27;; schedule(); });
-  }
-  $(&#x27;bLegend&#x27;).addEventListener(&#x27;click&#x27;, toggleLegendInds);
-  $(&#x27;bAuto&#x27;).addEventListener(&#x27;click&#x27;, yAuto);
-  $(&#x27;acctSave&#x27;).addEventListener(&#x27;click&#x27;, acctSaveClick);
-  $(&#x27;acctRefresh&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; acctRefresh());
-  $(&#x27;fdProv&#x27;).addEventListener(&#x27;change&#x27;, fdProvChange);
-  $(&#x27;tdLoad&#x27;).addEventListener(&#x27;click&#x27;, tdLoadClick);
-  for (const id of [&#x27;tdKey&#x27;, &#x27;oaKey&#x27;]) $(id).addEventListener(&#x27;keydown&#x27;, e =&gt; { if (e.key === &#x27;Enter&#x27;) { e.preventDefault(); tdLoadClick(); } });
-  $(&#x27;tdStop&#x27;).addEventListener(&#x27;click&#x27;, tdStopClick);
-  $(&#x27;bAI&#x27;).addEventListener(&#x27;click&#x27;, aiClick);
-  $(&#x27;mtLoginBtn&#x27;).addEventListener(&#x27;click&#x27;, mtLoginClick);
-  $(&#x27;mtLogoutBtn&#x27;).addEventListener(&#x27;click&#x27;, mtLogoutClick);
-  $(&#x27;mtPass&#x27;).addEventListener(&#x27;keydown&#x27;, e =&gt; { if (e.key === &#x27;Enter&#x27;) mtLoginClick(); });
-  $(&#x27;ordEnable&#x27;).addEventListener(&#x27;change&#x27;, () =&gt; { ordSync(); if (acctLast.positions) acctRenderPos(acctLast.positions, (acctLast.account &amp;&amp; acctLast.account.currency) || &#x27;&#x27;); });
-  $(&#x27;ordBuy&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; ordClick(&#x27;BUY&#x27;));
-  $(&#x27;ordSell&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; ordClick(&#x27;SELL&#x27;));
-  for (const id of [&#x27;ordSym&#x27;, &#x27;ordVol&#x27;, &#x27;ordSl&#x27;, &#x27;ordTp&#x27;, &#x27;ordMax&#x27;, &#x27;ordNote&#x27;]) {
-    $(id).addEventListener(&#x27;input&#x27;, () =&gt; { if (ordArm) { ordDisarm(); ordSay(&#x27;Đã đổi số liệu: bấm lại BUY hoặc SELL.&#x27;); } });
-    $(id).addEventListener(&#x27;change&#x27;, ordStore);
-  }
-
-  // Bảng chỉ báo
-  $(&#x27;bInd&#x27;).addEventListener(&#x27;click&#x27;, openSheet);
-  $(&#x27;sheetClose&#x27;).addEventListener(&#x27;click&#x27;, closeSheet);
-  $(&#x27;scrim&#x27;).addEventListener(&#x27;click&#x27;, closeSheet);
-  $(&#x27;sheetBack&#x27;).addEventListener(&#x27;click&#x27;, () =&gt; showSheetView(&#x27;lib&#x27;));
-  $(&#x27;indSearch&#x27;).addEventListener(&#x27;input&#x27;, e =&gt; { libQuery = e.target.value; renderLib(); });
-  $(&#x27;edSave&#x27;).addEventListener(&#x27;click&#x27;, saveEditor);
-  $(&#x27;edReset&#x27;).addEventListener(&#x27;click&#x27;, resetEditor);
-  $(&#x27;edRemove&#x27;).addEventListener(&#x27;click&#x27;, removeEditing);
-  $(&#x27;legend&#x27;).addEventListener(&#x27;click&#x27;, e =&gt; {
-    if (e.target.closest &amp;&amp; e.target.closest(&#x27;[data-tog]&#x27;)) { toggleLegendInds(); return; }
-    const row = e.target.closest ? e.target.closest(&#x27;[data-uid]&#x27;) : null;
-    if (row) openEditorSheet(Number(row.dataset.uid));
-  });
-  document.addEventListener(&#x27;keydown&#x27;, e =&gt; {
-    if (e.key === &#x27;Escape&#x27; &amp;&amp; !$(&#x27;sheet&#x27;).hidden) closeSheet();
-  });
-}
-
-/* ===== Kết nối tài khoản MT5 (chỉ xem), nằm trong phần Cài đặt ===== */
-const ACCT_KEY = &#x27;xau-chart-acct-v1&#x27;;   // địa chỉ VPS và token, lưu trong máy
-const ACCT_EVERY = 20000;               // làm mới mỗi 20 giây khi đang mở Cài đặt
-const ACCT_HIST_DAYS = 7;               // lịch sử lệnh đã đóng: 7 ngày gần nhất
-let acctTimer = 0, acctSeq = 0, acctMem = null;
-// Số liệu mới nhất từ VPS, giữ sẵn để các tính năng sau này dùng (null nếu cầu nối đó đang lỗi)
-const acctLast = { health: null, account: null, positions: null, history: null, at: 0 };
-
-function acctStored() {
-  if (acctMem) return acctMem;
-  try { const v = JSON.parse(localStorage.getItem(ACCT_KEY) || &#x27;null&#x27;); return v &amp;&amp; typeof v === &#x27;object&#x27; ? v : {}; }
-  catch (err) { return {}; }
-}
-function acctPutStored(url, token) {
-  acctMem = { url, token };
-  try { localStorage.setItem(ACCT_KEY, JSON.stringify(acctMem)); }
-  catch (err) { /* không lưu được vào máy: vẫn dùng trong phiên này */ }
-}
-// Chỉ nhận https. Chỉ cho http khi là máy trong (127.0.0.1 hoặc localhost).
-function acctBase(raw) {
-  const s = String(raw || &#x27;&#x27;).trim();
-  if (!s) return &#x27;&#x27;;
-  let u;
-  try { u = new URL(s); } catch (err) { return &#x27;&#x27;; }
-  const local = u.hostname === &#x27;127.0.0.1&#x27; || u.hostname === &#x27;localhost&#x27;;
-  if (u.protocol !== &#x27;https:&#x27; &amp;&amp; !(local &amp;&amp; u.protocol === &#x27;http:&#x27;)) return &#x27;&#x27;;
-  return u.origin + u.pathname.replace(/\/+$/, &#x27;&#x27;);
-}
-function acctFill() {
-  const v = acctStored();
-  $(&#x27;acctUrl&#x27;).value = v.url || &#x27;&#x27;;
-  $(&#x27;acctToken&#x27;).value = v.token || &#x27;&#x27;;
-}
-function acctMsg(text) { $(&#x27;acctMsgLine&#x27;).textContent = text; }
-function acctClock() {
-  const d = new Date(), p = n =&gt; String(n).padStart(2, &#x27;0&#x27;);
-  return p(d.getHours()) + &#x27;:&#x27; + p(d.getMinutes()) + &#x27;:&#x27; + p(d.getSeconds());
-}
-// Thời điểm lệnh đóng, ví dụ 20/11 14:05
-function acctWhen(sec) {
-  const d = new Date(Number(sec) * 1000), p = n =&gt; String(n).padStart(2, &#x27;0&#x27;);
-  return p(d.getDate()) + &#x27;/&#x27; + p(d.getMonth() + 1) + &#x27; &#x27; + p(d.getHours()) + &#x27;:&#x27; + p(d.getMinutes());
-}
-// Số có dấu phẩy hàng nghìn và hai số lẻ: 10250.5 → 10,250.50
-function acctNum(v, ccy) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return &#x27;—&#x27;;
-  const parts = Math.abs(n).toFixed(2).split(&#x27;.&#x27;);
-  let whole = parts[0], out = &#x27;&#x27;;
-  while (whole.length &gt; 3) { out = &#x27;,&#x27; + whole.slice(-3) + out; whole = whole.slice(0, -3); }
-  return (n &lt; 0 ? &#x27;-&#x27; : &#x27;&#x27;) + whole + out + &#x27;.&#x27; + parts[1] + (ccy ? &#x27; &#x27; + ccy : &#x27;&#x27;);
-}
-async function acctGet(base, token, path) {
-  const ctl = new AbortController();
-  const timer = setTimeout(() =&gt; ctl.abort(), 10000);
-  try {
-    const res = await fetch(base + path, { headers: { &#x27;X-Token&#x27;: token }, cache: &#x27;no-store&#x27;, signal: ctl.signal });
-    const data = await res.json().catch(() =&gt; ({}));
-    if (res.status === 401) throw new Error(&#x27;Sai token.&#x27;);
-    if (res.status === 503) {
-      const noi = String(data.error || &#x27;VPS chưa sẵn sàng&#x27;);
-      throw new Error(noi.charAt(0).toUpperCase() + noi.slice(1) + (data.detail ? &#x27; (&#x27; + data.detail + &#x27;)&#x27; : &#x27;&#x27;) + &#x27;.&#x27;);
-    }
-    if (!res.ok) throw new Error(&#x27;VPS trả lỗi &#x27; + res.status + &#x27;.&#x27;);
-    return data;
-  } catch (err) {
-    if (err.name === &#x27;AbortError&#x27;) throw new Error(&#x27;Hết thời gian chờ VPS.&#x27;);
-    if (err instanceof TypeError) throw new Error(&#x27;Không kết nối được VPS. Kiểm tra địa chỉ và mạng.&#x27;);
-    throw err;
-  } finally { clearTimeout(timer); }
-}
-function acctTile(label, value, color) {
-  const d = document.createElement(&#x27;div&#x27;), s = document.createElement(&#x27;span&#x27;), b = document.createElement(&#x27;b&#x27;);
-  s.textContent = label;
-  b.textContent = value;
-  if (color) b.style.color = color;
-  d.appendChild(s);
-  d.appendChild(b);
-  return d;
-}
-function acctEmpty(box, text) {
-  const p = document.createElement(&#x27;p&#x27;);
-  p.className = &#x27;note&#x27;;
-  p.textContent = text;
-  box.appendChild(p);
-}
-// Trạng thái một cầu nối: ok = true (đạt) hoặc false (lỗi)
-function acctBr(key, text, ok) {
-  const el = $(&#x27;br-&#x27; + key);
-  el.textContent = text;
-  el.style.color = ok ? &#x27;var(--up)&#x27; : &#x27;var(--down)&#x27;;
-}
-function acctRenderGrid(acc, nLenh, c) {
-  const grid = $(&#x27;acctGrid&#x27;);
-  grid.textContent = &#x27;&#x27;;
-  if (!acc) return;
-  grid.appendChild(acctTile(&#x27;Số dư&#x27;, acctNum(acc.balance, c)));
-  grid.appendChild(acctTile(&#x27;Vốn&#x27;, acctNum(acc.equity, c)));
-  grid.appendChild(acctTile(&#x27;Ký quỹ&#x27;, acctNum(acc.margin, c)));
-  grid.appendChild(acctTile(&#x27;Ký quỹ khả dụng&#x27;, acctNum(acc.margin_free, c)));
-  grid.appendChild(acctTile(&#x27;Lãi/lỗ đang mở&#x27;, acctNum(acc.profit, c), Number(acc.profit) &lt; 0 ? &#x27;var(--down)&#x27; : &#x27;var(--up)&#x27;));
-  grid.appendChild(acctTile(&#x27;Số lệnh mở&#x27;, nLenh === null ? &#x27;—&#x27; : String(nLenh)));
-}
-function acctRenderPos(list, c) {
-  acctRenderPosInto($(&#x27;acctPos&#x27;), list, c);
-  acctRenderPosInto($(&#x27;tradePos&#x27;), list, c);
-}
-function acctRenderPosInto(box, list, c) {
-  box.textContent = &#x27;&#x27;;
-  if (!list) return;
-  if (!list.length) { acctEmpty(box, &#x27;Không có lệnh đang mở.&#x27;); return; }
-  for (const o of list) {
-    const r = document.createElement(&#x27;div&#x27;);
-    r.className = &#x27;acct-pos-row&#x27;;
-    r.style.color = Number(o.profit) &lt; 0 ? &#x27;var(--down)&#x27; : &#x27;var(--up)&#x27;;
-    r.textContent = [o.symbol, o.type, Number(o.volume).toFixed(2) + &#x27; lot&#x27;, &#x27;vào &#x27; + o.price_open,
-      &#x27;SL &#x27; + (Number(o.sl) ? o.sl : &#x27;—&#x27;), &#x27;TP &#x27; + (Number(o.tp) ? o.tp : &#x27;—&#x27;), &#x27;L/L &#x27; + acctNum(o.profit, c)].join(&#x27; · &#x27;);
-    const tk = Number(o.ticket);
-    if ($(&#x27;ordEnable&#x27;).checked &amp;&amp; Number.isInteger(tk) &amp;&amp; tk &gt; 0) {
-      const bt = document.createElement(&#x27;button&#x27;);
-      bt.type = &#x27;button&#x27;;
-      bt.className = &#x27;ord-close danger&#x27;;
-      bt.textContent = &#x27;Đóng&#x27;;
-      bt.addEventListener(&#x27;click&#x27;, () =&gt; ordCloseClick(bt, tk));
-      r.prepend(bt);
-    }
-    box.appendChild(r);
-  }
-}
-function acctRenderHist(h, c) {
-  const sum = $(&#x27;acctHistSum&#x27;), box = $(&#x27;acctHist&#x27;);
-  sum.textContent = &#x27;&#x27;;
-  box.textContent = &#x27;&#x27;;
-  if (!h) return;
-  const list = Array.isArray(h.trades) ? h.trades : [];
-  sum.textContent = h.count + &#x27; lệnh đã đóng · lãi/lỗ ròng &#x27; + acctNum(h.net, c);
-  if (!list.length) { acctEmpty(box, &#x27;Không có lệnh đã đóng trong &#x27; + ACCT_HIST_DAYS + &#x27; ngày.&#x27;); return; }
-  for (const t of list) {
-    const r = document.createElement(&#x27;div&#x27;);
-    r.className = &#x27;acct-pos-row&#x27;;
-    r.style.color = Number(t.net) &lt; 0 ? &#x27;var(--down)&#x27; : &#x27;var(--up)&#x27;;
-    r.textContent = [t.symbol, t.side, Number(t.volume).toFixed(2) + &#x27; lot&#x27;, &#x27;vào &#x27; + t.price_in + &#x27; → &#x27; + t.price_out,
-      &#x27;ròng &#x27; + acctNum(t.net, c), acctWhen(t.time_out)].join(&#x27; · &#x27;);
-    box.appendChild(r);
-  }
-  if (h.count &gt; list.length) acctEmpty(box, &#x27;Chỉ hiện &#x27; + list.length + &#x27; lệnh gần nhất.&#x27;);
-}
-async function acctRefresh() {
-  const cfg = acctStored();
-  const base = acctBase(cfg.url), token = String(cfg.token || &#x27;&#x27;);
-  if (!base || !token) { acctMsg(&#x27;Nhập địa chỉ VPS và token, rồi bấm Lưu và kết nối.&#x27;); return; }
-  const lan = ++acctSeq;
-  acctMsg(&#x27;Đang lấy số liệu...&#x27;);
-  const cau = [[&#x27;health&#x27;, &#x27;/health&#x27;], [&#x27;account&#x27;, &#x27;/account&#x27;], [&#x27;positions&#x27;, &#x27;/positions&#x27;],
-    [&#x27;history&#x27;, &#x27;/history?days=&#x27; + ACCT_HIST_DAYS]];
-  const kq = {};
-  await Promise.all(cau.map(async ([key, path]) =&gt; {
-    try { kq[key] = { ok: true, v: await acctGet(base, token, path) }; }
-    catch (err) { kq[key] = { ok: false, msg: err.message || &#x27;Lỗi không rõ.&#x27; }; }
-  }));
-  if (lan !== acctSeq) return;   // đã có lần làm mới mới hơn: bỏ kết quả cũ
-  const val = key =&gt; (kq[key].ok ? kq[key].v : null);
-  const hong = cau.map(([key]) =&gt; key).filter(key =&gt; !kq[key].ok);
-  const suc = val(&#x27;health&#x27;), acc = val(&#x27;account&#x27;), list = val(&#x27;positions&#x27;), hist = val(&#x27;history&#x27;);
-  const c = (acc &amp;&amp; acc.currency) || (hist &amp;&amp; hist.currency) || &#x27;&#x27;;
-  // Trạng thái từng cầu nối
-  acctBr(&#x27;health&#x27;, suc ? (suc.login ? &#x27;TK &#x27; + suc.login + &#x27; · &#x27; + (suc.server || &#x27;&#x27;) + (suc.connected === false ? &#x27; · mất kết nối broker&#x27; : &#x27;&#x27;) + (suc.trade_allowed === false ? &#x27; · Algo Trading tắt&#x27; : &#x27;&#x27;)
-    : &#x27;MT5 chạy, chưa đăng nhập&#x27;) + &#x27; · build &#x27; + suc.build : kq.health.msg, !!(suc &amp;&amp; suc.login !== 0));
-  mtShowState(suc);
-  acctBr(&#x27;account&#x27;, acc ? &#x27;Đã đọc · tài khoản &#x27; + acc.login : kq.account.msg, !!acc);
-  acctBr(&#x27;positions&#x27;, list ? &#x27;Đã đọc · &#x27; + list.length + &#x27; lệnh&#x27; : kq.positions.msg, !!list);
-  acctBr(&#x27;history&#x27;, hist ? &#x27;Đã đọc · &#x27; + hist.count + &#x27; lệnh đã đóng&#x27; : kq.history.msg, !!hist);
-  // Cầu nối nào lỗi thì khối đó bị xóa, không để số liệu cũ lẫn vào
-  acctRenderGrid(acc, list ? list.length : null, c);
-  acctRenderPos(list, c);
-  acctRenderHist(hist, c);
-  Object.assign(acctLast, { health: suc, account: acc, positions: list, history: hist, at: Date.now() });
-  if (!hong.length) acctMsg(&#x27;Đã kết nối · cập nhật &#x27; + acctClock());
-  else acctMsg(kq[hong[0]].msg + &#x27; (&#x27; + hong.length + &#x27; cầu nối lỗi)&#x27;);
-}
-// Làm mới tài khoản khi Cài đặt hoặc khung Đặt lệnh đang mở
-function acctWanted() {
-  let appSettings = false;
-  try { appSettings = !!(XK_HOST &amp;&amp; XK_HOST.getElementById(&#x27;view-settings&#x27;).classList.contains(&#x27;on&#x27;)); } catch (err) { appSettings = false; }
-  return appSettings || !$(&#x27;settings&#x27;).hidden || !$(&#x27;trade&#x27;).hidden;
-}
-function acctPanelChanged(open) {
-  clearInterval(acctTimer);
-  acctTimer = 0;
-  if (!open) return;
-  acctRefresh();
-  acctTimer = setInterval(acctRefresh, ACCT_EVERY);
-}
-function acctSaveClick() {
-  const base = acctBase($(&#x27;acctUrl&#x27;).value);
-  const token = $(&#x27;acctToken&#x27;).value.trim();
-  if (!base) { acctMsg(&#x27;Địa chỉ VPS phải bắt đầu bằng https://&#x27;); return; }
-  if (!token) { acctMsg(&#x27;Nhập token của VPS.&#x27;); return; }
-  acctPutStored(base, token);
-  $(&#x27;acctUrl&#x27;).value = base;
-  acctPanelChanged(true);
-}
-
-/* ===== Nguồn dữ liệu Twelve Data: tải nến XAU/USD thật, tự cập nhật ===== */
-const TD_KEY = &#x27;xau-chart-twelvedata-v1&#x27;;   // khoá API (chỉ đọc giá), mã, khung gốc, chu kỳ cập nhật
-const TD_IV = { M1: &#x27;1min&#x27;, M5: &#x27;5min&#x27;, M15: &#x27;15min&#x27;, M30: &#x27;30min&#x27;, H1: &#x27;1h&#x27; };
-const OA_HOST = { practice: &#x27;https://api-fxpractice.oanda.com&#x27;, live: &#x27;https://api-fxtrade.oanda.com&#x27; };
-const FD_NAME = { twelve: &#x27;Twelve Data&#x27;, oanda: &#x27;OANDA&#x27;, vps: &#x27;Exness/MT5 qua VPS&#x27; };
-const FD_SYM = { twelve: &#x27;XAU/USD&#x27;, oanda: &#x27;XAU_USD&#x27;, vps: &#x27;&#x27; };   // VPS: để trống = mã đầu tiên trong XIKE_SYMBOLS
-let tdTimer = 0, tdBusy = false;
-
-function tdStored() {
-  try { const v = JSON.parse(localStorage.getItem(TD_KEY) || &#x27;null&#x27;); return v &amp;&amp; typeof v === &#x27;object&#x27; ? v : {}; }
-  catch (err) { return {}; }
-}
-function fdShow() {
-  const pv = $(&#x27;fdProv&#x27;).value;
-  $(&#x27;fdTwelve&#x27;).hidden = pv !== &#x27;twelve&#x27;;
-  $(&#x27;fdOanda&#x27;).hidden = pv !== &#x27;oanda&#x27;;
-  if ($(&#x27;fdVps&#x27;)) $(&#x27;fdVps&#x27;).hidden = pv !== &#x27;vps&#x27;;
-}
-// Đổi nhà cung cấp: đổi mã mặc định cho đúng cách viết của nhà đó (XAU/USD ↔ XAU_USD)
-function fdProvChange() {
-  const pv = $(&#x27;fdProv&#x27;).value, sym = $(&#x27;tdSym&#x27;).value.trim();
-  if (!sym || Object.values(FD_SYM).includes(sym) || pv === &#x27;vps&#x27;) $(&#x27;tdSym&#x27;).value = FD_SYM[pv];
-  fdShow();
-}
-function tdFill() {
-  const v = tdStored();
-  $(&#x27;fdProv&#x27;).value = FD_NAME[v.prov] ? v.prov : &#x27;oanda&#x27;;   // mặc định OANDA: cùng nguồn với TradingView
-  if (!v.sym) $(&#x27;tdSym&#x27;).value = FD_SYM[$(&#x27;fdProv&#x27;).value];
-  if (v.key) $(&#x27;tdKey&#x27;).value = v.key;
-  if (v.oaKey) $(&#x27;oaKey&#x27;).value = v.oaKey;
-  if (OA_HOST[v.oaEnv]) $(&#x27;oaEnv&#x27;).value = v.oaEnv;
-  if (v.sym) $(&#x27;tdSym&#x27;).value = v.sym;
-  if (v.tf &amp;&amp; TD_IV[v.tf]) $(&#x27;tdTf&#x27;).value = v.tf;
-  if (v.every !== undefined) $(&#x27;tdEvery&#x27;).value = String(v.every);
-  fdShow();
-}
-function tdSay(t, kind) {
-  $(&#x27;tdMsg&#x27;).textContent = t;
-  $(&#x27;tdMsg&#x27;).className = &#x27;note fd-msg&#x27; + (kind ? &#x27; &#x27; + kind : &#x27;&#x27;);
-  say(t);   // hiện thêm ở dòng trạng thái dưới biểu đồ
-}
-// &quot;2026-11-26 09:15:00&quot; hoặc &quot;2026-11-26T09:15:00.000000000Z&quot; (UTC) → giây
-function tdTime(s) {
-  const m = String(s || &#x27;&#x27;).match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
-  if (!m) return NaN;
-  return Math.floor(Date.UTC(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)) / 1000);
-}
-async function fdGet(url, headers, who) {
-  const ctl = new AbortController();
-  const timer = setTimeout(() =&gt; ctl.abort(), 20000);
-  try {
-    const res = await fetch(url, { cache: &#x27;no-store&#x27;, signal: ctl.signal, headers: headers || {} });
-    const data = await res.json().catch(() =&gt; ({}));
-    return { res, data };
-  } catch (err) {
-    if (err.name === &#x27;AbortError&#x27;) throw new Error(who + &#x27; không trả lời (hết 20 giây).&#x27;);
-    if (err instanceof TypeError) throw new Error(who + &#x27; không phản hồi (mạng, hoặc app chặn kết nối ra ngoài). Mở &#x27; + (who === &#x27;OANDA&#x27; ? &#x27;oanda.com&#x27; : &#x27;twelvedata.com&#x27;) + &#x27; bằng trình duyệt điện thoại để kiểm tra mạng.&#x27;);
-    throw err;
-  } finally { clearTimeout(timer); }
-}
-async function twelveFetch(cfg, size) {
-  const q = new URLSearchParams({
-    symbol: cfg.sym, interval: TD_IV[cfg.tf], outputsize: String(size), timezone: &#x27;UTC&#x27;, order: &#x27;asc&#x27;, apikey: cfg.key
-  });
-  const { res, data } = await fdGet(&#x27;https://api.twelvedata.com/time_series?&#x27; + q.toString(), null, &#x27;Twelve Data&#x27;);
-  if (data.status === &#x27;error&#x27; || !res.ok) {
-    const code = Number(data.code || res.status);
-    throw new Error(code === 401 ? &#x27;Sai khoá API.&#x27; : code === 429 ? &#x27;Hết lượt gọi (8 lần/phút hoặc 800 lần/ngày). Đợi rồi thử lại, hoặc tăng số giây tự cập nhật.&#x27;
-      : (data.message || (&#x27;Twelve Data trả lỗi &#x27; + code + &#x27;.&#x27;)));
-  }
-  const vals = Array.isArray(data.values) ? data.values : [];
-  return vals.map(v =&gt; ({ t: tdTime(v.datetime), o: +v.open, h: +v.high, l: +v.low, c: +v.close, v: +v.volume || 0 }));
-}
-// OANDA v20: GET /v3/instruments/{mã}/candles, giá giữa (mid), tối đa 5000 nến mỗi lần
-async function oandaFetch(cfg, size) {
-  const q = new URLSearchParams({ granularity: cfg.tf, count: String(Math.min(5000, size)), price: &#x27;M&#x27; });
-  const url = OA_HOST[cfg.oaEnv] + &#x27;/v3/instruments/&#x27; + encodeURIComponent(cfg.sym) + &#x27;/candles?&#x27; + q.toString();
-  const { res, data } = await fdGet(url, { Authorization: &#x27;Bearer &#x27; + cfg.oaKey }, &#x27;OANDA&#x27;);
-  if (!res.ok) {
-    throw new Error(res.status === 401 ? &#x27;Sai token OANDA, hoặc token không thuộc loại tài khoản đã chọn (demo/thật).&#x27;
-      : res.status === 400 || res.status === 404 ? &#x27;OANDA không nhận mã &#x27; + cfg.sym + &#x27; (viết kiểu XAU_USD).&#x27;
-      : res.status === 429 ? &#x27;Gọi OANDA quá nhanh, đợi rồi thử lại.&#x27;
-      : (data.errorMessage || (&#x27;OANDA trả lỗi &#x27; + res.status + &#x27;.&#x27;)));
-  }
-  const list = Array.isArray(data.candles) ? data.candles : [];
-  return list.filter(k =&gt; k &amp;&amp; k.mid).map(k =&gt; ({ t: tdTime(k.time), o: +k.mid.o, h: +k.mid.h, l: +k.mid.l, c: +k.mid.c, v: +k.volume || 0 }));
-}
-// Nến từ cầu nối VPS (chế độ Exness API hoặc MT5): GET /candles, cùng địa chỉ và token ở thẻ Tài khoản MT5
-async function vpsFetch(cfg, size) {
-  const acc = acctStored();
-  const base = acctBase(acc.url), token = String(acc.token || &#x27;&#x27;);
-  if (!base || !token) throw new Error(&#x27;Chưa có địa chỉ VPS và token. Nhập ở thẻ Tài khoản MT5 (qua VPS) bên dưới.&#x27;);
-  const q = new URLSearchParams({ tf: cfg.tf, count: String(Math.min(5000, size)) });
-  if (cfg.sym) q.set(&#x27;symbol&#x27;, cfg.sym);
-  const { res, data } = await fdGet(base + &#x27;/candles?&#x27; + q.toString(), { &#x27;X-Token&#x27;: token }, &#x27;VPS&#x27;);
-  if (!res.ok || data.ok === false) {
-    throw new Error(res.status === 401 ? &#x27;Sai token VPS.&#x27; : res.status === 404 ? &#x27;VPS chưa có cổng /candles. Cập nhật server.py mới.&#x27;
-      : (data.error ? data.error + (data.detail ? &#x27; (&#x27; + data.detail + &#x27;)&#x27; : &#x27;&#x27;) : &#x27;VPS trả lỗi &#x27; + res.status + &#x27;.&#x27;));
-  }
-  if (data.symbol &amp;&amp; !cfg.sym) cfg.symShown = data.symbol;
-  return (Array.isArray(data.bars) ? data.bars : []).map(b =&gt; ({ t: +b.t, o: +b.o, h: +b.h, l: +b.l, c: +b.c, v: +b.v || 0 }));
-}
-async function tdFetch(cfg, size) {
-  const bars = await (cfg.prov === &#x27;oanda&#x27; ? oandaFetch(cfg, size) : cfg.prov === &#x27;vps&#x27; ? vpsFetch(cfg, size) : twelveFetch(cfg, size));
-  return bars.filter(b =&gt; [b.t, b.o, b.h, b.l, b.c].every(Number.isFinite)).sort((a, b) =&gt; a.t - b.t);
-}
-function tdRead() {
-  const prov = FD_NAME[$(&#x27;fdProv&#x27;).value] ? $(&#x27;fdProv&#x27;).value : &#x27;twelve&#x27;;
-  const key = $(&#x27;tdKey&#x27;).value.trim(), oaKey = $(&#x27;oaKey&#x27;).value.trim(), oaEnv = OA_HOST[$(&#x27;oaEnv&#x27;).value] ? $(&#x27;oaEnv&#x27;).value : &#x27;practice&#x27;;
-  const sym = $(&#x27;tdSym&#x27;).value.trim() || FD_SYM[prov], tf = $(&#x27;tdTf&#x27;).value;   // VPS: mã trống = mã mặc định trên VPS
-  const every = Math.max(0, Math.round(Number($(&#x27;tdEvery&#x27;).value) || 0));
-  return { prov, key, oaKey, oaEnv, sym, tf: TD_IV[tf] ? tf : &#x27;M15&#x27;, every: every &amp;&amp; every &lt; 30 ? 30 : every };
-}
-const fdReady = cfg =&gt; (cfg.prov === &#x27;oanda&#x27; ? !!cfg.oaKey : cfg.prov === &#x27;vps&#x27; ? !!(acctBase(acctStored().url) &amp;&amp; acctStored().token) : !!cfg.key);
-const fdLabel = cfg =&gt; &#x27;Live &#x27; + FD_NAME[cfg.prov || &#x27;twelve&#x27;] + &#x27; &#x27; + (cfg.sym || cfg.symShown || &#x27;&#x27;);
-async function tdLoadClick() {
-  const cfg = tdRead();
-  if (!fdReady(cfg)) { tdSay(cfg.prov === &#x27;oanda&#x27; ? &#x27;Dán token OANDA trước.&#x27; : cfg.prov === &#x27;vps&#x27; ? &#x27;Nhập địa chỉ VPS và token ở thẻ Tài khoản MT5 (qua VPS), bấm Lưu và kết nối, rồi tải nến.&#x27; : &#x27;Dán khoá API Twelve Data trước.&#x27;, &#x27;err&#x27;); return; }
-  try { localStorage.setItem(TD_KEY, JSON.stringify(cfg)); } catch (err) { /* không lưu được: vẫn dùng trong phiên */ }
-  $(&#x27;tdEvery&#x27;).value = String(cfg.every);
-  clearInterval(tdTimer);
-  tdTimer = 0;
-  tdBusy = true;
-  tdSay(&#x27;Đang tải nến &#x27; + cfg.sym + &#x27; &#x27; + cfg.tf + &#x27; từ &#x27; + FD_NAME[cfg.prov] + &#x27;...&#x27;);
-  try {
-    const bars = await tdFetch(cfg, 5000);
-    if (bars.length &lt; 50) throw new Error(&#x27;Chỉ nhận được &#x27; + bars.length + &#x27; nến. Kiểm tra mã (Twelve Data: XAU/USD, OANDA: XAU_USD).&#x27;);
-    setBase(bars, fdLabel(cfg));
-    S.anchor = series(S.tf).bars.length - 1 + 6;
-    clampAnchor();
-    schedule();
-    tdSay(FD_NAME[cfg.prov] + &#x27;: đã tải &#x27; + bars.length + &#x27; nến &#x27; + cfg.tf + &#x27; · nến cuối &#x27; + fmtTs(bars[bars.length - 1].t, &#x27;dhm&#x27;) +
-      (cfg.every ? &#x27; · tự cập nhật mỗi &#x27; + cfg.every + &#x27; giây&#x27; : &#x27;&#x27;), &#x27;ok&#x27;);
-    if (cfg.every) tdTimer = setInterval(tdTick, cfg.every * 1000);
-  } catch (err) {
-    tdSay(&#x27;Không kết nối được: &#x27; + (err.message || &#x27;Lỗi không rõ.&#x27;), &#x27;err&#x27;);
-  } finally { tdBusy = false; }
-}
-// Cập nhật vài nến mới nhất; bỏ qua khi app ẩn hoặc không ở tab Biểu đồ để tiết kiệm lượt gọi
-async function tdTick() {
-  if (tdBusy || document.hidden || window.innerWidth &lt; 10 || !/^Live (Twelve Data|OANDA|Exness\/MT5 qua VPS) /.test(baseName)) return;
-  const cfg = tdStored();
-  if (!fdReady(cfg)) return;
-  tdBusy = true;
-  try {
-    const bars = await tdFetch(cfg, 3);
-    let n = 0;
-    for (const b of bars) if (xkUpsertBar(Object.assign({ sec: baseSec }, b))) n++;
-    baseName = fdLabel(cfg);
-    if (n) tdSay(FD_NAME[cfg.prov || &#x27;twelve&#x27;] + &#x27;: cập nhật &#x27; + acctClock() + &#x27; · giá &#x27; + bars[bars.length - 1].c);
-  } catch (err) {
-    tdSay(err.message + &#x27; (lần cập nhật &#x27; + acctClock() + &#x27;)&#x27;);
-  } finally { tdBusy = false; }
-}
-function tdStopClick() {
-  clearInterval(tdTimer);
-  tdTimer = 0;
-  tdSay(&#x27;Đã dừng tự cập nhật. Bấm Lưu và tải nến để chạy lại.&#x27;);
-}
-function tdAutoStart() {
-  const cfg = tdStored();
-  if (fdReady(Object.assign({ prov: &#x27;twelve&#x27; }, cfg)) &amp;&amp; TD_IV[cfg.tf]) setTimeout(tdLoadClick, 300);
-}
-
-/* ===== Gói dữ liệu cho AI: nến + EMA 34/80 + MACD + TRIX tính từ dữ liệu thật, kèm ảnh biểu đồ đang xem ===== */
-function aiSnapshot() {
-  if (!hasData) return { error: &#x27;Chưa có nến. Kết nối nguồn dữ liệu (Twelve Data hoặc OANDA) trong Cài đặt, hoặc bấm Demo.&#x27; };
-  const ser = series(S.tf), bars = ser.bars, N = bars.length;
-  if (N &lt; 100) return { error: &#x27;Cần ít nhất 100 nến &#x27; + S.tf + &#x27; (đang có &#x27; + N + &#x27;). Chọn khung nhỏ hơn hoặc tải thêm nến.&#x27; };
-  const c = closesOf(bars), h = highsOf(bars), l = lowsOf(bars);
-  const e34 = ema(c, 34), e80 = ema(c, 80), mac = macdLineArr(c, 12, 26), sig = ema(mac, 9), tr = trixCalc(c, 25, 15);
-  const sr = stochRsiCalc(c, 14, 14, 3, 3);
-  const f = (v, d) =&gt; Number.isFinite(v) ? v.toFixed(d) : &#x27;-&#x27;;
-  const rows = [];
-  for (let i = Math.max(0, N - 40); i &lt; N; i++) {
-    rows.push([fmtTs(bars[i].t, &#x27;dhm&#x27;), f(bars[i].o, 2), f(bars[i].h, 2), f(bars[i].l, 2), f(bars[i].c, 2),
-      f(e34[i], 2), f(e80[i], 2), f(mac[i], 3), f(sig[i], 3), f(mac[i] - sig[i], 3), f(tr.t[i], 3), f(tr.s[i], 3), f(sr.k[i], 1), f(sr.d[i], 1)].join(&#x27; | &#x27;));
-  }
-  // Tín hiệu gần đây theo vùng EMA (BUY/SELL, BUY P/SELL P) và TRIX (Buy/Sell)
-  const marks = [];
-  try {
-    for (const m of zoneMarks(h, l, c, e34, e80, mac, 3, 0.5, 1)) if (m.i &gt;= N - 60) marks.push({ i: m.i, t: m.text });
-    for (const m of trixMarks(tr.t, tr.s)) if (m.i &gt;= N - 60) marks.push({ i: m.i, t: &#x27;TRIX &#x27; + m.text });
-    for (const m of stochRsiMarks(sr.k, 80, 20)) if (m.i &gt;= N - 60) marks.push({ i: m.i, t: &#x27;Stoch RSI &#x27; + m.text });
-  } catch (err) { /* thiếu hàm đánh dấu: bỏ qua phần tín hiệu */ }
-  marks.sort((a, b) =&gt; a.i - b.i);
-  let hi = -Infinity, lo = Infinity;
-  for (let i = Math.max(0, N - 100); i &lt; N; i++) { hi = Math.max(hi, h[i]); lo = Math.min(lo, l[i]); }
-  const last = bars[N - 1];
-  const text = [
-    &#x27;Mã: &#x27; + (baseName.replace(/^Live (Twelve Data|OANDA|Exness\/MT5 qua VPS) /, &#x27;&#x27;) || &#x27;XAUUSD&#x27;) + &#x27; · khung &#x27; + S.tf + &#x27; · giờ VN (UTC&#x27; + (S.tz &gt;= 0 ? &#x27;+&#x27; : &#x27;&#x27;) + S.tz + &#x27;) · nguồn: &#x27; + baseName,
-    &#x27;Giá hiện tại (đóng nến cuối, nến cuối có thể chưa đóng): &#x27; + f(last.c, 2) + &#x27; lúc &#x27; + fmtTs(last.t, &#x27;dhm&#x27;),
-    &#x27;Đỉnh/đáy 100 nến gần nhất: &#x27; + f(hi, 2) + &#x27; / &#x27; + f(lo, 2),
-    &#x27;Tín hiệu trong 60 nến gần nhất: &#x27; + (marks.length ? marks.map(m =&gt; m.t + &#x27; lúc &#x27; + fmtTs(bars[m.i].t, &#x27;dhm&#x27;)).join(&#x27;; &#x27;) : &#x27;không có&#x27;),
-    &#x27;40 nến gần nhất (cũ → mới):&#x27;,
-    &#x27;Giờ | Mở | Cao | Thấp | Đóng | EMA34 | EMA80 | MACD | Signal | Hist | TRIX | TRIX signal | StochRSI K | StochRSI D&#x27;,
-    rows.join(&#x27;\n&#x27;)
-  ].join(&#x27;\n&#x27;);
-
-  const shot = takeShot(null);
-  if (!shot) return { error: &#x27;Mở tab Biểu đồ để AI chụp biểu đồ.&#x27; };
-  return Object.assign({ tf: S.tf, now: last.c, text }, shot);
-}
-
-// Chụp biểu đồ đang xem (kéo về nến mới nhất), kèm thang giá đúng để vẽ chính xác.
-// fit = { lo, hi }: mở rộng thang giá cho đủ các mức cần vẽ.
-function takeShot(fit) {
-  if (!hasData) return null;
-  const N = series(S.tf).bars.length;
-  S.anchor = N - 1 + Math.round(LAY.plotW * 0.28 / S.barW);
-  clampAnchor();
-  // Tạm ẩn Gann Fan tự động (có TP/SL riêng) để không lẫn với kế hoạch của AI
-  const hidden = S.inds.filter(x =&gt; x.id === &#x27;gann_fan&#x27; &amp;&amp; x.on);
-  hidden.forEach(x =&gt; { x.on = false; });
-  indsVer += 1;
-  legendKey = &#x27;&#x27;;
-  XK_FIT = fit &amp;&amp; Number.isFinite(fit.lo) &amp;&amp; Number.isFinite(fit.hi) ? fit : null;
-  render();
-  const r = cv.getBoundingClientRect();
-  let out = null;
-  if (r.width &gt; 0 &amp;&amp; r.height &gt; 0) {
-    const p1 = priceAtY(LAY.candleTop + (LAY.candleBottom - LAY.candleTop) * 0.15);
-    const p2 = priceAtY(LAY.candleTop + (LAY.candleBottom - LAY.candleTop) * 0.85);
-    out = {
-      image: cv.toDataURL(&#x27;image/jpeg&#x27;, 0.92),
-      axis: [{ price: p1, y: yOf(p1) / r.height * 1000 }, { price: p2, y: yOf(p2) / r.height * 1000 }],
-      pane: { top: LAY.candleTop / r.height * 1000, bottom: LAY.candleBottom / r.height * 1000 },
-      last_x: xOf(N - 1) / r.width * 1000
-    };
-  }
-  XK_FIT = null;
-  hidden.forEach(x =&gt; { x.on = true; });
-  indsVer += 1;
-  legendKey = &#x27;&#x27;;
-  schedule();
-  return out;
-}
-// Trang chính xin chụp lại khi AI đã trả các mức giá
-window.addEventListener(&#x27;message&#x27;, e =&gt; {
-  if (e.source !== window.parent || !e.data || e.data.type !== &#x27;xk-shot&#x27;) return;
-  const shot = takeShot({ lo: Number(e.data.lo), hi: Number(e.data.hi) });
-  window.parent.postMessage(Object.assign({ type: &#x27;xk-shot-done&#x27;, id: e.data.id }, shot || { error: &#x27;hidden&#x27; }), &#x27;*&#x27;);
-  if (shot) say(&#x27;AI đã phân tích xong. Xem ở tab Phân tích.&#x27;);
-});
-// Bảng tín hiệu XIKE cho trang app (khi biểu đồ chính là TradingView): số liệu nến mới nhất
-function xkSetTf(id) {
-  const tf = TFS.find(t =&gt; t.id === id);
-  if (!hasData || !tf || tf.sec &lt; baseSec) return false;
-  S.tf = tf.id;
-  fitView();
-  updateTFButtons();
-  updateInfo();
-  legendKey = &#x27;&#x27;;
-  schedule();
-  return true;
-}
-function xikeReadout() {
-  if (!hasData) return { error: &#x27;Chưa có nến. Kết nối nguồn dữ liệu (Twelve Data hoặc OANDA) ở tab Cài đặt.&#x27; };
-  const bars = series(S.tf).bars, N = bars.length;
-  if (N &lt; 100) return { error: &#x27;Cần ít nhất 100 nến &#x27; + S.tf + &#x27; (đang có &#x27; + N + &#x27;).&#x27; };
-  const c = closesOf(bars), h = highsOf(bars), l = lowsOf(bars);
-  const e34 = ema(c, 34), e80 = ema(c, 80), mac = macdLineArr(c, 12, 26), sig = ema(mac, 9), tr = trixCalc(c, 25, 15);
-  const i = N - 1, f = (v, d) =&gt; Number.isFinite(v) ? v.toFixed(d) : &#x27;—&#x27;;
-  const up = e34[i] &gt; e80[i];
-  const rows = [
-    { k: &#x27;Giá&#x27;, v: f(c[i], 2) + &#x27;  (&#x27; + fmtTs(bars[i].t, &#x27;dhm&#x27;) + &#x27;)&#x27; },
-    { k: &#x27;EMA 34 / 80&#x27;, v: f(e34[i], 2) + &#x27; / &#x27; + f(e80[i], 2), tone: up ? &#x27;up&#x27; : &#x27;down&#x27;, note: up ? &#x27;xu hướng tăng&#x27; : &#x27;xu hướng giảm&#x27; },
-    { k: &#x27;MACD&#x27;, v: f(mac[i], 3) + &#x27; · tín hiệu &#x27; + f(sig[i], 3) + &#x27; · hist &#x27; + f(mac[i] - sig[i], 3), tone: mac[i] - sig[i] &gt;= 0 ? &#x27;up&#x27; : &#x27;down&#x27; },
-    { k: &#x27;TRIX 25/15&#x27;, v: f(tr.t[i], 3) + &#x27; / &#x27; + f(tr.s[i], 3), tone: tr.t[i] &gt;= tr.s[i] ? &#x27;up&#x27; : &#x27;down&#x27; }
-  ];
-  const sr = stochRsiCalc(c, 14, 14, 3, 3);
-  rows.push({ k: &#x27;Stoch RSI K / D&#x27;, v: f(sr.k[i], 2) + &#x27; / &#x27; + f(sr.d[i], 2), tone: sr.k[i] &gt;= sr.d[i] ? &#x27;up&#x27; : &#x27;down&#x27;,
-    note: sr.k[i] &gt;= 80 ? &#x27;quá mua&#x27; : sr.k[i] &lt;= 20 ? &#x27;quá bán&#x27; : &#x27;&#x27; });
-  const marks = [];
-  try {
-    for (const m of zoneMarks(h, l, c, e34, e80, mac, 3, 0.5, 1)) if (m.i &gt;= N - 80) marks.push({ i: m.i, t: m.text, up: /BUY/.test(m.text) });
-    for (const m of trixMarks(tr.t, tr.s)) if (m.i &gt;= N - 80) marks.push({ i: m.i, t: &#x27;TRIX &#x27; + m.text, up: m.text === &#x27;Buy&#x27; });
-    for (const m of stochRsiMarks(sr.k, 80, 20)) if (m.i &gt;= N - 80) marks.push({ i: m.i, t: &#x27;Stoch RSI &#x27; + m.text, up: m.up });
-  } catch (err) { /* bỏ qua phần tín hiệu */ }
-  marks.sort((a, b) =&gt; b.i - a.i);
-  let gann = null;
-  try {
-    const inst = S.inds.find(x =&gt; x.id === &#x27;gann_fan&#x27;) || sanitizeInds([{ id: &#x27;gann_fan&#x27; }])[0];
-    const g = gannAutoCalc(bars, inst.p);
-    if (g &amp;&amp; g.levels &amp;&amp; g.levels.length) gann = { info: g.info, levels: g.levels.map(lv =&gt; ({ t: lv.text, v: f(lv.v, 2) })) };
-    else if (g &amp;&amp; g.info) gann = { info: g.info, levels: [] };
-  } catch (err) { gann = null; }
-  return {
-    tf: S.tf, src: baseName, rows,
-    marks: marks.slice(0, 6).map(m =&gt; ({ t: m.t, up: m.up, when: fmtTs(bars[m.i].t, &#x27;dhm&#x27;), ago: N - 1 - m.i })),
-    gann, tfs: TFS.filter(t =&gt; t.sec &gt;= baseSec).map(t =&gt; t.id)
-  };
-}
-
-function aiClick() {
-  const snap = aiSnapshot();
-  if (snap.error) { say(snap.error); return; }
-  if (window.parent === window) { say(&#x27;Nút AI chỉ chạy trong app.&#x27;); return; }
-  window.parent.postMessage(Object.assign({ type: &#x27;xk-analyze&#x27; }, snap), &#x27;*&#x27;);
-  say(&#x27;AI đang phân tích dữ liệu &#x27; + snap.tf + &#x27;… Giữ tab Biểu đồ để AI vẽ lên biểu đồ.&#x27;);
-}
-
-/* ===== Đăng nhập MT5 qua VPS (POST /login, POST /logout). Mật khẩu chỉ gửi đi, không lưu. ===== */
-const MT_KEY = &#x27;xau-chart-mt5-login-v1&#x27;;   // chỉ lưu số tài khoản và server
-let mtHold = 0;   // giữ thông báo đăng nhập vừa xong, không để lần làm mới ghi đè ngay
-function mtSay(text, kind, hold) {
-  if (hold) mtHold = Date.now() + 15000;
-  const el = $(&#x27;mtMsg&#x27;);
-  el.textContent = text;
-  el.className = &#x27;note login-msg&#x27; + (kind ? &#x27; &#x27; + kind : &#x27;&#x27;);
-}
-function mtFill() {
-  let v = {};
-  try { v = JSON.parse(localStorage.getItem(MT_KEY) || &#x27;null&#x27;) || {}; } catch (err) { v = {}; }
-  $(&#x27;mtLogin&#x27;).value = v.login || &#x27;&#x27;;
-  $(&#x27;mtServer&#x27;).value = v.server || &#x27;&#x27;;
-}
-function mtShowState(h) {
-  if (!h || Date.now() &lt; mtHold) return;
-  if (h.login) mtSay(&#x27;Đang đăng nhập TK &#x27; + h.login + (h.server ? &#x27; · &#x27; + h.server : &#x27;&#x27;) + &#x27;.&#x27;, &#x27;ok&#x27;);
-  else mtSay(&#x27;MT5 trên VPS chưa đăng nhập tài khoản nào.&#x27;, &#x27;&#x27;);
-}
-function mtVps() {
-  const cfg = acctStored();
-  const base = acctBase(cfg.url), token = String(cfg.token || &#x27;&#x27;);
-  return base &amp;&amp; token ? { base, token } : null;
-}
-async function mtLoginClick() {
-  const vps = mtVps();
-  if (!vps) { mtSay(&#x27;Lưu địa chỉ VPS và token ở trên trước.&#x27;, &#x27;err&#x27;); return; }
-  const login = $(&#x27;mtLogin&#x27;).value.trim(), pass = $(&#x27;mtPass&#x27;).value, server = $(&#x27;mtServer&#x27;).value.trim();
-  if (!/^\d{3,15}$/.test(login)) { mtSay(&#x27;Số tài khoản chỉ gồm chữ số.&#x27;, &#x27;err&#x27;); return; }
-  if (!pass) { mtSay(&#x27;Nhập mật khẩu.&#x27;, &#x27;err&#x27;); return; }
-  if (!server) { mtSay(&#x27;Nhập tên server (xem trong MT5: Tệp → Mở tài khoản, hoặc email của broker).&#x27;, &#x27;err&#x27;); return; }
-  try { localStorage.setItem(MT_KEY, JSON.stringify({ login, server })); } catch (err) { /* không lưu được */ }
-  const bt = $(&#x27;mtLoginBtn&#x27;);
-  bt.disabled = true;
-  bt.textContent = &#x27;Đang đăng nhập...&#x27;;
-  mtSay(&#x27;Đang đăng nhập &#x27; + login + &#x27; @ &#x27; + server + &#x27;...&#x27;, &#x27;&#x27;);
-  try {
-    const d = await ordPost(vps.base, vps.token, &#x27;/login&#x27;, { login, password: pass, server });
-    mtSay(&#x27;Đã đăng nhập TK &#x27; + d.login + (d.name ? &#x27; (&#x27; + d.name + &#x27;)&#x27; : &#x27;&#x27;) + &#x27; · &#x27; + d.server + &#x27; · số dư &#x27; + acctNum(d.balance, d.currency) +
-      (d.algo_trading === false ? &#x27; — Lưu ý: MT5 đang tắt Algo Trading, chưa đặt lệnh được.&#x27; : &#x27;&#x27;), &#x27;ok&#x27;, true);
-  } catch (err) {
-    mtSay(String(err.message || &#x27;Lỗi không rõ.&#x27;).replace(/Lệnh CÓ THỂ đã (khớp|tới VPS): xem lại Lệnh đang mở trước khi đặt lại\./, &#x27;Thử lại sau.&#x27;), &#x27;err&#x27;, true);
-  } finally {
-    $(&#x27;mtPass&#x27;).value = &#x27;&#x27;;
-    bt.disabled = false;
-    bt.textContent = &#x27;Đăng nhập MT5&#x27;;
-    acctRefresh();
-  }
-}
-let mtOutArm = 0;
-async function mtLogoutClick() {
-  const vps = mtVps();
-  if (!vps) { mtSay(&#x27;Lưu địa chỉ VPS và token ở trên trước.&#x27;, &#x27;err&#x27;); return; }
-  const bt = $(&#x27;mtLogoutBtn&#x27;);
-  if (!mtOutArm) {
-    bt.textContent = &#x27;Xác nhận ngắt&#x27;;
-    mtOutArm = setTimeout(() =&gt; { mtOutArm = 0; bt.textContent = &#x27;Ngắt MT5&#x27;; }, 6000);
-    return;
-  }
-  clearTimeout(mtOutArm);
-  mtOutArm = 0;
-  bt.textContent = &#x27;Ngắt MT5&#x27;;
-  try { await ordPost(vps.base, vps.token, &#x27;/logout&#x27;, {}); mtSay(&#x27;Đã ngắt MT5 trên VPS.&#x27;, &#x27;&#x27;, true); }
-  catch (err) { mtSay(err.message || &#x27;Lỗi không rõ.&#x27;, &#x27;err&#x27;, true); }
-  acctRefresh();
-}
-
-/* ===== Đặt lệnh MT5 qua VPS (POST /order, POST /close) =====
-   Chốt an toàn: tắt sẵn, bắt buộc SL, giới hạn lot, xác nhận hai lần, không tự gửi lại khi lỗi mạng. */
-const ORD_KEY = &#x27;xau-chart-order-v1&#x27;;      // mã, lot, lot tối đa, ghi chú (không lưu SL/TP, không lưu trạng thái bật)
-const ORD_ARM_MS = 6000;
-let ordArm = null, ordArmTimer = 0, ordBusy = false;
-
-function ordLoad() {
-  let v = {};
-  try { v = JSON.parse(localStorage.getItem(ORD_KEY) || &#x27;null&#x27;) || {}; } catch (err) { v = {}; }
-  if (v.sym) $(&#x27;ordSym&#x27;).value = v.sym;
-  if (v.vol) $(&#x27;ordVol&#x27;).value = v.vol;
-  if (v.max) $(&#x27;ordMax&#x27;).value = v.max;
-  if (v.note) $(&#x27;ordNote&#x27;).value = v.note;
-  $(&#x27;ordEnable&#x27;).checked = false;
-  ordSync();
-}
-function ordStep(dir) {
-  const v = ordNum(&#x27;ordVol&#x27;);
-  const cur = Number.isFinite(v) &amp;&amp; v &gt; 0 ? v : 0.01;
-  const nx = Math.max(0.01, Math.round((cur + dir * 0.01) * 100) / 100);
-  $(&#x27;ordVol&#x27;).value = nx.toFixed(2);
-  $(&#x27;ordVol&#x27;).dispatchEvent(new Event(&#x27;input&#x27;));
-  ordStore();
-}
-// Giá tham khảo trên nút BUY/SELL (giá đóng nến mới nhất của biểu đồ live)
-function ordPrices() {
-  const px = ordChartPrice();
-  const t = px === null ? &#x27;chưa có giá live&#x27; : String(px);
-  $(&#x27;ordBuyPx&#x27;).textContent = t;
-  $(&#x27;ordSellPx&#x27;).textContent = t;
-}
-function ordStore() {
-  const v = { sym: $(&#x27;ordSym&#x27;).value.trim(), vol: $(&#x27;ordVol&#x27;).value, max: $(&#x27;ordMax&#x27;).value, note: $(&#x27;ordNote&#x27;).value.trim() };
-  try { localStorage.setItem(ORD_KEY, JSON.stringify(v)); } catch (err) { /* không lưu được: vẫn dùng trong phiên */ }
-}
-function ordSay(text, kind) {
-  const el = $(&#x27;ordMsg&#x27;);
-  el.textContent = text;
-  el.className = &#x27;note ord-msg&#x27; + (kind ? &#x27; &#x27; + kind : &#x27;&#x27;);
-}
-function ordDisarm() {
-  clearTimeout(ordArmTimer);
-  ordArmTimer = 0;
-  ordArm = null;
-  $(&#x27;ordBuy&#x27;).classList.remove(&#x27;arm&#x27;);
-  $(&#x27;ordSell&#x27;).classList.remove(&#x27;arm&#x27;);
-  $(&#x27;ordBuy&#x27;).querySelector(&#x27;b&#x27;).textContent = &#x27;BUY&#x27;;
-  $(&#x27;ordSell&#x27;).querySelector(&#x27;b&#x27;).textContent = &#x27;SELL&#x27;;
-}
-function ordSync() {
-  const on = $(&#x27;ordEnable&#x27;).checked &amp;&amp; !ordBusy;
-  $(&#x27;ordBuy&#x27;).disabled = !on;
-  $(&#x27;ordSell&#x27;).disabled = !on;
-  if (!on) ordDisarm();
-  if (!$(&#x27;ordEnable&#x27;).checked &amp;&amp; !ordBusy) ordSay(&#x27;Đặt lệnh đang tắt.&#x27;);
-  else if (on &amp;&amp; !ordArm) ordSay(&#x27;Nhập lot và SL, rồi bấm BUY hoặc SELL.&#x27;);
-}
-// Giá cuối trên biểu đồ, chỉ dùng khi đang nhận nến live (nến demo/file có thể lệch xa giá thật)
-function ordChartPrice() {
-  if (!hasData || !BASE.length || !/^Live/.test(baseName)) return null;
-  const c = Number(BASE[BASE.length - 1].c);
-  return Number.isFinite(c) ? Math.round(c * 100) / 100 : null;
-}
-function ordNum(id) {
-  const raw = String($(id).value || &#x27;&#x27;).trim().replace(&#x27;,&#x27;, &#x27;.&#x27;);
-  if (!raw) return null;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : NaN;
-}
-// Trả về { order } nếu hợp lệ, hoặc { error }
-function ordRead(side) {
-  const cfg = acctStored();
-  const base = acctBase(cfg.url), token = String(cfg.token || &#x27;&#x27;);
-  if (!base || !token) return { error: &#x27;Chưa kết nối VPS. Nhập địa chỉ và token ở trên trước.&#x27; };
-  const symbol = $(&#x27;ordSym&#x27;).value.trim();   // giữ hoa/thường: Exness Standard dùng XAUUSDm
-  if (!/^[A-Za-z0-9._#-]{3,20}$/.test(symbol)) return { error: &#x27;Mã không hợp lệ.&#x27; };
-  const vol = ordNum(&#x27;ordVol&#x27;), max = ordNum(&#x27;ordMax&#x27;), sl = ordNum(&#x27;ordSl&#x27;), tp = ordNum(&#x27;ordTp&#x27;);
-  if (!(vol &gt; 0)) return { error: &#x27;Khối lượng phải lớn hơn 0.&#x27; };
-  if (Math.abs(vol * 100 - Math.round(vol * 100)) &gt; 1e-6) return { error: &#x27;Khối lượng chỉ lấy 2 số lẻ (bước 0.01).&#x27; };
-  if (!(max &gt; 0)) return { error: &#x27;Lot tối đa phải lớn hơn 0.&#x27; };
-  if (vol &gt; max + 1e-9) return { error: &#x27;Khối lượng &#x27; + vol + &#x27; vượt lot tối đa &#x27; + max + &#x27;.&#x27; };
-  if (sl === null) return { error: &#x27;Phải có SL.&#x27; };
-  if (!(sl &gt; 0)) return { error: &#x27;SL không hợp lệ.&#x27; };
-  if (tp !== null &amp;&amp; !(tp &gt; 0)) return { error: &#x27;TP không hợp lệ.&#x27; };
-  if (tp !== null) {
-    if (side === &#x27;BUY&#x27; &amp;&amp; !(tp &gt; sl)) return { error: &#x27;Lệnh BUY: TP phải cao hơn SL.&#x27; };
-    if (side === &#x27;SELL&#x27; &amp;&amp; !(tp &lt; sl)) return { error: &#x27;Lệnh SELL: TP phải thấp hơn SL.&#x27; };
-  }
-  const px = ordChartPrice();
-  if (px !== null) {
-    if (side === &#x27;BUY&#x27; &amp;&amp; !(sl &lt; px)) return { error: &#x27;Lệnh BUY: SL phải thấp hơn giá hiện tại &#x27; + px + &#x27;.&#x27; };
-    if (side === &#x27;SELL&#x27; &amp;&amp; !(sl &gt; px)) return { error: &#x27;Lệnh SELL: SL phải cao hơn giá hiện tại &#x27; + px + &#x27;.&#x27; };
-    if (tp !== null &amp;&amp; side === &#x27;BUY&#x27; &amp;&amp; !(tp &gt; px)) return { error: &#x27;Lệnh BUY: TP phải cao hơn giá hiện tại &#x27; + px + &#x27;.&#x27; };
-    if (tp !== null &amp;&amp; side === &#x27;SELL&#x27; &amp;&amp; !(tp &lt; px)) return { error: &#x27;Lệnh SELL: TP phải thấp hơn giá hiện tại &#x27; + px + &#x27;.&#x27; };
-  }
-  const note = $(&#x27;ordNote&#x27;).value.trim().replace(/[^\w .-]/g, &#x27;&#x27;).slice(0, 20);
-  return { base, token, px, order: { symbol, side, volume: Math.round(vol * 100) / 100, sl, tp: tp === null ? 0 : tp, comment: note || &#x27;XIKE&#x27; } };
-}
-// Gửi POST tới VPS. Không tự thử lại: lỗi mạng có thể là lệnh đã khớp mà chưa kịp trả lời.
-async function ordPost(base, token, path, body) {
-  const ctl = new AbortController();
-  const timer = setTimeout(() =&gt; ctl.abort(), 15000);
-  try {
-    const res = await fetch(base + path, {
-      method: &#x27;POST&#x27;, cache: &#x27;no-store&#x27;, signal: ctl.signal,
-      headers: { &#x27;X-Token&#x27;: token, &#x27;Content-Type&#x27;: &#x27;application/json&#x27; },
-      body: JSON.stringify(body)
-    });
-    const data = await res.json().catch(() =&gt; ({}));
-    if (res.status === 401) throw new Error(&#x27;Sai token.&#x27;);
-    if (res.status === 404 || res.status === 405) throw new Error(&#x27;VPS chưa có cổng &#x27; + path + &#x27;. Cần cập nhật code VPS.&#x27;);
-    if (!res.ok || data.ok === false) {
-      const why = data.error || data.comment || (&#x27;VPS trả lỗi &#x27; + res.status);
-      throw new Error(String(why) + (data.retcode ? &#x27; (mã &#x27; + data.retcode + &#x27;)&#x27; : &#x27;&#x27;) + &#x27;.&#x27;);
-    }
-    return data;
-  } catch (err) {
-    if (err.name === &#x27;AbortError&#x27;) throw new Error(&#x27;Hết thời gian chờ VPS. Lệnh CÓ THỂ đã khớp: xem lại Lệnh đang mở trước khi đặt lại.&#x27;);
-    if (err instanceof TypeError) throw new Error(&#x27;Không gửi được tới VPS. Lệnh CÓ THỂ đã tới VPS: xem lại Lệnh đang mở trước khi đặt lại.&#x27;);
-    throw err;
-  } finally { clearTimeout(timer); }
-}
-function ordId() {
-  const a = new Uint32Array(2);
-  (window.crypto || {}).getRandomValues ? crypto.getRandomValues(a) : (a[0] = Math.random() * 4e9, a[1] = Date.now());
-  return &#x27;xk&#x27; + a[0].toString(36) + a[1].toString(36);
-}
-async function ordClick(side) {
-  if (ordBusy || !$(&#x27;ordEnable&#x27;).checked) return;
-  const r = ordRead(side);
-  if (r.error) { ordDisarm(); ordSay(r.error, &#x27;err&#x27;); return; }
-  const o = r.order;
-  const sig = JSON.stringify(o);
-  // Bấm lần đầu: hiện lại lệnh và chờ xác nhận
-  if (!ordArm || ordArm.side !== side || ordArm.sig !== sig) {
-    ordDisarm();
-    ordArm = { side, sig, id: ordId() };
-    const bt = $(side === &#x27;BUY&#x27; ? &#x27;ordBuy&#x27; : &#x27;ordSell&#x27;);
-    bt.classList.add(&#x27;arm&#x27;);
-    bt.querySelector(&#x27;b&#x27;).textContent = &#x27;Xác nhận &#x27; + side;
-    const dist = r.px !== null ? &#x27; · SL cách &#x27; + Math.round(Math.abs(r.px - o.sl) * 10) + &#x27; pip&#x27; : &#x27;&#x27;;
-    ordSay(&#x27;Bấm lần nữa để gửi: &#x27; + side + &#x27; &#x27; + o.volume.toFixed(2) + &#x27; lot &#x27; + o.symbol + &#x27; · SL &#x27; + o.sl + &#x27; · TP &#x27; + (o.tp || &#x27;—&#x27;) + dist, &#x27;&#x27;);
-    ordArmTimer = setTimeout(() =&gt; { ordDisarm(); ordSay(&#x27;Đã huỷ xác nhận (quá 6 giây).&#x27;); }, ORD_ARM_MS);
-    return;
-  }
-  // Bấm lần hai: gửi đúng một lần
-  const id = ordArm.id;
-  ordDisarm();
-  ordBusy = true;
-  ordSync();
-  ordSay(&#x27;Đang gửi &#x27; + side + &#x27; &#x27; + o.volume.toFixed(2) + &#x27; lot...&#x27;);
-  try {
-    const d = await ordPost(r.base, r.token, &#x27;/order&#x27;, Object.assign({ client_id: id }, o));
-    ordSay(&#x27;Đã khớp &#x27; + side + &#x27; &#x27; + o.volume.toFixed(2) + &#x27; lot&#x27; + (d.price ? &#x27; giá &#x27; + d.price : &#x27;&#x27;) + (d.ticket ? &#x27; · ticket &#x27; + d.ticket : &#x27;&#x27;) + &#x27;.&#x27;, &#x27;ok&#x27;);
-    $(&#x27;ordSl&#x27;).value = &#x27;&#x27;;
-    $(&#x27;ordTp&#x27;).value = &#x27;&#x27;;
-    say(&#x27;Đã đặt lệnh &#x27; + side + (d.ticket ? &#x27; #&#x27; + d.ticket : &#x27;&#x27;));
-  } catch (err) {
-    ordSay(&#x27;Không đặt được lệnh: &#x27; + (err.message || &#x27;Lỗi không rõ.&#x27;), &#x27;err&#x27;);
-  } finally {
-    ordBusy = false;
-    $(&#x27;ordBuy&#x27;).disabled = $(&#x27;ordSell&#x27;).disabled = !$(&#x27;ordEnable&#x27;).checked;
-    acctRefresh();
-  }
-}
-// Đóng một lệnh đang mở theo ticket (bấm 2 lần trong 6 giây)
-let closeArm = 0, closeArmTimer = 0;
-async function ordCloseClick(bt, ticket) {
-  if (ordBusy || !$(&#x27;ordEnable&#x27;).checked) return;
-  if (closeArm !== ticket) {
-    closeArm = ticket;
-    bt.textContent = &#x27;Xác nhận đóng&#x27;;
-    clearTimeout(closeArmTimer);
-    closeArmTimer = setTimeout(() =&gt; { closeArm = 0; bt.textContent = &#x27;Đóng&#x27;; }, ORD_ARM_MS);
-    return;
-  }
-  clearTimeout(closeArmTimer);
-  closeArm = 0;
-  const cfg = acctStored();
-  const base = acctBase(cfg.url), token = String(cfg.token || &#x27;&#x27;);
-  if (!base || !token) { ordSay(&#x27;Chưa kết nối VPS.&#x27;, &#x27;err&#x27;); return; }
-  ordBusy = true;
-  ordSync();
-  bt.disabled = true;
-  bt.textContent = &#x27;Đang đóng...&#x27;;
-  try {
-    const d = await ordPost(base, token, &#x27;/close&#x27;, { ticket, client_id: ordId() });
-    ordSay(&#x27;Đã đóng lệnh #&#x27; + ticket + (d.price ? &#x27; giá &#x27; + d.price : &#x27;&#x27;) + &#x27;.&#x27;, &#x27;ok&#x27;);
-  } catch (err) {
-    ordSay(&#x27;Không đóng được #&#x27; + ticket + &#x27;: &#x27; + (err.message || &#x27;Lỗi không rõ.&#x27;), &#x27;err&#x27;);
-  } finally {
-    ordBusy = false;
-    $(&#x27;ordBuy&#x27;).disabled = $(&#x27;ordSell&#x27;).disabled = !$(&#x27;ordEnable&#x27;).checked;
-    acctRefresh();
-  }
 }
 

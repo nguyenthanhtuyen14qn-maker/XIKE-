@@ -1,0 +1,1732 @@
+<!-- QUY TẮC -->
+<section id="view-rules" class="view">
+  <div class="scroll">
+    <div class="card">
+      <h2 id="ruleFormTitle">Dạy quy tắc mới</h2>
+      <p class="hint">Dòng đầu là tên quy tắc. Viết điều kiện bằng lời và ghi rõ tham số, AI hiểu lời mô tả tốt hơn code.</p>
+      <textarea id="ruleText" rows="7" placeholder="EMA 34/80 M30&#10;Xu hướng: EMA 34 trên EMA 80 là tăng, dưới là giảm.&#10;BUY P: nến 3 chạm vùng EMA 34-80, MACD line &gt; 0.5.&#10;SELL P: nến 3 chạm vùng EMA 34-80, MACD line &lt; 1."></textarea>
+      <div class="row">
+        <button id="pickRule" class="tool">🖼 Ảnh mẫu</button>
+        <span id="ruleImgNote" class="hint" style="margin:0">Không bắt buộc</span>
+      </div>
+      <div id="ruleImgBox" class="rule-img" hidden>
+        <img id="ruleImg" alt="Ảnh mẫu của quy tắc">
+        <button id="ruleImgRemove" class="link danger">Bỏ ảnh</button>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button id="ruleSave" class="btn gold grow">Lưu quy tắc</button>
+        <button id="ruleCancel" class="btn" hidden>Huỷ sửa</button>
+      </div>
+      <p id="ruleMsg" class="note" hidden></p>
+      <input id="fileRule" type="file" accept="image/*" hidden>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <h2>Quy tắc đã lưu</h2>
+        <button id="ruleReload" class="link">Làm mới</button>
+      </div>
+      <p id="ruleStats" class="hint"></p>
+      <div id="ruleList"></div>
+    </div>
+  </div>
+</section>
+
+<!-- CÀI ĐẶT -->
+<section id="view-settings" class="view">
+  <div class="scroll">
+    <!-- KẾT NỐI: nguồn dữ liệu biểu đồ và tài khoản MT5 (phần xử lý chạy trong khung biểu đồ) -->
+    <div class="card" id="feed">
+      <h2>Nguồn dữ liệu biểu đồ</h2>
+      <p class="hint">Nến XAU/USD thật cho tab Biểu đồ và cho nút 🤖 AI.</p>
+      <label>Nhà cung cấp
+        <select id="fdProv">
+          <option value="oanda" selected>OANDA (giá thật, miễn phí)</option>
+          <option value="twelve">Twelve Data</option>
+          <option value="vps">Exness / MT5 (qua VPS): giá đúng tài khoản</option>
+        </select>
+      </label>
+      <div id="fdTwelve" hidden>
+        <p class="hint">Lấy khoá miễn phí ở twelvedata.com (gói Basic: 8 lần gọi/phút, 800 lần/ngày). Khoá chỉ dùng để đọc giá.</p>
+        <label>Khoá API Twelve Data
+          <input id="tdKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Dán khoá API">
+        </label>
+      </div>
+      <div id="fdVps" hidden>
+        <p class="hint"><b>Giá đúng tài khoản giao dịch của bạn</b>: nến lấy từ cầu nối VPS (chế độ Exness API hoặc MT5). Dùng địa chỉ và token ở thẻ <b>Tài khoản MT5 (qua VPS)</b> bên dưới, không cần khoá riêng. Mã để trống thì VPS dùng mã đầu tiên trong XIKE_SYMBOLS (ví dụ XAUUSDm).</p>
+      </div>
+      <div id="fdOanda">
+        <p class="hint"><b>Giá XAU/USD thật của OANDA</b> (cùng giá OANDA:XAUUSD trên TradingView): biểu đồ, chỉ báo và 🤖 AI tính trên đúng nến bạn đang xem. Tạo token ở OANDA, mục Manage API Access. Nên dùng tài khoản <b>demo (practice)</b>: giá vẫn là giá thật, còn token OANDA có quyền giao dịch nên dùng demo cho an toàn; app chỉ dùng để đọc giá.</p>
+        <label>Token OANDA
+          <input id="oaKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Dán token">
+        </label>
+        <label>Loại tài khoản
+          <select id="oaEnv">
+            <option value="practice">Demo (practice)</option>
+            <option value="live">Thật (live)</option>
+          </select>
+        </label>
+      </div>
+      <div class="row">
+        <button id="tdLoad" class="btn gold grow">Lưu và tải nến</button>
+        <button id="tdStop" class="btn">Dừng cập nhật</button>
+      </div>
+      <p class="note info" id="tdMsg">Chưa kết nối nguồn dữ liệu.</p>
+      <details class="models">
+        <summary>Mã, khung nến, tự cập nhật</summary>
+        <label>Mã
+          <input id="tdSym" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" value="XAU_USD">
+        </label>
+        <label>Khung nến gốc
+          <select id="tdTf">
+            <option value="M1">M1 (khoảng 3,5 ngày)</option>
+            <option value="M5">M5 (khoảng 17 ngày)</option>
+            <option value="M15" selected>M15 (khoảng 52 ngày)</option>
+            <option value="M30">M30 (khoảng 104 ngày)</option>
+            <option value="H1">H1 (khoảng 7 tháng)</option>
+          </select>
+        </label>
+        <label>Tự cập nhật (giây, 0 = tắt)
+          <input id="tdEvery" type="text" inputmode="numeric" value="120">
+        </label>
+      </details>
+    </div>
+
+    <div class="card" id="acct">
+      <h2>Tài khoản MT5 (qua VPS)</h2>
+      <p class="hint">Địa chỉ và token của cầu nối VPS. Dùng cho khung Đặt lệnh dưới biểu đồ.</p>
+      <label>Địa chỉ VPS (https)
+        <input id="acctUrl" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://ten-mien-cua-ban.com">
+      </label>
+      <label>Token
+        <input id="acctToken" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Token đặt trên VPS">
+      </label>
+      <div class="row">
+        <button id="acctSave" class="btn gold grow">Lưu và kết nối</button>
+        <button id="acctRefresh" class="btn">Làm mới</button>
+      </div>
+      <div class="login" id="login">
+        <h3>Đăng nhập MT5</h3>
+        <p class="hint">VPS sẽ đăng nhập tài khoản này trên MT5. App không lưu mật khẩu.</p>
+        <label>Số tài khoản
+          <input id="mtLogin" type="text" inputmode="numeric" autocomplete="off" spellcheck="false" placeholder="vd 12345678">
+        </label>
+        <label>Mật khẩu
+          <input id="mtPass" type="password" autocomplete="off" spellcheck="false" placeholder="Mật khẩu giao dịch (master)">
+        </label>
+        <label>Server
+          <input id="mtServer" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="vd Exness-MT5Real8">
+        </label>
+        <div class="row">
+          <button id="mtLoginBtn" class="btn grow">Đăng nhập MT5</button>
+          <button id="mtLogoutBtn" class="btn">Ngắt MT5</button>
+        </div>
+        <p class="note info" id="mtMsg">Lưu địa chỉ VPS và token ở trên trước.</p>
+      </div>
+      <p class="note info" id="acctMsgLine">Chưa kết nối.</p>
+      <div class="acct-bridges" id="acctBridges">
+        <div class="acct-br-row"><span>Trạng thái MT5</span><b id="br-health">Chưa kiểm tra</b></div>
+        <div class="acct-br-row"><span>Tài khoản</span><b id="br-account">Chưa kiểm tra</b></div>
+        <div class="acct-br-row"><span>Lệnh đang mở</span><b id="br-positions">Chưa kiểm tra</b></div>
+        <div class="acct-br-row"><span>Lịch sử lệnh</span><b id="br-history">Chưa kiểm tra</b></div>
+      </div>
+      <div class="acct-grid" id="acctGrid"></div>
+      <div class="acct-pos" id="acctPos"></div>
+      <h3 class="acct-sub">Lệnh đã đóng (7 ngày gần nhất)</h3>
+      <p class="hint" id="acctHistSum"></p>
+      <div class="acct-pos" id="acctHist"></div>
+    </div>
+
+    <div class="card">
+      <h2>Khoá và kết nối</h2>
+      <p class="hint">Khoá chỉ lưu trong app trên máy này, không nằm trong code. Ô khoá để trống thì giữ khoá cũ.</p>
+      <p id="setIntro" class="note info" hidden></p>
+      <label>Khoá Gemini (Google AI Studio)
+        <input id="gKey" type="password" autocomplete="off" spellcheck="false">
+      </label>
+      <label>Khoá Claude (Anthropic, bắt đầu bằng sk-ant-)
+        <input id="cKey" type="password" autocomplete="off" spellcheck="false">
+      </label>
+      <label>URL Supabase
+        <input id="sUrl" type="url" autocomplete="off" spellcheck="false">
+      </label>
+      <label>Khoá Supabase (sb_secret_...)
+        <input id="sKey" type="password" autocomplete="off" spellcheck="false">
+      </label>
+      <label>AI dùng để trả lời và phân tích
+        <select id="provider">
+          <option value="gemini">Gemini (Google)</option>
+          <option value="claude">Claude (Anthropic)</option>
+        </select>
+      </label>
+      <p class="hint">Claude không tạo được vector, nên quy tắc vẫn cần khoá Gemini.</p>
+      <details class="models">
+        <summary>Model AI</summary>
+        <label>Model chính
+          <input id="mMain" list="chatModels" autocomplete="off" spellcheck="false">
+        </label>
+        <label>Model dự phòng, dùng khi model chính hết lượt hoặc quá tải
+          <input id="mFallback" list="chatModels" autocomplete="off" spellcheck="false">
+        </label>
+        <label>Model tạo vector
+          <input id="mEmbed" list="embedModels" autocomplete="off" spellcheck="false">
+        </label>
+        <label>Model Claude (Sonnet chính xác hơn; Haiku rẻ hơn khoảng 20 lần)
+          <input id="cModel" list="claudeModels" autocomplete="off" spellcheck="false">
+        </label>
+      </details>
+      <div class="row">
+        <button id="setSave" class="btn gold grow">Lưu</button>
+        <button id="setTest" class="btn grow">Kiểm tra kết nối</button>
+      </div>
+      <p id="setMsg" class="note" hidden></p>
+    </div>
+    <div id="diagCard" class="card" hidden>
+      <h2>Kết quả kiểm tra</h2>
+      <ul id="diagList" class="diag"></ul>
+    </div>
+    <div id="sqlCard" class="card">
+      <h2>SQL tạo bảng Supabase</h2>
+      <p class="hint">Chạy trong SQL Editor của Supabase khi kiểm tra báo thiếu bảng, thiếu cột hoặc thiếu quyền. Chạy lại nhiều lần cũng không mất dữ liệu.</p>
+      <pre id="sqlBox" class="sql"></pre>
+      <button id="sqlCopy" class="btn block">Sao chép SQL</button>
+    </div>
+  </div>
+</section>
+
+<datalist id="chatModels">
+  <option value="gemini-3.8-flash"></option>
+  <option value="gemini-3.6-flash"></option>
+  <option value="gemini-3.5-flash-lite"></option>
+</datalist>
+<datalist id="embedModels">
+  <option value="gemini-embedding-2"></option>
+  <option value="gemini-embedding-001"></option>
+</datalist>
+<datalist id="claudeModels">
+  <option value="claude-sonnet-5-5"></option>
+  <option value="claude-haiku-5-5"></option>
+  <option value="claude-opus-5-5"></option>
+</datalist>
+
+<div id="viewer" class="viewer" hidden>
+  <div class="viewer-bar">
+    <span id="viewerHint">Chạm vào ảnh để phóng to</span>
+    <button id="viewerClose" class="btn">✕ Đóng</button>
+  </div>
+  <div id="viewerScroll" class="viewer-scroll"><img id="viewerImg" alt="Ảnh biểu đồ"></div>
+</div>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+
+// ===== CẦU NỐI VỚI KOTLIN =====
+const pending = {};
+let seq = 0;
+
+function api(method, args) {
+  return new Promise((resolve, reject) => {
+    if (!window.AndroidBridge) {
+      reject(new Error("Trang này chỉ chạy trong app AI XIKE."));
+      return;
+    }
+    const id = "r" + ++seq;
+    pending[id] = { resolve, reject };
+    window.AndroidBridge.call(method, JSON.stringify(args || {}), id);
+  });
+}
+
+window.__resolve = function (id, raw) {
+  const p = pending[id];
+  if (!p) return;
+  delete pending[id];
+  let r;
+  try {
+    r = JSON.parse(raw);
+  } catch (e) {
+    p.reject(new Error("Không đọc được phản hồi."));
+    return;
+  }
+  if (r.ok) {
+    p.resolve(r.data);
+  } else {
+    const err = new Error(r.error || "Lỗi không rõ");
+    err.setup = !!r.setup;
+    p.reject(err);
+  }
+};
+
+// ===== NỘI DUNG CỐ ĐỊNH =====
+const ANALYZE_PROMPT = [
+  "Phân tích ảnh biểu đồ XAUUSD này theo đúng các quy tắc tôi đã dạy. Trả lời theo thứ tự:",
+  "1. Khung thời gian và giá hiện tại đọc được trên ảnh.",
+  "2. Xu hướng: EMA 34/80, MACD, TRIX (ghi giá trị đọc được, không đoán).",
+  "3. Tín hiệu theo quy tắc: đã có hay chưa, thuộc quy tắc nào, còn thiếu điều kiện gì.",
+  "4. Kế hoạch: BUY, SELL hoặc ĐỨNG NGOÀI. Nếu vào lệnh thì ghi vùng entry, SL, TP1, TP2, TP3, mỗi mức ghi khoảng cách bằng giá và pip (10 giá = 100 pip).",
+  "5. Điều kiện huỷ kế hoạch.",
+  "Viết ngắn gọn, khoảng 250 chữ.",
+  "",
+  "6. Cuối câu trả lời, thêm một khối số liệu để app vẽ phân tích lên ảnh: dòng <<<VE, rồi một JSON hợp lệ, rồi dòng VE>>>. Không giải thích khối này. Mẫu:",
+  "<<<VE",
+  '{"bias":"SELL","now":3527.95,"resistance":[3550],"support":[3500],"entry":3537,"sl":3556,"tp":[3510,3500,3475],"note":"Xu hướng giảm vẫn chủ đạo do giá nằm dưới đường EMA. Giá đang giằng co nhẹ tại 3,527.95 nhưng có khả năng kiểm tra lại vùng hỗ trợ 3,500 nếu không vượt qua được 3,550.","axis":[{"price":3600,"y":209},{"price":3450,"y":463}],"last_x":465,"callouts":[{"text":"Kháng cự động (EMA/MA)","x":330,"y":275,"tx":520,"ty":228},{"text":"MACD yếu, lực mua không mạnh (Weak momentum)","x":420,"y":540,"tx":650,"ty":510}]}',
+  "VE>>>",
+  "bias: BUY, SELL hoặc SIDEWAY. now: giá hiện tại. resistance, support: tối đa 2 mức chính mỗi loại. entry, sl để null và tp để [] nếu ĐỨNG NGOÀI.",
+  "note: nhận định ngắn, dưới 20 chữ.",
+  "Toạ độ tính trên ảnh gốc theo thang 0-1000 (x: 0 mép trái, 1000 mép phải; y: 0 mép trên, 1000 mép dưới).",
+  "axis: 2 mức giá in trên trục giá của ảnh, một mức gần trên, một mức gần dưới vùng nến, y là vị trí dọc của chữ số đó.",
+  "last_x: vị trí ngang của nến cuối cùng.",
+  "callouts: 2-4 chú thích ngắn (dưới 10 chữ) cho chi tiết đáng chú ý trên ảnh: đường EMA, MACD, TRIX, tín hiệu Buy/Sell, nến đặc biệt. x,y là điểm cần chỉ vào; tx,ty là chỗ đặt chữ, chọn vùng trống không che nến và không trùng nhau.",
+  "Chỉ dùng số đọc được trên ảnh, không đoán."
+].join("\n");
+
+// Phân tích từ dữ liệu nến thật (Twelve Data), không dùng ảnh
+const LIVE_PROMPT = [
+  "Phân tích XAUUSD từ dữ liệu nến và chỉ báo dưới đây (số đã tính sẵn từ giá thật), theo đúng các quy tắc tôi đã dạy. Trả lời theo thứ tự:",
+  "1. Khung thời gian và giá hiện tại.",
+  "2. Xu hướng: EMA 34/80, MACD, TRIX, Stoch RSI (ghi giá trị trong dữ liệu; Stoch RSI trên 80 là quá mua, dưới 20 là quá bán).",
+  "3. Tín hiệu theo quy tắc: đã có hay chưa, thuộc quy tắc nào, còn thiếu điều kiện gì.",
+  "4. Kế hoạch: BUY, SELL hoặc ĐỨNG NGOÀI. Nếu vào lệnh thì ghi vùng entry, SL, TP1, TP2, TP3, mỗi mức ghi khoảng cách bằng giá và pip (10 giá = 100 pip).",
+  "5. Điều kiện huỷ kế hoạch.",
+  "Viết ngắn gọn, khoảng 250 chữ. Chỉ dùng số trong dữ liệu, không đoán.",
+  "",
+  "6. Cuối câu trả lời, thêm khối số liệu để app vẽ lên biểu đồ: dòng <<<VE, một JSON hợp lệ, rồi dòng VE>>>. Không giải thích khối này. Mẫu:",
+  "<<<VE",
+  '{"bias":"SELL","now":3624.63,"resistance":[3695.19],"support":[3600,3500],"entry":3655,"sl":3700,"tp":[3600,3550,3500],"note":"Giảm mạnh dưới dải EMA"}',
+  "VE>>>",
+  "bias: BUY, SELL hoặc SIDEWAY. resistance, support: tối đa 2 mức chính mỗi loại, lấy từ đỉnh/đáy hoặc EMA trong dữ liệu. entry, sl để null và tp để [] nếu ĐỨNG NGOÀI."
+].join("\n");
+
+const ANALYZE_QUERY = "phân tích biểu đồ XAUUSD, tín hiệu EMA 34/80, MACD, TRIX, entry, SL, TP";
+
+const SQL = `create table if not exists public.rules (
+  id text primary key,
+  created_at timestamptz default now(),
+  text text,
+  vector jsonb
+);
+create table if not exists public.cases (
+  id text primary key,
+  created_at timestamptz default now(),
+  rule_id text,
+  image_b64 text,
+  image_mime text
+);
+alter table public.rules add column if not exists created_at timestamptz default now();
+alter table public.rules add column if not exists text text;
+alter table public.rules add column if not exists vector jsonb;
+alter table public.cases add column if not exists created_at timestamptz default now();
+alter table public.cases add column if not exists rule_id text;
+alter table public.cases add column if not exists image_b64 text;
+alter table public.cases add column if not exists image_mime text;
+create index if not exists cases_rule_id_idx on public.cases (rule_id);
+alter table public.rules enable row level security;
+alter table public.cases enable row level security;
+grant select, insert, update, delete on public.rules, public.cases to service_role;
+notify pgrst, 'reload schema';`;
+
+
+// ===== TIỆN ÍCH =====
+function escapeHtml(s) {
+  return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+// Dọn ký hiệu Markdown còn sót, in đậm tiêu đề mục, tô màu BUY và SELL
+function formatAI(text) {
+  let s = escapeHtml(text || "");
+  s = s.replace(/^#{1,6}\s*/gm, "");
+  s = s.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+  s = s.replace(/^\s*[*-]\s+/gm, "• ");
+  s = s.replace(/^(\d+\.\s[^:\n<]{1,60}:)/gm, "<b>$1</b>");
+  s = s.replace(/\b(BUY P|BUY)\b/g, '<span class="buy">$1</span>');
+  s = s.replace(/\b(SELL P|SELL)\b/g, '<span class="sell">$1</span>');
+  return s;
+}
+
+function pad(n) {
+  return String(n).padStart(2, "0");
+}
+
+function fmtDate(value) {
+  const d = new Date(value);
+  if (isNaN(d.getTime())) return "";
+  return pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "/" + d.getFullYear() + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+}
+
+function showNote(id, text, kind) {
+  const el = $(id);
+  if (!text) {
+    el.hidden = true;
+    return;
+  }
+  el.textContent = text;
+  el.className = "note " + (kind || "info");
+  el.hidden = false;
+}
+
+function setBusy(btn, busy, label) {
+  if (busy) {
+    btn.dataset.label = btn.textContent;
+    btn.textContent = label || "Đang xử lý…";
+    btn.disabled = true;
+  } else {
+    if (btn.dataset.label) btn.textContent = btn.dataset.label;
+    btn.disabled = false;
+  }
+}
+
+// Bấm hai lần để xác nhận, thay cho hộp thoại
+function confirmTap(btn, action, armedLabel) {
+  if (btn.dataset.armed === "1") {
+    clearTimeout(btn._timer);
+    btn.dataset.armed = "";
+    btn.textContent = btn.dataset.idle;
+    action();
+    return;
+  }
+  btn.dataset.idle = btn.textContent;
+  btn.dataset.armed = "1";
+  btn.textContent = armedLabel || "Bấm lần nữa để xác nhận";
+  btn._timer = setTimeout(() => {
+    btn.dataset.armed = "";
+    btn.textContent = btn.dataset.idle;
+  }, 3000);
+}
+
+// ===== ẢNH =====
+function readFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Không đọc được ảnh."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Ứng dụng không đọc được ảnh này. Hãy chọn ảnh khác."));
+    img.src = src;
+  });
+}
+
+// Thu nhỏ ảnh về JPEG để gửi nhanh và đỡ tốn lượt
+async function shrink(src, maxSide, quality) {
+  const img = await loadImage(src);
+  const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const dataUrl = canvas.toDataURL("image/jpeg", quality);
+  return { dataUrl, b64: dataUrl.split(",")[1], mime: "image/jpeg" };
+}
+
+async function takeImage(input, maxSide, quality) {
+  const file = input.files && input.files[0];
+  input.value = "";
+  if (!file) return null;
+  const full = await shrink(await readFile(file), maxSide, quality);
+  // Bản thu nhỏ cho bong bóng chat (cạnh dài 900px): đủ nét trên màn hình mật độ cao
+  const thumb = await shrink(full.dataUrl, 900, 0.8);
+  return { dataUrl: full.dataUrl, b64: full.b64, mime: full.mime, thumb: thumb.dataUrl };
+}
+
+// ===== XEM ẢNH TOÀN MÀN HÌNH =====
+function openViewer(src) {
+  const img = $("viewerImg");
+  img.src = src;
+  img.style.width = "";
+  $("viewerScroll").classList.remove("zoom");
+  $("viewerHint").textContent = "Chạm vào ảnh để phóng to";
+  $("viewer").hidden = false;
+}
+
+function closeViewer() {
+  $("viewer").hidden = true;
+  $("viewerImg").removeAttribute("src");
+}
+
+function toggleZoom(ev) {
+  const box = $("viewerScroll");
+  const img = $("viewerImg");
+  if (box.classList.contains("zoom")) {
+    box.classList.remove("zoom");
+    img.style.width = "";
+    $("viewerHint").textContent = "Chạm vào ảnh để phóng to";
+    return;
+  }
+  const rect = img.getBoundingClientRect();
+  const fx = rect.width ? (ev.clientX - rect.left) / rect.width : 0.5;
+  const fy = rect.height ? (ev.clientY - rect.top) / rect.height : 0.5;
+  box.classList.add("zoom");
+  img.style.width = Math.round(Math.max(img.naturalWidth, box.clientWidth * 2.2)) + "px";
+  // Giữ chỗ vừa chạm ở giữa màn hình
+  requestAnimationFrame(() => {
+    box.scrollLeft = fx * img.offsetWidth - box.clientWidth / 2;
+    box.scrollTop = fy * img.offsetHeight - box.clientHeight / 2;
+  });
+  $("viewerHint").textContent = "Vuốt để xem, chạm lần nữa để thu nhỏ";
+}
+
+// ===== CHUYỂN MỤC =====
+const VIEWS = ["chart", "chat", "rules", "settings"];
+let current = "chat";
+
+function show(name) {
+  current = name;
+  if (name !== "chart" && document.body.classList.contains("chart-full")) setChartFull(false);
+  for (const v of VIEWS) {
+    $("view-" + v).classList.toggle("on", v === name);
+    $("nav-" + v).classList.toggle("on", v === name);
+  }
+  if (name === "rules" && !rulesLoaded) loadRules();
+  if (name === "chat") scrollLogEnd();
+  // Tab Cài đặt có phần tài khoản MT5: báo khung biểu đồ bật/tắt làm mới số liệu
+  try {
+    const fw = $("xauFrame").contentWindow;
+    if (fw && typeof fw.acctPanelChanged === "function") fw.acctPanelChanged(fw.acctWanted());
+  } catch (e) { /* khung biểu đồ chưa sẵn sàng */ }
+}
+
+// ===== BIỂU ĐỒ PHÓNG TO =====
+// Khung biểu đồ phóng to lấp kín màn hình: ẩn thanh chọn và các mục khác, chỉ giữ khung biểu đồ.
+// ===== BIỂU ĐỒ XIKE (giao diện kiểu TradingView) =====
+function fw() { try { return $("xauFrame").contentWindow; } catch (e) { return null; } }
+// ✏️ Ẩn / hiện thanh công cụ vẽ bên trái biểu đồ
+const DTB_KEY = "xk-dtb-hide";
+function dtbHidden() { try { return localStorage.getItem(DTB_KEY) === "1"; } catch (e) { return false; } }
+function syncDrawBtn() { $("actDraw").textContent = dtbHidden() ? "✏️ Hiện vẽ" : "✏️ Ẩn vẽ"; }
+function toggleDrawBar() {
+  const hide = !dtbHidden();
+  try { localStorage.setItem(DTB_KEY, hide ? "1" : "0"); } catch (e) { /* bỏ qua */ }
+  syncDrawBtn();
+  const w = fw();
+  try { if (w && w.xkDrawBar) w.xkDrawBar(hide); } catch (e) { /* khung chưa sẵn sàng */ }
+}
+// 📊 Chỉ báo: mở bảng chỉ báo của biểu đồ (thêm, sửa, ẩn chỉ báo)
+function openIndicators() {
+  toggleSignals(false);
+  const w = fw();
+  try { if (w && w.openSheet) w.openSheet(); } catch (e) { /* khung chưa sẵn sàng */ }
+}
+
+// 💰 Đặt lệnh: khung đặt lệnh dưới biểu đồ (xử lý trong khung XIKE)
+function toggleTrade() {
+  const panel = $("trade");
+  panel.hidden = !panel.hidden;
+  $("actOrd").classList.toggle("on", !panel.hidden);
+  const w = fw();
+  try {
+    if (w) {
+      w.ordPrices();
+      w.acctPanelChanged(w.acctWanted());
+      if (!panel.hidden && !w.mtVps()) w.ordSay("Chưa kết nối VPS: vào ⚙️ Cài đặt, nhập địa chỉ VPS, token và đăng nhập MT5.", "err");
+    }
+  } catch (e) { /* khung chưa sẵn sàng */ }
+}
+
+// 🤖 AI: phân tích bằng dữ liệu nến và chỉ báo XIKE (không cần ảnh)
+function runAI() {
+  if (chatBusy) { show("chat"); hint("AI đang trả lời câu trước, đợi xong rồi bấm lại."); return; }
+  const w = fw();
+  if (!w || typeof w.aiSnapshot !== "function") { show("chat"); hint("Biểu đồ XIKE chưa sẵn sàng, thử lại sau vài giây."); return; }
+  const snap = w.aiSnapshot();
+  if (snap.error) { show("settings"); showNote("setMsg", snap.error, "warn"); return; }
+  $("actAI").disabled = true;
+  $("actAI").textContent = "🤖 Đang…";
+  sendLive(Object.assign({ type: "xk-analyze" }, snap));
+}
+
+// 📊 Chỉ báo: bảng tín hiệu XIKE của nến mới nhất
+function renderSignals() {
+  const w = fw();
+  const body = $("sigBody"), tfs = $("sigTfs");
+  body.textContent = "";
+  tfs.textContent = "";
+  let r = null;
+  try { r = w && w.xikeReadout ? w.xikeReadout() : null; } catch (e) { r = { error: e.message }; }
+  if (!r || r.error) {
+    $("sigSrc").textContent = "";
+    const p = document.createElement("p");
+    p.className = "note warn";
+    p.textContent = (r && r.error) || "Biểu đồ XIKE chưa sẵn sàng.";
+    body.appendChild(p);
+    return;
+  }
+  $("sigSrc").textContent = r.src;
+  for (const id of r.tfs) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = id;
+    if (id === r.tf) b.className = "on";
+    b.addEventListener("click", () => { try { w.xkSetTf(id); } catch (e) { /* bỏ qua */ } renderSignals(); });
+    tfs.appendChild(b);
+  }
+  const row = (k, v, tone, note) => {
+    const d = document.createElement("div");
+    d.className = "sig-row";
+    const a = document.createElement("span"), b = document.createElement("b");
+    a.textContent = k;
+    b.textContent = v + (note ? "  · " + note : "");
+    if (tone) b.className = tone;
+    d.appendChild(a); d.appendChild(b);
+    body.appendChild(d);
+  };
+  const sub = (t) => { const h = document.createElement("div"); h.className = "sig-sub"; h.textContent = t; body.appendChild(h); };
+  for (const x of r.rows) row(x.k, x.v, x.tone, x.note);
+  sub("Tín hiệu gần đây (BUY P / SELL P, TRIX, Stoch RSI)");
+  if (!r.marks.length) row("—", "Chưa có tín hiệu trong 80 nến gần nhất");
+  for (const m of r.marks) {
+    const c = document.createElement("span");
+    c.className = "sig-chip " + (m.up ? "up" : "down");
+    c.textContent = m.t + " · " + m.when + (m.ago ? " (" + m.ago + " nến trước)" : " (nến hiện tại)");
+    body.appendChild(c);
+  }
+  if (r.gann) {
+    sub("Gann Fan tự động: " + r.gann.info);
+    for (const lv of r.gann.levels) row(lv.t, lv.v);
+  }
+}
+function toggleSignals(open) {
+  const sh = $("sigSheet");
+  const on = open === undefined ? sh.hidden : open;
+  sh.hidden = !on;
+  $("actInd").classList.toggle("on", on);
+  if (on) renderSignals();
+}
+
+function setChartFull(on) {
+  document.body.classList.toggle("chart-full", !!on);
+  const f = $("xauFrame");
+  if (f && f.contentWindow) f.contentWindow.postMessage({ type: "xk-full", on: !!on }, "*");
+}
+window.addEventListener("message", (e) => {
+  const f = $("xauFrame");
+  if (!f || e.source !== f.contentWindow || !e.data || e.data.type !== "xk-full") return;
+  setChartFull(!!e.data.on);
+});
+
+// Nút quay lại của điện thoại
+window.onBack = function () {
+  if (!$("viewer").hidden) {
+    closeViewer();
+    return true;
+  }
+  if (document.body.classList.contains("chart-full")) {
+    setChartFull(false);
+    return true;
+  }
+  if (current !== "chat") {
+    show("chat");
+    return true;
+  }
+  return false;
+};
+
+// ===== PHÂN TÍCH VÀ TRÒ CHUYỆN =====
+let history = [];
+let attached = null;
+let chatBusy = false;
+let saveTimer = null;
+
+function scrollLogEnd() {
+  const log = $("log");
+  log.scrollTop = log.scrollHeight;
+}
+
+function renderEmpty() {
+  const box = document.createElement("div");
+  box.className = "empty";
+  box.innerHTML =
+    "<h3>Phân tích biểu đồ theo quy tắc của bạn</h3>" +
+    "<ol><li>Bấm <b>📎 Ảnh</b> và chọn ảnh chụp biểu đồ.</li>" +
+    "<li>Ghi chú thêm nếu cần, ví dụ khung M30.</li>" +
+    "<li>Bấm <b>📈 Phân tích</b>.</li></ol>" +
+    "<p>Bạn cũng có thể hỏi bằng chữ, ví dụ: SELL P cần những điều kiện gì?</p>";
+  $("log").appendChild(box);
+}
+
+function toolsEl() {
+  const tools = document.createElement("div");
+  tools.className = "log-tools";
+  const clear = document.createElement("button");
+  clear.className = "link danger";
+  clear.textContent = "Xoá hội thoại";
+  clear.addEventListener("click", () => confirmTap(clear, clearChat, "Bấm lần nữa để xoá"));
+  tools.appendChild(clear);
+  return tools;
+}
+
+function renderLog() {
+  const log = $("log");
+  log.innerHTML = "";
+  if (!history.length) {
+    renderEmpty();
+    return;
+  }
+  log.appendChild(toolsEl());
+  for (const h of history) log.appendChild(messageEl(h));
+  scrollLogEnd();
+}
+
+// Thêm một ô tin nhắn vào cuối, bỏ phần hướng dẫn nếu đang hiện
+function addToLog(el) {
+  const log = $("log");
+  const empty = log.querySelector(".empty");
+  if (empty) empty.remove();
+  if (!log.querySelector(".log-tools")) log.insertBefore(toolsEl(), log.firstChild);
+  log.appendChild(el);
+  scrollLogEnd();
+  return el;
+}
+
+// ===== VẼ PHÂN TÍCH LÊN ẢNH =====
+// AI trả một khối <<<VE {json} VE>>> ở cuối. App bỏ khối đó khỏi chữ, rồi tự vẽ các mức lên ảnh gốc.
+function extractDraw(text) {
+  const src = String(text || "");
+  let m = src.match(/<<<\s*VE\s*([\s\S]*?)\s*VE\s*>>>/);
+  if (!m) m = src.match(/```(?:json)?\s*(\{[\s\S]*?"axis"[\s\S]*?\})\s*```/);
+  if (!m) return { clean: src.trim(), data: null };
+  const clean = (src.slice(0, m.index) + src.slice(m.index + m[0].length)).replace(/\n{3,}/g, "\n\n").trim();
+  let raw = m[1].trim().replace(/^```(?:json)?/, "").replace(/```$/, "").trim();
+  const a = raw.indexOf("{"), b = raw.lastIndexOf("}");
+  if (a < 0 || b <= a) return { clean, data: null };
+  try {
+    return { clean, data: JSON.parse(raw.slice(a, b + 1)) };
+  } catch (e) {
+    return { clean, data: null };
+  }
+}
+
+function numOrNull(v) {
+  const n = Number(v);
+  return v === null || v === "" || !Number.isFinite(n) || n <= 0 ? null : n;
+}
+function numList(v) {
+  return (Array.isArray(v) ? v : [v]).map(numOrNull).filter((n) => n !== null).slice(0, 4);
+}
+function fmtPrice(n) {
+  const parts = Number(n).toFixed(2).split(".");
+  return parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "." + parts[1];
+}
+
+function loadImg(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error("Không đọc được ảnh."));
+    img.src = src;
+  });
+}
+
+// Chia chữ thành các dòng vừa chiều rộng
+function wrapText(cx, text, maxW) {
+  const words = String(text).split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = "";
+  for (const w of words) {
+    const t = line ? line + " " + w : w;
+    if (cx.measureText(t).width <= maxW || !line) line = t;
+    else { lines.push(line); line = w; }
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+function roundRect(cx, x, y, w, h, r) {
+  cx.beginPath();
+  cx.moveTo(x + r, y);
+  cx.arcTo(x + w, y, x + w, y + h, r);
+  cx.arcTo(x + w, y + h, x, y + h, r);
+  cx.arcTo(x, y + h, x, y, r);
+  cx.arcTo(x, y, x + w, y, r);
+  cx.closePath();
+}
+
+async function annotateChart(src, d) {
+  const img = await loadImg(src);
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const cv = document.createElement("canvas");
+  cv.width = W;
+  cv.height = H;
+  const cx = cv.getContext("2d");
+  cx.drawImage(img, 0, 0);
+  const u = Math.max(9, Math.round(Math.min(W, H * 0.75) / 40));   // cỡ chữ gốc theo kích thước ảnh
+  const FONT = 'system-ui, Roboto, "Segoe UI", sans-serif';
+  const fx = (v, def) => { const n = Number(v); return (Number.isFinite(n) && n >= 0 && n <= 1000 ? n : def) / 1000 * W; };
+  const fy = (v, def) => { const n = Number(v); return (Number.isFinite(n) && n >= 0 && n <= 1000 ? n : def) / 1000 * H; };
+
+  // Chữ trắng có viền tối, đọc được trên mọi nền
+  function label(text, x, y, color, size, align, base) {
+    cx.font = "700 " + Math.round(size) + "px " + FONT;
+    cx.textAlign = align || "center";
+    cx.textBaseline = base || "middle";
+    cx.lineJoin = "round";
+    cx.lineWidth = size * 0.28;
+    cx.strokeStyle = "rgba(8,11,18,.9)";
+    cx.strokeText(text, x, y);
+    cx.fillStyle = color || "#ffffff";
+    cx.fillText(text, x, y);
+  }
+  function lines(arr, x, y, color, size, align) {
+    const lh = size * 1.22;
+    arr.forEach((t, i) => label(t, x, y + i * lh, color, size, align, "top"));
+    return arr.length * lh;
+  }
+  function arrow(x0, y0, x1, y1, opt) {
+    const o = opt || {};
+    cx.save();
+    cx.strokeStyle = cx.fillStyle = o.color || "#ffffff";
+    cx.shadowColor = "rgba(0,0,0,.65)";
+    cx.shadowBlur = u * 0.3;
+    cx.lineWidth = o.width || Math.max(2, u * 0.16);
+    cx.setLineDash(o.dash || []);
+    const ang = Math.atan2(y1 - y0, x1 - x0), head = o.head || u * 0.9;
+    cx.beginPath();
+    cx.moveTo(x0, y0);
+    cx.lineTo(x1 - Math.cos(ang) * head * 0.7, y1 - Math.sin(ang) * head * 0.7);
+    cx.stroke();
+    cx.setLineDash([]);
+    cx.beginPath();
+    cx.moveTo(x1, y1);
+    cx.lineTo(x1 - head * Math.cos(ang - 0.45), y1 - head * Math.sin(ang - 0.45));
+    cx.lineTo(x1 - head * Math.cos(ang + 0.45), y1 - head * Math.sin(ang + 0.45));
+    cx.closePath();
+    cx.fill();
+    cx.restore();
+  }
+
+  // Thang giá: nối 2 mức giá AI đọc trên trục giá (giá cao phải nằm trên)
+  let yOf = null;
+  const ax = Array.isArray(d.axis) ? d.axis.map((a) => ({ p: numOrNull(a && a.price), y: Number(a && a.y) }))
+    .filter((a) => a.p !== null && Number.isFinite(a.y) && a.y >= 0 && a.y <= 1000) : [];
+  if (ax.length >= 2) {
+    ax.sort((a, b) => b.p - a.p);
+    const hi = ax[0], lo = ax[ax.length - 1];
+    if (hi.p > lo.p && hi.y < lo.y) {
+      const k = (lo.y - hi.y) / (hi.p - lo.p);
+      yOf = (p) => ((hi.y + (hi.p - p) * k) / 1000) * H;
+    }
+  }
+  // Vùng nến: khi vẽ lên biểu đồ trong app, chỉ vẽ trong ô giá (không đè xuống ô MACD/TRIX)
+  const pTop = d.pane && Number.isFinite(+d.pane.top) ? +d.pane.top / 1000 * H : H * 0.03;
+  const pBot = d.pane && Number.isFinite(+d.pane.bottom) ? +d.pane.bottom / 1000 * H : H * 0.97;
+  const inside = (y) => y > pTop && y < pBot;
+
+  const bias = String(d.bias || "").toUpperCase();
+  const now = numOrNull(d.now);
+  const res = numList(d.resistance).slice(0, 2), sup = numList(d.support).slice(0, 2);
+  const entry = numOrNull(d.entry), sl = numOrNull(d.sl), tps = numList(d.tp).slice(0, 3);
+  const lastX = fx(d.last_x, 550);
+  cx.font = "700 " + Math.round(u * 0.85) + "px " + FONT;
+  const tagW = cx.measureText("0,000.00").width + u * 0.9, tagH = u * 1.4;
+  const notShown = [];
+  // Khung nhận định góc trên phải: tính chỗ trước để các chữ khác tránh ra
+  let boxW = Math.min(W * 0.54, u * 16.5);
+  const noteSz = u * 0.86, noteLh = noteSz * 1.25, notePad = u * 0.45;
+  const biasText = bias === "BUY" ? "Xu hướng tăng (Bullish)" : bias === "SELL" ? "Xu hướng giảm (Bearish)" : bias ? "Đi ngang (Sideways)" : "";
+  cx.font = "700 " + Math.round(noteSz) + "px " + FONT;
+  // Khung nhận định chỉ ghi xu hướng
+  const noteLines = ["NHẬN ĐỊNH: " + (biasText || "—")];
+  boxW = Math.min(boxW, cx.measureText(noteLines[0]).width + notePad * 2 + u * 0.2);
+  const boxX = () => W - tagW - boxW - u * 0.4;   // bên trái cột nhãn giá, không che SL/TP
+  const box = { x: boxX(), y: d.pane ? pTop + u * 0.3 : fy(d.note_y, 100), w: boxW, h: 0 };
+  box.h = notePad * 2 + noteLh * noteLines.length + u * 0.8 + (yOf ? 0 : noteSz * 1.15 * 3);   // chiều cao dự kiến, gồm dòng chữ nhỏ bên dưới
+  const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  const hits = (r) => overlap(r, box);
+  const taken = [];   // vùng đã có chữ, để chú thích tránh ra
+  const tags = [];   // nhãn giá ở mép phải, xếp không chồng nhau
+  function tag(p, color, text) {
+    let y = yOf(p) - tagH / 2;
+    for (const t of tags) if (Math.abs(y - t) < tagH + 2) y = t + tagH + 2;
+    tags.push(y);
+    cx.fillStyle = color;
+    roundRect(cx, W - tagW, y, tagW, tagH, u * 0.2);
+    cx.fill();
+    cx.font = "700 " + Math.round(u * 0.85) + "px " + FONT;
+    cx.fillStyle = "#0b0f17";
+    cx.textAlign = "center";
+    cx.textBaseline = "middle";
+    cx.fillText(text || fmtPrice(p), W - tagW / 2, y + tagH / 2);
+  }
+  function hline(p, color, dash, x0) {
+    cx.save();
+    cx.strokeStyle = color;
+    cx.lineWidth = Math.max(2, u * 0.16);
+    cx.setLineDash(dash);
+    cx.beginPath();
+    cx.moveTo(x0 || 0, yOf(p));
+    cx.lineTo(W - tagW, yOf(p));
+    cx.stroke();
+    cx.restore();
+  }
+
+  if (yOf) {
+    // Kháng cự, hỗ trợ: đường đứt nét ngang cả ảnh, nhãn 2 dòng đặt cạnh nến cuối
+    const srLabels = [], srDraw = [];
+    // SELL: kháng cự bên phải, hỗ trợ bên trái (chừa đường cho mũi tên đi xuống). BUY thì ngược lại.
+    const rightX = Math.min(lastX + W * 0.17, W - tagW - u * 5.5);
+    const leftX = Math.max(u * 5.5, lastX - W * 0.22);
+    const srs = res.map((p) => ({ p, up: true })).concat(sup.map((p) => ({ p, up: false })));
+    for (const L of srs) {
+      if (!inside(yOf(L.p))) { notShown.push((L.up ? "Kháng cự " : "Hỗ trợ ") + fmtPrice(L.p)); continue; }
+      const color = L.up ? "#ef4444" : "#22c55e";
+      hline(L.p, color, [u * 0.9, u * 0.55]);
+      tag(L.p, color);
+      const txt = [(L.up ? "Kháng cự (Resistance):" : "Hỗ trợ (Support):"), "~" + fmtPrice(L.p)];
+      const sz = u * 0.95, hh = sz * 1.22 * 2;
+      let y = L.up ? yOf(L.p) - hh - u * 0.35 : yOf(L.p) + u * 0.35;
+      for (const r of srLabels) if (y < r + hh && y + hh > r) y = L.up ? r - hh - u * 0.2 : r + hh + u * 0.2;
+      srLabels.push(y);
+      const onRight = bias === "BUY" ? !L.up : L.up;
+      let lx = onRight ? rightX : leftX;
+      cx.font = "700 " + Math.round(sz) + "px " + FONT;
+      let lw = Math.max(...txt.map((t) => cx.measureText(t).width));
+      const fitX = (x, w) => Math.max(w / 2 + u * 0.3, Math.min(W - tagW - u * 0.5 - w / 2, x));   // không lấn cột giá
+      lx = fitX(lx, lw);
+      let out = txt;
+      if (hits({ x: lx - lw / 2, y, w: lw, h: hh })) {
+        // Chật: thử nhãn 1 dòng sát đường, không được thì đổi bên
+        const one = [(L.up ? "Kháng cự " : "Hỗ trợ ") + "~" + fmtPrice(L.p)];
+        const y1 = L.up ? yOf(L.p) - sz * 1.22 - u * 0.3 : yOf(L.p) + u * 0.3;
+        const w1 = cx.measureText(one[0]).width;
+        if (!hits({ x: lx - w1 / 2, y: y1, w: w1, h: sz * 1.22 })) { out = one; y = y1; }
+        else lx = onRight ? leftX : rightX;
+      }
+      lw = Math.max(...out.map((t) => cx.measureText(t).width));
+      lx = fitX(lx, lw);
+      taken.push({ x: lx - lw / 2, y, w: lw, h: out.length * sz * 1.22 });
+      srDraw.push(() => lines(out, lx, y, L.up ? "#f87171" : "#4ade80", sz, "center"));
+    }
+    // Kế hoạch lệnh: chỉ vẽ ngắn từ nến cuối ra mép phải
+    const plan = [];
+    if (entry !== null) plan.push({ p: entry, n: "Entry", c: "#f5b301" });
+    if (sl !== null) plan.push({ p: sl, n: "SL", c: "#fb7185" });
+    tps.forEach((p, i) => plan.push({ p, n: "TP" + (i + 1), c: "#86efac" }));
+    for (const L of plan) {
+      if (!inside(yOf(L.p))) { notShown.push(L.n + " " + fmtPrice(L.p)); continue; }
+      if (res.concat(sup).some((q) => Math.abs(q - L.p) < 0.005)) continue;   // trùng đường hỗ trợ/kháng cự
+      hline(L.p, L.c, [u * 0.25, u * 0.3], lastX + u * 0.5);
+      tag(L.p, L.c, L.n + " " + Math.round(L.p));
+    }
+
+    // Mũi tên lớn chỉ hướng giá, từ nến cuối
+    if (now !== null && (bias === "BUY" || bias === "SELL")) {
+      const up = bias === "BUY";
+      const y0 = yOf(now);
+      const ahead = (q) => (up ? q > now : q < now) && Math.abs(yOf(q) - y0) >= u * 3;
+      const near = (a, b) => Math.abs(a - now) - Math.abs(b - now);
+      const cands = (up ? res : sup).filter(ahead).concat(tps.filter(ahead)).sort(near);
+      let y1 = cands.length ? yOf(cands[cands.length > 1 ? 1 : 0]) + (up ? -1 : 1) * u * 2 : y0 + (up ? -1 : 1) * H * 0.12;
+      y1 = Math.max(pTop + u, Math.min(pBot - u, y1));
+      const x0 = lastX + u * 1.2, x1 = Math.min(W - tagW - u * 1.5, x0 + W * 0.3);
+      if (x1 > x0 + u * 2) arrow(x0, y0 + (up ? -u : u), x1, y1, { width: Math.max(4, u * 0.38), dash: [u * 1.2, u * 0.8], head: u * 1.8 });
+    }
+    srDraw.forEach((f) => f());   // chữ hỗ trợ/kháng cự vẽ sau cùng, nằm trên đường và mũi tên
+  }
+
+  // Chú thích kèm mũi tên chỉ vào chi tiết trên biểu đồ (EMA, MACD, tín hiệu...)
+  const callouts = Array.isArray(d.callouts) ? d.callouts.slice(0, 5) : [];
+  for (const c of callouts) {
+    if (!c || !c.text) continue;
+    const px = fx(c.x, NaN), py = fy(c.y, NaN), tx = fx(c.tx, NaN), ty = fy(c.ty, NaN);
+    if (![px, py, tx, ty].every(Number.isFinite)) continue;
+    const sz = u * 0.9;
+    cx.font = "700 " + Math.round(sz) + "px " + FONT;
+    const arr = wrapText(cx, String(c.text).slice(0, 80), Math.min(W * 0.42, u * 13)).slice(0, 3);
+    const tw = Math.max(...arr.map((t) => cx.measureText(t).width)), th = arr.length * sz * 1.22;
+    // Tìm chỗ trống gần vị trí AI chọn: dời lên/xuống, hoặc sang trái khung nhận định; tránh khung và chữ khác
+    const clampX = (v) => Math.max(tw / 2 + u * 0.3, Math.min(W - tw / 2 - u * 0.3, v));
+    const clampY = (v) => Math.max(u * 0.3, Math.min(H - th - u * 0.3, v));
+    const by0 = clampY(ty - th / 2), step = th + u * 0.4;
+    const xs = [clampX(tx), clampX(box.x - tw / 2 - u * 0.4)];
+    const ys = [by0];
+    for (let k = 1; k <= 4; k++) ys.push(clampY(by0 + k * step), clampY(by0 - k * step));
+    const rect = (x, y) => ({ x: x - tw / 2 - u * 0.2, y: y - u * 0.15, w: tw + u * 0.4, h: th + u * 0.3 });
+    let bx = xs[0], by = by0, found = false;
+    for (const yv of ys) {
+      for (const xv of xs) {
+        if (![box].concat(taken).some((r) => overlap(rect(xv, yv), r))) { bx = xv; by = yv; found = true; break; }
+      }
+      if (found) break;
+    }
+    if (!found) {   // không có chỗ trống hẳn: ít nhất không nằm dưới khung nhận định
+      outer: for (const yv of ys) for (const xv of xs) if (!overlap(rect(xv, yv), box)) { bx = xv; by = yv; break outer; }
+    }
+    taken.push({ x: bx - tw / 2, y: by, w: tw, h: th });
+    lines(arr, bx, by, "#ffffff", sz, "center");
+    // Mũi tên từ mép khung chữ gần điểm cần chỉ nhất
+    const sx = Math.max(bx - tw / 2, Math.min(bx + tw / 2, px)), sy = py < by ? by - u * 0.2 : py > by + th ? by + th + u * 0.2 : by + th / 2;
+    const ssx = sy === by + th / 2 ? (px < bx ? bx - tw / 2 - u * 0.3 : bx + tw / 2 + u * 0.3) : sx;
+    if (Math.hypot(px - ssx, py - sy) > u * 1.2) arrow(ssx, sy, px, py, { width: Math.max(2, u * 0.13), head: u * 0.8 });
+  }
+
+  // Vẽ khung nhận định (sau cùng, nằm trên mọi thứ)
+  const extra = yOf ? notShown : res.map((p) => "Kháng cự " + fmtPrice(p)).concat(sup.map((p) => "Hỗ trợ " + fmtPrice(p)),
+    entry !== null ? ["Entry " + fmtPrice(entry)] : [], sl !== null ? ["SL " + fmtPrice(sl)] : [], tps.map((p, i) => "TP" + (i + 1) + " " + fmtPrice(p)));
+  cx.font = "600 " + Math.round(noteSz * 0.9) + "px " + FONT;
+  const extraLines = extra.length ? wrapText(cx, (yOf ? "Ngoài khung: " : "") + extra.join(" · "), boxW - notePad * 2).slice(0, 3) : [];
+  const stamp = "AI XIKE · chỉ để tham khảo" + (yOf ? "" : " · không đọc được trục giá");
+  if (extraLines.length) {
+    boxW = Math.max(boxW, Math.min(W * 0.54, u * 16.5));
+    box.w = boxW;
+    box.x = boxX();
+  }
+  box.h = notePad * 2 + noteLh * noteLines.length + noteSz * 1.15 * extraLines.length;
+  cx.fillStyle = "rgba(0,0,0,.85)";
+  roundRect(cx, box.x, box.y, box.w, box.h, u * 0.3);
+  cx.fill();
+  cx.strokeStyle = "rgba(255,255,255,.85)";
+  cx.lineWidth = Math.max(1.5, u / 10);
+  cx.stroke();
+  cx.textAlign = "left";
+  cx.textBaseline = "top";
+  cx.font = "700 " + Math.round(noteSz) + "px " + FONT;
+  cx.fillStyle = "#ffffff";
+  let yy = box.y + notePad;
+  cx.fillText("NHẬN ĐỊNH: ", box.x + notePad, yy);
+  cx.fillStyle = bias === "BUY" ? "#4ade80" : bias === "SELL" ? "#f87171" : "#fde68a";
+  cx.fillText(biasText || "—", box.x + notePad + cx.measureText("NHẬN ĐỊNH: ").width, yy);
+  yy += noteLh;
+  cx.font = "600 " + Math.round(noteSz * 0.9) + "px " + FONT;
+  cx.fillStyle = "#fde68a";
+  for (const t of extraLines) { cx.fillText(t, box.x + notePad, yy); yy += noteSz * 1.15; }
+  cx.font = "600 " + Math.round(u * 0.55) + "px " + FONT;
+  cx.textAlign = "right";
+  cx.fillStyle = "rgba(255,255,255,.6)";
+  cx.fillText(stamp, box.x + box.w, box.y + box.h + u * 0.25);
+
+  return { dataUrl: cv.toDataURL("image/jpeg", 0.9), scaled: !!yOf };
+}
+
+function messageEl(h) {
+  const el = document.createElement("div");
+  if (h.role === "model") {
+    el.className = "msg ai";
+    if (h.ann || h.annThumb) {
+      const img = document.createElement("img");
+      img.className = "thumb ann";
+      img.alt = "Ảnh phân tích";
+      img.src = h.annThumb || h.ann;
+      img.addEventListener("click", () => openViewer(h.ann || h.annThumb));
+      el.appendChild(img);
+    }
+    const body = document.createElement("div");
+    body.className = "ai-text";
+    body.innerHTML = formatAI(h.text);
+    el.appendChild(body);
+    const foot = document.createElement("div");
+    foot.className = "ai-foot";
+    const copy = document.createElement("button");
+    copy.className = "link";
+    copy.textContent = "📋 Sao chép";
+    copy.addEventListener("click", () => {
+      api("copy", { text: h.text })
+        .then(() => {
+          copy.textContent = "✓ Đã sao chép";
+          setTimeout(() => { copy.textContent = "📋 Sao chép"; }, 2000);
+        })
+        .catch((e) => { copy.textContent = e.message; });
+    });
+    foot.appendChild(copy);
+    if (h.model) {
+      const m = document.createElement("span");
+      m.textContent = h.model;
+      foot.appendChild(m);
+    }
+    el.appendChild(foot);
+    if (h.rules && h.rules.length) {
+      const r = document.createElement("div");
+      r.className = "ai-rules";
+      r.textContent = "Theo quy tắc: " + h.rules.join(", ");
+      el.appendChild(r);
+    }
+    if (h.note) {
+      const n = document.createElement("div");
+      n.className = "ai-warn";
+      n.textContent = h.note;
+      el.appendChild(n);
+    }
+  } else {
+    el.className = "msg me";
+    if (h.thumb || h.full) {
+      const img = document.createElement("img");
+      img.className = "thumb";
+      img.alt = "Ảnh biểu đồ";
+      img.src = h.thumb || h.full;
+      img.addEventListener("click", () => openViewer(h.full || h.thumb));
+      el.appendChild(img);
+    }
+    const t = document.createElement("div");
+    t.textContent = h.display || h.text;
+    el.appendChild(t);
+  }
+  return el;
+}
+
+function errorEl(message) {
+  const el = document.createElement("div");
+  el.className = "msg ai err";
+  const t = document.createElement("div");
+  t.style.whiteSpace = "pre-wrap";
+  t.textContent = "❌ " + message;
+  el.appendChild(t);
+  if (/Cài đặt/.test(message)) {
+    const b = document.createElement("button");
+    b.className = "link";
+    b.textContent = "Mở Cài đặt";
+    b.addEventListener("click", () => show("settings"));
+    el.appendChild(b);
+  }
+  return el;
+}
+
+function typingEl(label) {
+  const el = document.createElement("div");
+  el.className = "msg ai typing";
+  el.innerHTML = "<span></span><span></span><span></span>";
+  el.appendChild(document.createTextNode(label));
+  return el;
+}
+
+function hint(text) {
+  const el = $("composerHint");
+  el.textContent = text || "";
+  el.hidden = !text;
+}
+
+function setAttach(a) {
+  attached = a;
+  $("attachImg").src = a.thumb;
+  $("attach").hidden = false;
+  hint("");
+}
+
+function clearAttach() {
+  attached = null;
+  $("attach").hidden = true;
+  $("attachImg").removeAttribute("src");
+}
+
+function setChatBusy(busy) {
+  chatBusy = busy;
+  $("btnAnalyze").disabled = busy;
+  $("btnSend").disabled = busy;
+  $("pickChat").disabled = busy;
+}
+
+function growComposer() {
+  const t = $("msg");
+  t.style.height = "auto";
+  t.style.height = Math.min(t.scrollHeight + 2, 140) + "px";
+}
+
+async function send(analyze) {
+  if (chatBusy) return;
+  const note = $("msg").value.trim();
+  if (analyze && !attached) {
+    hint("Chọn ảnh biểu đồ bằng nút 📎 Ảnh trước, rồi bấm Phân tích.");
+    return;
+  }
+  if (!note && !attached) {
+    hint("Nhập câu hỏi hoặc chọn ảnh biểu đồ.");
+    return;
+  }
+  hint("");
+  const isAnalyze = analyze || (!note && !!attached);
+  const text = isAnalyze ? ANALYZE_PROMPT + (note ? "\n\nGhi chú của tôi: " + note : "") : note;
+  const image = attached;
+  const entry = {
+    role: "user",
+    text: image ? text + "\n[Có gửi kèm ảnh biểu đồ]" : text,
+    display: note || "📈 Phân tích biểu đồ",
+    thumb: image ? image.thumb : "",
+    full: image ? image.dataUrl : "",
+    t: Date.now()
+  };
+  history.push(entry);
+  const bubble = addToLog(messageEl(entry));
+  $("msg").value = "";
+  growComposer();
+  clearAttach();
+  setChatBusy(true);
+  const waiting = addToLog(typingEl(isAnalyze ? "AI đang đọc biểu đồ…" : "AI đang trả lời…"));
+
+  let extra = "";
+  if ($("withJournal").checked) {
+    try {
+      extra = await journalContext();
+    } catch (e) {
+      extra = "";
+    }
+  }
+  // Gửi tối đa 12 tin gần nhất, bắt đầu bằng tin của người dùng
+  const recent = history.slice(-12).map((h) => ({ role: h.role, text: h.text }));
+  while (recent.length && recent[0].role !== "user") recent.shift();
+
+  try {
+    const r = await api("chat", {
+      history: recent,
+      imageB64: image ? image.b64 : "",
+      imageMime: image ? image.mime : "",
+      analyze: isAnalyze,
+      query: note || (isAnalyze ? ANALYZE_QUERY : text),
+      extraContext: extra
+    });
+    const ex = extractDraw(r.text);
+    const reply = { role: "model", text: ex.clean, model: r.model, rules: r.rules || [], note: r.note || "", t: Date.now() };
+    if (image && ex.data) {
+      try {
+        const out = await annotateChart(image.dataUrl, ex.data);
+        reply.ann = out.dataUrl;
+        reply.annThumb = (await shrink(out.dataUrl, 900, 0.8)).dataUrl;
+        if (!out.scaled) reply.note = (reply.note ? reply.note + "\n" : "") + "AI không đọc được trục giá nên chỉ ghi các mức trong khung nhận định.";
+      } catch (err) {
+        reply.note = (reply.note ? reply.note + "\n" : "") + "Không vẽ được lên ảnh: " + (err.message || "lỗi không rõ") + ".";
+      }
+    } else if (image && isAnalyze) {
+      reply.note = (reply.note ? reply.note + "\n" : "") + "AI không trả số liệu để vẽ lên ảnh lần này.";
+    }
+    waiting.remove();
+    history.push(reply);
+    addToLog(messageEl(reply));
+    saveChat();
+  } catch (e) {
+    waiting.remove();
+    bubble.remove();
+    history.pop();
+    // Trả lại nội dung và ảnh để bấm gửi lại
+    $("msg").value = note;
+    growComposer();
+    if (image) setAttach(image);
+    addToLog(errorEl(e.message));
+  } finally {
+    setChatBusy(false);
+  }
+}
+
+// Nhận gói dữ liệu từ biểu đồ (nút 🤖 AI), gửi số liệu cho AI, vẽ kết quả lên ảnh biểu đồ đúng thang giá
+async function sendLive(snap) {
+  if (chatBusy) { show("chat"); hint("AI đang trả lời câu trước, đợi xong rồi bấm lại."); return; }
+  const note = $("msg").value.trim();
+  const text = LIVE_PROMPT + (note ? "\n\nGhi chú của tôi: " + note : "") + "\n\nDỮ LIỆU:\n" + snap.text;
+  let thumb = "";
+  try { thumb = (await shrink(snap.image, 900, 0.8)).dataUrl; } catch (e) { thumb = ""; }
+  const entry = { role: "user", text, display: "📈 Phân tích dữ liệu live " + snap.tf + (note ? " · " + note : ""), thumb, full: snap.image, t: Date.now() };
+  history.push(entry);
+  const bubble = addToLog(messageEl(entry));
+  $("msg").value = "";
+  growComposer();
+  setChatBusy(true);
+  const waiting = addToLog(typingEl("AI đang đọc dữ liệu " + snap.tf + "…"));
+  let extra = "";
+  if ($("withJournal").checked) {
+    try { extra = await journalContext(); } catch (e) { extra = ""; }
+  }
+  const recent = history.slice(-12).map((h) => ({ role: h.role, text: h.text }));
+  while (recent.length && recent[0].role !== "user") recent.shift();
+  try {
+    const r = await api("chat", {
+      history: recent, imageB64: "", imageMime: "", analyze: true,
+      query: note || ANALYZE_QUERY, extraContext: extra
+    });
+    const ex = extractDraw(r.text);
+    const reply = { role: "model", text: ex.clean, model: r.model, rules: r.rules || [], note: r.note || "", t: Date.now() };
+    if (ex.data) {
+      // Chụp lại biểu đồ với thang giá đủ các mức AI đưa ra (nếu tab Biểu đồ còn mở)
+      const now0 = numOrNull(ex.data.now) || snap.now;
+      const lv = [now0].concat(numList(ex.data.resistance), numList(ex.data.support), numList(ex.data.tp),
+        [numOrNull(ex.data.entry), numOrNull(ex.data.sl)].filter((x) => x !== null)).filter((x) => Math.abs(x - now0) / now0 < 0.08);
+      const shot = (await reshoot(Math.min(...lv), Math.max(...lv))) || snap;
+      // Thang giá và vị trí nến cuối lấy từ biểu đồ, không cần AI đọc ảnh
+      const d = Object.assign({}, ex.data, { axis: shot.axis, last_x: shot.last_x, pane: shot.pane, callouts: [] });
+      if (!numOrNull(d.now)) d.now = snap.now;
+      try {
+        const out = await annotateChart(shot.image, d);
+        reply.ann = out.dataUrl;
+        reply.annThumb = (await shrink(out.dataUrl, 900, 0.8)).dataUrl;
+      } catch (err) {
+        reply.note = (reply.note ? reply.note + "\n" : "") + "Không vẽ được lên biểu đồ: " + (err.message || "lỗi không rõ") + ".";
+      }
+    } else {
+      reply.note = (reply.note ? reply.note + "\n" : "") + "AI không trả số liệu để vẽ lên biểu đồ lần này.";
+    }
+    waiting.remove();
+    history.push(reply);
+    addToLog(messageEl(reply));
+    saveChat();
+  } catch (e) {
+    waiting.remove();
+    bubble.remove();
+    history.pop();
+    $("msg").value = note;
+    growComposer();
+    addToLog(errorEl(e.message));
+  } finally {
+    setChatBusy(false);
+    $("actAI").disabled = false;
+    $("actAI").textContent = "🤖 AI";
+    show("chat");
+  }
+}
+
+// Nhờ khung biểu đồ chụp lại với thang giá [lo, hi]; trả null nếu tab Biểu đồ đã đóng hoặc quá 4 giây
+let shotSeq = 0;
+function reshoot(lo, hi) {
+  const f = $("xauFrame");
+  if (!f || !f.contentWindow || !Number.isFinite(lo) || !Number.isFinite(hi)) return Promise.resolve(null);
+  const id = "s" + ++shotSeq;
+  return new Promise((resolve) => {
+    const done = (v) => { window.removeEventListener("message", on); clearTimeout(timer); resolve(v); };
+    const on = (e) => {
+      if (e.source !== f.contentWindow || !e.data || e.data.type !== "xk-shot-done" || e.data.id !== id) return;
+      done(e.data.image && /^data:image\//.test(e.data.image) ? e.data : null);
+    };
+    const timer = setTimeout(() => done(null), 4000);
+    window.addEventListener("message", on);
+    f.contentWindow.postMessage({ type: "xk-shot", id, lo, hi }, "*");
+  });
+}
+
+window.addEventListener("message", (e) => {
+  const f = $("xauFrame");
+  if (!f || e.source !== f.contentWindow || !e.data || e.data.type !== "xk-analyze") return;
+  const d = e.data;
+  if (typeof d.text !== "string" || typeof d.image !== "string" || !/^data:image\//.test(d.image)) return;
+  sendLive(d);
+});
+
+function saveChat() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    const items = history.slice(-40).map((h) => ({
+      role: h.role,
+      text: h.text,
+      display: h.display || "",
+      thumb: h.thumb || "",
+      annThumb: h.annThumb || "",
+      model: h.model || "",
+      rules: h.rules || [],
+      note: h.note || "",
+      t: h.t || 0
+    }));
+    api("save", { name: "chat", data: JSON.stringify({ v: 1, items }) }).catch(() => {});
+  }, 300);
+}
+
+async function loadChat() {
+  try {
+    const raw = await api("load", { name: "chat" });
+    if (raw) {
+      const data = JSON.parse(raw);
+      if (data && Array.isArray(data.items)) history = data.items;
+    }
+  } catch (e) {
+    history = [];
+  }
+  renderLog();
+}
+
+function clearChat() {
+  history = [];
+  saveChat();
+  renderLog();
+}
+
+// Tóm tắt bảng gấp thếp ở tab Nhật Ký để AI nhận xét khi bạn bật ô "Nhật ký".
+// Dữ liệu cùng dạng với file index.html gốc: tierDays (1 thắng, -1 thua, 0 chưa ghi), tierDayAmt, tierDayDate.
+async function journalContext() {
+  const raw = await api("load", { name: "gapthep" });
+  if (!raw) return "";
+  const data = JSON.parse(raw);
+  const capital = Number(data.capital) || 1000;
+  const pct = Number(data.percent) || 5;
+  const tp = Number(data.tpPrices) || 10;
+  const days = Math.max(1, Math.round(Number(data.daysPerTier) || 20));
+  const currentTier = Math.min(10, Math.max(1, Number(data.currentTier) || 1));
+  const tierDays = data.tierDays || {};
+  const tierDayAmt = data.tierDayAmt || {};
+  const tierDayDate = data.tierDayDate || {};
+  const usd = (n) => Math.round(n).toLocaleString("vi-VN");
+  const signed = (n) => (n >= 0 ? "+$" : "-$") + usd(Math.abs(n));
+  const base = (t) => capital * Math.pow(2, t - 1);
+  const winDay = (t) => (base(t) * pct) / 100;
+  const lot = (t) => Math.max(0.01, Math.round((winDay(t) / (tp * 100)) * 100) / 100);
+
+  let sum = 0;
+  let wins = 0;
+  let losses = 0;
+  let maxLoss = 0;
+  const done = [];
+  for (let t = 1; t <= 10; t++) {
+    const list = Array.isArray(tierDays[t]) ? tierDays[t] : [];
+    list.forEach((v, i) => {
+      if (v !== 1 && v !== -1) return;
+      const amt = Number((tierDayAmt[t] || [])[i]) || 0;
+      sum += amt;
+      if (v === 1) wins++;
+      else losses++;
+      if (amt < maxLoss) maxLoss = amt;
+      done.push({ t, i, v, amt, date: (tierDayDate[t] || [])[i] || "" });
+    });
+  }
+
+  const lines = [
+    "NHẬT KÝ GẤP THẾP XIKE GOLD CỦA NGƯỜI DÙNG (1 pip = 0.1 giá, 10 giá = 100 pip, 1 lot = 100 oz):",
+    "Kế hoạch: vốn đầu $" + usd(capital) + ", mỗi lệnh " + pct + "% vốn của bậc, TP " + tp + " giá (" + tp * 10 +
+      " pip), " + days + " ngày mỗi bậc, qua mỗi bậc vốn gấp đôi, tổng 10 bậc."
+  ];
+  const curList = Array.isArray(tierDays[currentTier]) ? tierDays[currentTier] : [];
+  const pendingIdx = curList.findIndex((v) => v !== 1 && v !== -1);
+  const nextDay = pendingIdx === -1 ? (curList.length < days ? curList.length + 1 : days) : pendingIdx + 1;
+  let tierProfit = 0;
+  curList.forEach((v, i) => {
+    if (v === 1 || v === -1) tierProfit += Number((tierDayAmt[currentTier] || [])[i]) || 0;
+  });
+  lines.push(
+    "Đang ở Bậc " + currentTier + ", Ngày " + nextDay + "/" + days + ": vốn bậc $" + usd(base(currentTier)) + ", lô " +
+      lot(currentTier).toFixed(2) + ", mục tiêu " + signed(winDay(currentTier)) + " mỗi ngày. Vốn hiện tại của bậc $" +
+      usd(base(currentTier) + tierProfit) + "."
+  );
+  const rate = wins + losses ? Math.round((wins / (wins + losses)) * 100) + "%" : "chưa có";
+  lines.push(
+    "Đã ghi " + done.length + " ngày: thắng " + wins + ", thua " + losses + ", tỉ lệ thắng " + rate +
+      ". Lợi nhuận tích luỹ " + signed(sum) + ". Lỗ lớn nhất " + (maxLoss < 0 ? signed(maxLoss) : "chưa có") + "."
+  );
+  if (done.length) {
+    lines.push("Các ngày gần nhất:");
+    for (const d of done.slice(-15).reverse()) {
+      const date = /^\d{4}-\d{2}-\d{2}$/.test(d.date) ? " (" + d.date.split("-").reverse().join("/") + ")" : "";
+      lines.push("- Bậc " + d.t + " Ngày " + (d.i + 1) + date + ": " + (d.v === 1 ? "WIN " : "LOSS ") + signed(d.amt));
+    }
+  }
+  return lines.join("\n");
+}
+
+// ===== QUY TẮC =====
+let rulesLoaded = false;
+let rules = [];
+let editingId = "";
+let ruleImage = null;
+
+async function loadRules() {
+  $("ruleStats").textContent = "";
+  $("ruleList").innerHTML = '<p class="hint">Đang tải…</p>';
+  try {
+    const r = await api("listRules");
+    rules = r.rules || [];
+    rulesLoaded = true;
+    // Từ 6 quy tắc trở xuống app gửi hết; nhiều hơn thì chọn 5 quy tắc gần câu hỏi nhất
+    $("ruleStats").textContent = !rules.length
+      ? ""
+      : rules.length + " quy tắc, " + r.imageCount + " ảnh mẫu. " +
+        (rules.length <= 6 ? "AI dùng tất cả quy tắc mỗi lần phân tích." : "AI chọn 5 quy tắc hợp nhất cho mỗi câu hỏi.");
+    renderRules();
+  } catch (e) {
+    rulesLoaded = false;
+    $("ruleList").innerHTML = "";
+    const p = document.createElement("p");
+    p.className = "note err";
+    p.textContent = e.message;
+    $("ruleList").appendChild(p);
+    if (/Cài đặt/.test(e.message)) {
+      const b = document.createElement("button");
+      b.className = "link";
+      b.textContent = "Mở Cài đặt";
+      b.addEventListener("click", () => show("settings"));
+      $("ruleList").appendChild(b);
+    }
+  }
+}
+
+function renderRules() {
+  const list = $("ruleList");
+  list.innerHTML = "";
+  if (!rules.length) {
+    const p = document.createElement("p");
+    p.className = "hint";
+    p.textContent = "Chưa có quy tắc nào. Viết quy tắc đầu tiên ở khung phía trên, ví dụ cách đọc chỉ báo EMA 34/80.";
+    list.appendChild(p);
+    return;
+  }
+  for (const rule of rules) {
+    const item = document.createElement("div");
+    item.className = "rule";
+    const head = document.createElement("div");
+    head.className = "rule-head";
+    const title = document.createElement("b");
+    title.textContent = rule.title;
+    const meta = document.createElement("span");
+    meta.className = "rule-meta";
+    meta.textContent = (rule.images ? "🖼 " + rule.images + "  " : "") + fmtDate(rule.createdAt);
+    head.appendChild(title);
+    head.appendChild(meta);
+    const body = document.createElement("div");
+    body.className = "rule-body";
+    body.textContent = rule.text.split("\n").slice(1).join("\n").trim() || rule.text;
+    const actions = document.createElement("div");
+    actions.className = "rule-actions";
+    const more = document.createElement("button");
+    more.className = "link";
+    more.textContent = "Xem đủ";
+    more.addEventListener("click", () => {
+      const open = body.classList.toggle("open");
+      more.textContent = open ? "Thu gọn" : "Xem đủ";
+    });
+    const edit = document.createElement("button");
+    edit.className = "link";
+    edit.textContent = "Sửa";
+    edit.addEventListener("click", () => startEdit(rule));
+    const del = document.createElement("button");
+    del.className = "link danger";
+    del.textContent = "Xoá";
+    del.addEventListener("click", () => confirmTap(del, () => deleteRule(rule, del), "Bấm lần nữa để xoá"));
+    // Chỉ hiện "Xem đủ" khi nội dung dài hơn 3 dòng
+    const bodyText = body.textContent;
+    if (bodyText.length > 120 || bodyText.split("\n").length > 3) actions.appendChild(more);
+    actions.appendChild(edit);
+    actions.appendChild(del);
+    item.appendChild(head);
+    item.appendChild(body);
+    item.appendChild(actions);
+    list.appendChild(item);
+  }
+}
+
+function startEdit(rule) {
+  editingId = rule.id;
+  $("ruleText").value = rule.text;
+  $("ruleFormTitle").textContent = "Sửa quy tắc";
+  $("ruleSave").textContent = "Lưu thay đổi";
+  $("ruleCancel").hidden = false;
+  $("ruleImgNote").textContent = rule.images ? "Chọn ảnh mới sẽ thay ảnh mẫu cũ" : "Không bắt buộc";
+  showNote("ruleMsg", "");
+  $("view-rules").querySelector(".scroll").scrollTop = 0;
+}
+
+function resetRuleForm() {
+  editingId = "";
+  ruleImage = null;
+  $("ruleText").value = "";
+  $("ruleFormTitle").textContent = "Dạy quy tắc mới";
+  $("ruleSave").textContent = "Lưu quy tắc";
+  $("ruleCancel").hidden = true;
+  $("ruleImgBox").hidden = true;
+  $("ruleImg").removeAttribute("src");
+  $("ruleImgNote").textContent = "Không bắt buộc";
+}
+
+async function saveRule() {
+  const text = $("ruleText").value.trim();
+  if (!text) {
+    showNote("ruleMsg", "Nhập nội dung quy tắc trước.", "err");
+    return;
+  }
+  const btn = $("ruleSave");
+  setBusy(btn, true, "Đang lưu…");
+  const wasEditing = !!editingId;
+  try {
+    const r = await api("saveRule", {
+      id: editingId,
+      text,
+      imageB64: ruleImage ? ruleImage.b64 : "",
+      imageMime: ruleImage ? ruleImage.mime : ""
+    });
+    setBusy(btn, false);
+    resetRuleForm();
+    if (r.warning) showNote("ruleMsg", r.warning, "warn");
+    else showNote("ruleMsg", wasEditing ? "Đã lưu thay đổi." : "Đã lưu quy tắc.", "ok");
+    loadRules();
+  } catch (e) {
+    setBusy(btn, false);
+    showNote("ruleMsg", e.message, "err");
+  }
+}
+
+async function deleteRule(rule, btn) {
+  btn.disabled = true;
+  btn.textContent = "Đang xoá…";
+  try {
+    await api("deleteRule", { id: rule.id });
+    if (editingId === rule.id) resetRuleForm();
+    loadRules();
+  } catch (e) {
+    btn.disabled = false;
+    btn.textContent = "Xoá";
+    showNote("ruleMsg", e.message, "err");
+  }
+}
+
+// ===== CÀI ĐẶT =====
+function applySettings(s) {
+  $("sUrl").value = s.supabaseUrl || "";
+  $("sKey").value = "";
+  $("sKey").placeholder = s.supabaseKeyHint ? "Đã lưu: " + s.supabaseKeyHint : "Dán khoá sb_secret_...";
+  $("gKey").value = "";
+  $("gKey").placeholder = s.geminiKeyHint ? "Đã lưu: " + s.geminiKeyHint : "Dán khoá Gemini";
+  $("mMain").value = s.model || "";
+  $("mFallback").value = s.fallbackModel || "";
+  $("mEmbed").value = s.embedModel || "";
+  $("cKey").value = "";
+  $("cKey").placeholder = s.claudeKeyHint ? "Đã lưu: " + s.claudeKeyHint : "Dán khoá sk-ant-...";
+  $("cModel").value = s.claudeModel || "";
+  $("provider").value = s.provider === "claude" ? "claude" : "gemini";
+}
+
+async function loadSettings() {
+  try {
+    const s = await api("getSettings");
+    applySettings(s);
+    if (!s.hasGemini && !s.hasClaude) {
+      showNote("setIntro", "Nhập khoá Gemini hoặc khoá Claude để bắt đầu. Khoá Supabase cần cho phần quy tắc.", "info");
+      show("settings");
+    }
+  } catch (e) {
+    showNote("setMsg", e.message, "err");
+  }
+}
+
+async function saveSettings() {
+  const btn = $("setSave");
+  setBusy(btn, true, "Đang lưu…");
+  try {
+    const s = await api("saveSettings", {
+      supabaseUrl: $("sUrl").value.trim(),
+      supabaseKey: $("sKey").value.trim(),
+      geminiKey: $("gKey").value.trim(),
+      model: $("mMain").value.trim(),
+      fallbackModel: $("mFallback").value.trim(),
+      embedModel: $("mEmbed").value.trim(),
+      claudeKey: $("cKey").value.trim(),
+      claudeModel: $("cModel").value.trim(),
+      provider: $("provider").value
+    });
+    applySettings(s);
+    showNote("setIntro", "");
+    showNote("setMsg", "Đã lưu. Bấm Kiểm tra kết nối để thử.", "ok");
+    rulesLoaded = false;
+  } catch (e) {
+    showNote("setMsg", e.message, "err");
+  } finally {
+    setBusy(btn, false);
+  }
+}
+
+async function runDiagnose() {
+  const btn = $("setTest");
+  setBusy(btn, true, "Đang kiểm tra…");
+  showNote("setMsg", "");
+  const list = $("diagList");
+  list.innerHTML = "";
+  $("diagCard").hidden = false;
+  try {
+    const r = await api("diagnose");
+    for (const item of r.items) {
+      const li = document.createElement("li");
+      const icon = document.createElement("span");
+      icon.className = item.ok ? "ok" : "bad";
+      icon.textContent = item.ok ? "✓" : "✗";
+      const text = document.createElement("div");
+      text.textContent = item.name;
+      const small = document.createElement("small");
+      small.textContent = item.detail;
+      text.appendChild(small);
+      li.appendChild(icon);
+      li.appendChild(text);
+      list.appendChild(li);
+    }
+    const allOk = r.items.every((i) => i.ok);
+    $("sqlCard").classList.toggle("attn", !!r.needSql);
+    if (r.needSql) {
+      showNote("setMsg", "Supabase cần tạo bảng hoặc cấp quyền. Sao chép SQL bên dưới, dán vào SQL Editor của Supabase, bấm Run, rồi kiểm tra lại.", "warn");
+      $("sqlCard").scrollIntoView({ behavior: "smooth", block: "start" });
+    } else if (allOk) {
+      showNote("setMsg", "Mọi thứ đã sẵn sàng.", "ok");
+    }
+  } catch (e) {
+    showNote("setMsg", e.message, "err");
+  } finally {
+    setBusy(btn, false);
+  }
+}
+
+// ===== KHỞI ĐỘNG =====
+function bind() {
+  for (const v of VIEWS) $("nav-" + v).addEventListener("click", () => show(v));
+  $("actAI").addEventListener("click", runAI);
+  $("actInd").addEventListener("click", openIndicators);
+  $("sigClose").addEventListener("click", () => toggleSignals(false));
+  $("actOrd").addEventListener("click", toggleTrade);
+  $("actDraw").addEventListener("click", toggleDrawBar);
+  syncDrawBtn();
+
+  $("pickChat").addEventListener("click", () => $("fileChat").click());
+  $("fileChat").addEventListener("change", async (ev) => {
+    try {
+      const img = await takeImage(ev.target, 2000, 0.85);
+      if (img) setAttach(img);
+    } catch (e) {
+      hint(e.message);
+    }
+  });
+  $("attachRemove").addEventListener("click", clearAttach);
+  $("attachImg").addEventListener("click", () => attached && openViewer(attached.dataUrl));
+  $("btnAnalyze").addEventListener("click", () => send(true));
+  $("btnSend").addEventListener("click", () => send(false));
+  $("msg").addEventListener("input", growComposer);
+
+  $("pickRule").addEventListener("click", () => $("fileRule").click());
+  $("fileRule").addEventListener("change", async (ev) => {
+    try {
+      const img = await takeImage(ev.target, 1280, 0.8);
+      if (!img) return;
+      ruleImage = img;
+      $("ruleImg").src = img.thumb;
+      $("ruleImgBox").hidden = false;
+    } catch (e) {
+      showNote("ruleMsg", e.message, "err");
+    }
+  });
+  $("ruleImg").addEventListener("click", () => ruleImage && openViewer(ruleImage.dataUrl));
+  $("ruleImgRemove").addEventListener("click", () => {
+    ruleImage = null;
+    $("ruleImgBox").hidden = true;
+  });
+  $("ruleSave").addEventListener("click", saveRule);
+  $("ruleCancel").addEventListener("click", () => {
+    resetRuleForm();
+    showNote("ruleMsg", "");
+  });
+  $("ruleReload").addEventListener("click", loadRules);
+
+  $("setSave").addEventListener("click", saveSettings);
+  $("setTest").addEventListener("click", runDiagnose);
+  $("sqlBox").textContent = SQL;
+  $("sqlCopy").addEventListener("click", () => {
+    api("copy", { text: SQL })
+      .then(() => {
+        $("sqlCopy").textContent = "✓ Đã sao chép SQL";
+        setTimeout(() => { $("sqlCopy").textContent = "Sao chép SQL"; }, 2500);
+      })
+      .catch((e) => showNote("setMsg", e.message, "err"));
+  });
+
+  $("viewerClose").addEventListener("click", closeViewer);
+  $("viewerImg").addEventListener("click", toggleZoom);
+
+  // Bàn phím bật lên thì giữ tin nhắn mới nhất trong tầm nhìn
+  window.addEventListener("resize", () => {
+    if (current === "chat") scrollLogEnd();
+  });
+}
+
+bind();
+loadChat().then(loadSettings);
+</script>
+</body>
+</html>
