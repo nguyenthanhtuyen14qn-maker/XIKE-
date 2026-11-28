@@ -4513,11 +4513,11 @@ function tvConfig() {
     details: false,
     calendar: false,
     save_image: true,
+    // Bản nhúng miễn phí tối đa 3 chỉ báo, tính cả Khối lượng (hide_volume: false): EMA 34, EMA 80, Khối lượng.
+    // MACD và TRIX xem trong bảng 📊 Chỉ báo (tính từ nến thật).
     studies: [
       { id: "MAExp@tv-basicstudies", inputs: { length: 34 } },
-      { id: "MAExp@tv-basicstudies", inputs: { length: 80 } },
-      "Volume@tv-basicstudies",
-      "MACD@tv-basicstudies"
+      { id: "MAExp@tv-basicstudies", inputs: { length: 80 } }
     ],
     support_host: "https://www.tradingview.com"
   };
