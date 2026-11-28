@@ -889,11 +889,13 @@ function tvConfig() {
     details: false,
     calendar: false,
     save_image: true,
-    // Bản nhúng miễn phí chỉ nhận 2 chỉ báo tự thêm (đã thử): EMA 34, EMA 80.
-    // MACD và TRIX xem trong bảng 📊 Chỉ báo (tính từ nến thật).
+    // 4 chỉ báo. Phải viết tất cả cùng một dạng { id, inputs }: trộn với dạng chuỗi
+    // ("MACD@tv-basicstudies") thì TradingView bỏ các chỉ báo phía sau (đã thử).
     studies: [
       { id: "MAExp@tv-basicstudies", inputs: { length: 34 } },
-      { id: "MAExp@tv-basicstudies", inputs: { length: 80 } }
+      { id: "MAExp@tv-basicstudies", inputs: { length: 80 } },
+      { id: "MACD@tv-basicstudies", inputs: { fastLength: 12, slowLength: 26, signalLength: 9 } },
+      { id: "Trix@tv-basicstudies", inputs: { length: 25 } }
     ],
     support_host: "https://www.tradingview.com"
   };
