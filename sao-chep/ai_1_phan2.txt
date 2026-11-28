@@ -1716,7 +1716,8 @@ function fdProvChange() {
 }
 function tdFill() {
   const v = tdStored();
-  if (FD_NAME[v.prov]) $(&#x27;fdProv&#x27;).value = v.prov;
+  $(&#x27;fdProv&#x27;).value = FD_NAME[v.prov] ? v.prov : &#x27;oanda&#x27;;   // mặc định OANDA: cùng nguồn với TradingView
+  if (!v.sym) $(&#x27;tdSym&#x27;).value = FD_SYM[$(&#x27;fdProv&#x27;).value];
   if (v.key) $(&#x27;tdKey&#x27;).value = v.key;
   if (v.oaKey) $(&#x27;oaKey&#x27;).value = v.oaKey;
   if (OA_HOST[v.oaEnv]) $(&#x27;oaEnv&#x27;).value = v.oaEnv;
@@ -1805,6 +1806,7 @@ async function tdLoadClick() {
     S.anchor = series(S.tf).bars.length - 1 + 6;
     clampAnchor();
     schedule();
+    if (window.parent !== window) window.parent.postMessage({ type: &#x27;xk-feed&#x27;, prov: cfg.prov, sym: cfg.sym }, &#x27;*&#x27;);
     tdSay(FD_NAME[cfg.prov] + &#x27;: đã tải &#x27; + bars.length + &#x27; nến &#x27; + cfg.tf + &#x27; · nến cuối &#x27; + fmtTs(bars[bars.length - 1].t, &#x27;dhm&#x27;) +
       (cfg.every ? &#x27; · tự cập nhật mỗi &#x27; + cfg.every + &#x27; giây&#x27; : &#x27;&#x27;), &#x27;ok&#x27;);
     if (cfg.every) tdTimer = setInterval(tdTick, cfg.every * 1000);

@@ -3356,7 +3356,8 @@ function fdProvChange() {
 }
 function tdFill() {
   const v = tdStored();
-  if (FD_NAME[v.prov]) $(&#x27;fdProv&#x27;).value = v.prov;
+  $(&#x27;fdProv&#x27;).value = FD_NAME[v.prov] ? v.prov : &#x27;oanda&#x27;;   // mặc định OANDA: cùng nguồn với TradingView
+  if (!v.sym) $(&#x27;tdSym&#x27;).value = FD_SYM[$(&#x27;fdProv&#x27;).value];
   if (v.key) $(&#x27;tdKey&#x27;).value = v.key;
   if (v.oaKey) $(&#x27;oaKey&#x27;).value = v.oaKey;
   if (OA_HOST[v.oaEnv]) $(&#x27;oaEnv&#x27;).value = v.oaEnv;
@@ -3445,6 +3446,7 @@ async function tdLoadClick() {
     S.anchor = series(S.tf).bars.length - 1 + 6;
     clampAnchor();
     schedule();
+    if (window.parent !== window) window.parent.postMessage({ type: &#x27;xk-feed&#x27;, prov: cfg.prov, sym: cfg.sym }, &#x27;*&#x27;);
     tdSay(FD_NAME[cfg.prov] + &#x27;: đã tải &#x27; + bars.length + &#x27; nến &#x27; + cfg.tf + &#x27; · nến cuối &#x27; + fmtTs(bars[bars.length - 1].t, &#x27;dhm&#x27;) +
       (cfg.every ? &#x27; · tự cập nhật mỗi &#x27; + cfg.every + &#x27; giây&#x27; : &#x27;&#x27;), &#x27;ok&#x27;);
     if (cfg.every) tdTimer = setInterval(tdTick, cfg.every * 1000);
@@ -4101,18 +4103,18 @@ else xkBoot();
       <p class="hint">Nến XAU/USD thật cho tab Biểu đồ và cho nút 🤖 AI.</p>
       <label>Nhà cung cấp
         <select id="fdProv">
+          <option value="oanda" selected>OANDA (cùng nguồn với TradingView)</option>
           <option value="twelve">Twelve Data</option>
-          <option value="oanda">OANDA</option>
         </select>
       </label>
-      <div id="fdTwelve">
+      <div id="fdTwelve" hidden>
         <p class="hint">Lấy khoá miễn phí ở twelvedata.com (gói Basic: 8 lần gọi/phút, 800 lần/ngày). Khoá chỉ dùng để đọc giá.</p>
         <label>Khoá API Twelve Data
           <input id="tdKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Dán khoá API">
         </label>
       </div>
-      <div id="fdOanda" hidden>
-        <p class="hint">Tạo token ở OANDA, mục Manage API Access. Nên dùng tài khoản <b>demo (practice)</b>: token OANDA có quyền giao dịch, app chỉ dùng để đọc giá.</p>
+      <div id="fdOanda">
+        <p class="hint"><b>Cùng nguồn giá với biểu đồ TradingView</b> (OANDA:XAUUSD): chỉ báo XIKE, bảng 📊 Chỉ báo và 🤖 AI tính trên đúng nến bạn đang xem. Tạo token ở OANDA, mục Manage API Access. Nên dùng tài khoản <b>demo (practice)</b>: giá vẫn là giá thật, còn token OANDA có quyền giao dịch nên dùng demo cho an toàn; app chỉ dùng để đọc giá.</p>
         <label>Token OANDA
           <input id="oaKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Dán token">
         </label>
@@ -4131,7 +4133,7 @@ else xkBoot();
       <details class="models">
         <summary>Mã, khung nến, tự cập nhật</summary>
         <label>Mã
-          <input id="tdSym" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" value="XAU/USD">
+          <input id="tdSym" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" value="XAU_USD">
         </label>
         <label>Khung nến gốc
           <select id="tdTf">
@@ -4560,7 +4562,7 @@ function tvHideDraw() { try { return localStorage.getItem(TV_DRAW_KEY) === "1"; 
 function tvConfig() {
   return {
     autosize: true,
-    symbol: "OANDA:XAUUSD",
+    symbol: tvSymbol(),   // cùng mã với nguồn OANDA của biểu đồ XIKE
     interval: "15",
     timezone: "Asia/Bangkok",
     theme: "dark",
@@ -4588,6 +4590,24 @@ function tvConfig() {
     support_host: "https://www.tradingview.com"
   };
 }
+// Mã TradingView theo nguồn dữ liệu XIKE: OANDA XAU_USD → OANDA:XAUUSD (cùng nguồn giá)
+function tvSymbol() {
+  let cfg = {};
+  try { cfg = JSON.parse(localStorage.getItem("xau-chart-twelvedata-v1") || "{}") || {}; } catch (e) { cfg = {}; }
+  const sym = String(cfg.sym || "").trim().toUpperCase();
+  if (cfg.prov !== "twelve" && /^[A-Z0-9]{2,10}_[A-Z0-9]{2,10}$/.test(sym)) return "OANDA:" + sym.replace("_", "");
+  return "OANDA:XAUUSD";
+}
+let tvSymNow = "";
+// Khung XIKE báo đã tải nguồn mới: nếu đổi mã thì tải lại TradingView cho cùng mã
+window.addEventListener("message", (e) => {
+  const f = $("xauFrame");
+  if (!f || e.source !== f.contentWindow || !e.data || e.data.type !== "xk-feed") return;
+  const want = tvSymbol();
+  if (tvSymNow && want !== tvSymNow) { showXike(false); tvLoaded = false; loadTv(); }
+  const a = $("tvFull");
+  if (a) a.href = "https://www.tradingview.com/chart/?symbol=" + encodeURIComponent(want);
+});
 function fw() { try { return $("xauFrame").contentWindow; } catch (e) { return null; } }
 // Hiện biểu đồ XIKE (khi TradingView lỗi, hoặc bấm Xem biểu đồ XIKE); ẩn = chạy ngầm sau TradingView
 function showXike(on, msg) {
@@ -4612,7 +4632,9 @@ function loadTv() {
   sc.type = "text/javascript";
   sc.async = true;
   sc.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
-  sc.textContent = JSON.stringify(tvConfig());
+  const cfgNow = tvConfig();
+  tvSymNow = cfgNow.symbol;
+  sc.textContent = JSON.stringify(cfgNow);
   sc.onload = () => {
     const t0 = Date.now();
     const iv = setInterval(() => {
