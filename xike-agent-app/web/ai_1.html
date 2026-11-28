@@ -789,6 +789,31 @@ function rsiArr(c, n) {
   return out;
 }
 
+// Stoch RSI PRO (theo script Pine của người dùng): K = SMA(Stoch(RSI, RSI, RSI, stochLen), kSmooth), D = SMA(K, dSmooth)
+function stochRsiCalc(c, rl, sl, ks, ds) {
+  const N = c.length, r = rsiArr(c, rl), hh = rollMax(r, sl), ll = rollMin(r, sl), raw = NAN_ARR(N);
+  for (let i = sl - 1; i &lt; N; i++) {
+    let ok = true;
+    for (let j = i - sl + 1; j &lt;= i; j++) if (!Number.isFinite(r[j])) { ok = false; break; }
+    if (!ok) continue;
+    const d = hh[i] - ll[i];
+    if (d &gt; 0) raw[i] = 100 * (r[i] - ll[i]) / d;
+  }
+  const k = smaArr(raw, ks);
+  return { k, d: smaArr(k, ds) };
+}
+// BUY: K vượt lên trên mức quá bán; SELL: K cắt xuống dưới mức quá mua (ta.crossover / ta.crossunder)
+function stochRsiMarks(k, ob, os) {
+  const out = [];
+  for (let i = 1; i &lt; k.length; i++) {
+    const a = k[i], b = k[i - 1];
+    if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
+    if (a &gt; os &amp;&amp; b &lt;= os) out.push({ i, text: &#x27;BUY&#x27;, up: true });
+    if (a &lt; ob &amp;&amp; b &gt;= ob) out.push({ i, text: &#x27;SELL&#x27;, up: false });
+  }
+  return out;
+}
+
 /* ----- Sq9, thang bậc, tìm nến, đọc file ----- */
 function sq9Levels(price, degrees) {
   const s = Math.sqrt(price), out = [];
@@ -1200,6 +1225,29 @@ const IND_ALL = [
     }
   },
   {
+    id: &#x27;stoch_rsi&#x27;, name: &#x27;Stoch RSI PRO&#x27;, code: &#x27;SRSI&#x27;, group: &#x27;osc&#x27;, pane: true, color: PAL.blue, dec: 2,
+    desc: &#x27;Stochastic của RSI (bản Stoch RSI PRO). K là SMA của Stoch(RSI), D là SMA của K. Nhãn BUY khi K vượt lên trên mức quá bán, SELL khi K cắt xuống dưới mức quá mua.&#x27;,
+    keys: &#x27;stoch rsi stochastic rsi stochrsi pro qua mua qua ban buy sell&#x27;,
+    params: [
+      { k: &#x27;ks&#x27;, label: &#x27;K Smoothing&#x27;, def: 3, min: 1, max: 50 },
+      { k: &#x27;ds&#x27;, label: &#x27;D Smoothing&#x27;, def: 3, min: 1, max: 50 },
+      { k: &#x27;rl&#x27;, label: &#x27;RSI Length&#x27;, def: 14, min: 1, max: 500 },
+      { k: &#x27;sl&#x27;, label: &#x27;Stochastic Length&#x27;, def: 14, min: 1, max: 500 },
+      { k: &#x27;ob&#x27;, label: &#x27;Mức quá mua (Overbought)&#x27;, def: 80, min: 50, max: 100 },
+      { k: &#x27;os&#x27;, label: &#x27;Mức quá bán (Oversold)&#x27;, def: 20, min: 0, max: 50 },
+      { k: &#x27;sig&#x27;, label: &#x27;Nhãn BUY/SELL (1 = hiện, 0 = ẩn)&#x27;, def: 1, min: 0, max: 1 }
+    ],
+    label: p =&gt; &#x27;Stoch RSI &#x27; + p.ks + &#x27;,&#x27; + p.ds + &#x27;,&#x27; + p.rl + &#x27;,&#x27; + p.sl,
+    range: [0, 100], zero: false, levels: [{ v: 20 }, { v: 50 }, { v: 80 }],
+    calc: (bars, p) =&gt; {
+      const r = stochRsiCalc(closesOf(bars), p.rl, p.sl, p.ks, p.ds);
+      return {
+        lines: [{ name: &#x27;K&#x27;, v: r.k, color: PAL.blue }, { name: &#x27;D&#x27;, v: r.d, color: PAL.orange }],
+        marks: p.sig ? stochRsiMarks(r.k, p.ob, p.os) : []
+      };
+    }
+  },
+  {
     id: &#x27;stoch&#x27;, name: &#x27;Stochastic&#x27;, code: &#x27;STOCH&#x27;, group: &#x27;osc&#x27;, pane: true, color: PAL.blue, dec: 2,
     desc: &#x27;So giá đóng cửa với vùng giá của n nến. Trên 80 là quá mua, dưới 20 là quá bán.&#x27;,
     keys: &#x27;stochastic stoch so sanh dao dong&#x27;,
@@ -1307,7 +1355,7 @@ const IND_ALL = [
 
 // Thư viện chỉ hiện các chỉ báo trong IND_ON, theo đúng thứ tự này. Mã của mọi chỉ báo vẫn nằm trong IND_ALL.
 // Muốn hiện lại một chỉ báo, thêm id của nó vào IND_ON.
-const IND_ON = [&#x27;ema_zone&#x27;, &#x27;trix&#x27;, &#x27;macd&#x27;, &#x27;gann_fan&#x27;];
+const IND_ON = [&#x27;ema_zone&#x27;, &#x27;trix&#x27;, &#x27;macd&#x27;, &#x27;stoch_rsi&#x27;, &#x27;gann_fan&#x27;];
 const IND_BY_ID = {};
 for (const d of IND_ALL) IND_BY_ID[d.id] = d;
 const IND_LIST = IND_ON.map(id =&gt; IND_BY_ID[id]).filter(Boolean);
@@ -2002,7 +2050,15 @@ function saveInds() {
 function loadInds() {
   try {
     const v = JSON.parse(localStorage.getItem(IND_KEY) || &#x27;null&#x27;);
-    if (Array.isArray(v)) { S.inds = sanitizeInds(v); return; }
+    if (Array.isArray(v)) {
+      // Thêm Stoch RSI PRO một lần cho danh sách chỉ báo đã lưu từ bản trước
+      let added = false;
+      try { added = localStorage.getItem(&#x27;xau-chart-srsi-added&#x27;) === &#x27;1&#x27;; } catch (err) { added = true; }
+      if (!added &amp;&amp; !v.some(x =&gt; x &amp;&amp; x.id === &#x27;stoch_rsi&#x27;)) v.splice(Math.max(0, v.length - 1), 0, { id: &#x27;stoch_rsi&#x27; });
+      try { localStorage.setItem(&#x27;xau-chart-srsi-added&#x27;, &#x27;1&#x27;); } catch (err) { /* bỏ qua */ }
+      S.inds = sanitizeInds(v);
+      return;
+    }
   } catch (err) { /* bỏ qua dữ liệu hỏng */ }
   S.inds = defaultInds();
 }
@@ -3429,17 +3485,19 @@ function aiSnapshot() {
   if (N &lt; 100) return { error: &#x27;Cần ít nhất 100 nến &#x27; + S.tf + &#x27; (đang có &#x27; + N + &#x27;). Chọn khung nhỏ hơn hoặc tải thêm nến.&#x27; };
   const c = closesOf(bars), h = highsOf(bars), l = lowsOf(bars);
   const e34 = ema(c, 34), e80 = ema(c, 80), mac = macdLineArr(c, 12, 26), sig = ema(mac, 9), tr = trixCalc(c, 25, 15);
+  const sr = stochRsiCalc(c, 14, 14, 3, 3);
   const f = (v, d) =&gt; Number.isFinite(v) ? v.toFixed(d) : &#x27;-&#x27;;
   const rows = [];
   for (let i = Math.max(0, N - 40); i &lt; N; i++) {
     rows.push([fmtTs(bars[i].t, &#x27;dhm&#x27;), f(bars[i].o, 2), f(bars[i].h, 2), f(bars[i].l, 2), f(bars[i].c, 2),
-      f(e34[i], 2), f(e80[i], 2), f(mac[i], 3), f(sig[i], 3), f(mac[i] - sig[i], 3), f(tr.t[i], 3), f(tr.s[i], 3)].join(&#x27; | &#x27;));
+      f(e34[i], 2), f(e80[i], 2), f(mac[i], 3), f(sig[i], 3), f(mac[i] - sig[i], 3), f(tr.t[i], 3), f(tr.s[i], 3), f(sr.k[i], 1), f(sr.d[i], 1)].join(&#x27; | &#x27;));
   }
   // Tín hiệu gần đây theo vùng EMA (BUY/SELL, BUY P/SELL P) và TRIX (Buy/Sell)
   const marks = [];
   try {
     for (const m of zoneMarks(h, l, c, e34, e80, mac, 3, 0.5, 1)) if (m.i &gt;= N - 60) marks.push({ i: m.i, t: m.text });
     for (const m of trixMarks(tr.t, tr.s)) if (m.i &gt;= N - 60) marks.push({ i: m.i, t: &#x27;TRIX &#x27; + m.text });
+    for (const m of stochRsiMarks(sr.k, 80, 20)) if (m.i &gt;= N - 60) marks.push({ i: m.i, t: &#x27;Stoch RSI &#x27; + m.text });
   } catch (err) { /* thiếu hàm đánh dấu: bỏ qua phần tín hiệu */ }
   marks.sort((a, b) =&gt; a.i - b.i);
   let hi = -Infinity, lo = Infinity;
@@ -3451,7 +3509,7 @@ function aiSnapshot() {
     &#x27;Đỉnh/đáy 100 nến gần nhất: &#x27; + f(hi, 2) + &#x27; / &#x27; + f(lo, 2),
     &#x27;Tín hiệu trong 60 nến gần nhất: &#x27; + (marks.length ? marks.map(m =&gt; m.t + &#x27; lúc &#x27; + fmtTs(bars[m.i].t, &#x27;dhm&#x27;)).join(&#x27;; &#x27;) : &#x27;không có&#x27;),
     &#x27;40 nến gần nhất (cũ → mới):&#x27;,
-    &#x27;Giờ | Mở | Cao | Thấp | Đóng | EMA34 | EMA80 | MACD | Signal | Hist | TRIX | TRIX signal&#x27;,
+    &#x27;Giờ | Mở | Cao | Thấp | Đóng | EMA34 | EMA80 | MACD | Signal | Hist | TRIX | TRIX signal | StochRSI K | StochRSI D&#x27;,
     rows.join(&#x27;\n&#x27;)
   ].join(&#x27;\n&#x27;);
 
@@ -3526,10 +3584,14 @@ function xikeReadout() {
     { k: &#x27;MACD&#x27;, v: f(mac[i], 3) + &#x27; · tín hiệu &#x27; + f(sig[i], 3) + &#x27; · hist &#x27; + f(mac[i] - sig[i], 3), tone: mac[i] - sig[i] &gt;= 0 ? &#x27;up&#x27; : &#x27;down&#x27; },
     { k: &#x27;TRIX 25/15&#x27;, v: f(tr.t[i], 3) + &#x27; / &#x27; + f(tr.s[i], 3), tone: tr.t[i] &gt;= tr.s[i] ? &#x27;up&#x27; : &#x27;down&#x27; }
   ];
+  const sr = stochRsiCalc(c, 14, 14, 3, 3);
+  rows.push({ k: &#x27;Stoch RSI K / D&#x27;, v: f(sr.k[i], 2) + &#x27; / &#x27; + f(sr.d[i], 2), tone: sr.k[i] &gt;= sr.d[i] ? &#x27;up&#x27; : &#x27;down&#x27;,
+    note: sr.k[i] &gt;= 80 ? &#x27;quá mua&#x27; : sr.k[i] &lt;= 20 ? &#x27;quá bán&#x27; : &#x27;&#x27; });
   const marks = [];
   try {
     for (const m of zoneMarks(h, l, c, e34, e80, mac, 3, 0.5, 1)) if (m.i &gt;= N - 80) marks.push({ i: m.i, t: m.text, up: /BUY/.test(m.text) });
     for (const m of trixMarks(tr.t, tr.s)) if (m.i &gt;= N - 80) marks.push({ i: m.i, t: &#x27;TRIX &#x27; + m.text, up: m.text === &#x27;Buy&#x27; });
+    for (const m of stochRsiMarks(sr.k, 80, 20)) if (m.i &gt;= N - 80) marks.push({ i: m.i, t: &#x27;Stoch RSI &#x27; + m.text, up: m.up });
   } catch (err) { /* bỏ qua phần tín hiệu */ }
   marks.sort((a, b) =&gt; b.i - a.i);
   let gann = null;
@@ -4278,7 +4340,7 @@ const ANALYZE_PROMPT = [
 const LIVE_PROMPT = [
   "Phân tích XAUUSD từ dữ liệu nến và chỉ báo dưới đây (số đã tính sẵn từ giá thật), theo đúng các quy tắc tôi đã dạy. Trả lời theo thứ tự:",
   "1. Khung thời gian và giá hiện tại.",
-  "2. Xu hướng: EMA 34/80, MACD, TRIX (ghi giá trị trong dữ liệu).",
+  "2. Xu hướng: EMA 34/80, MACD, TRIX, Stoch RSI (ghi giá trị trong dữ liệu; Stoch RSI trên 80 là quá mua, dưới 20 là quá bán).",
   "3. Tín hiệu theo quy tắc: đã có hay chưa, thuộc quy tắc nào, còn thiếu điều kiện gì.",
   "4. Kế hoạch: BUY, SELL hoặc ĐỨNG NGOÀI. Nếu vào lệnh thì ghi vùng entry, SL, TP1, TP2, TP3, mỗi mức ghi khoảng cách bằng giá và pip (10 giá = 100 pip).",
   "5. Điều kiện huỷ kế hoạch.",
@@ -4513,13 +4575,15 @@ function tvConfig() {
     details: false,
     calendar: false,
     save_image: true,
-    // 4 chỉ báo. Phải viết tất cả cùng một dạng { id, inputs }: trộn với dạng chuỗi
+    // 5 chỉ báo. Phải viết tất cả cùng một dạng { id, inputs }: trộn với dạng chuỗi
     // ("MACD@tv-basicstudies") thì TradingView bỏ các chỉ báo phía sau (đã thử).
     studies: [
       { id: "MAExp@tv-basicstudies", inputs: { length: 34 } },
       { id: "MAExp@tv-basicstudies", inputs: { length: 80 } },
       { id: "MACD@tv-basicstudies", inputs: { fastLength: 12, slowLength: 26, signalLength: 9 } },
-      { id: "Trix@tv-basicstudies", inputs: { length: 25 } }
+      { id: "Trix@tv-basicstudies", inputs: { length: 25 } },
+      // Stoch RSI (cùng thông số Stoch RSI PRO: K 3, D 3, RSI 14, Stoch 14). Dấu BUY/SELL của bản Pine có ở chỉ báo XIKE.
+      { id: "StochasticRSI@tv-basicstudies", inputs: { lengthRSI: 14, lengthStoch: 14, smoothK: 3, smoothD: 3 } }
     ],
     support_host: "https://www.tradingview.com"
   };
@@ -4643,7 +4707,7 @@ function renderSignals() {
   };
   const sub = (t) => { const h = document.createElement("div"); h.className = "sig-sub"; h.textContent = t; body.appendChild(h); };
   for (const x of r.rows) row(x.k, x.v, x.tone, x.note);
-  sub("Tín hiệu gần đây (BUY P / SELL P, TRIX)");
+  sub("Tín hiệu gần đây (BUY P / SELL P, TRIX, Stoch RSI)");
   if (!r.marks.length) row("—", "Chưa có tín hiệu trong 80 nến gần nhất");
   for (const m of r.marks) {
     const c = document.createElement("span");

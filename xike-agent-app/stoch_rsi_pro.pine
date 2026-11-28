@@ -1,0 +1,39 @@
+//@version=5
+indicator(title="Stoch RSI PRO", shorttitle="Stoch RSI", overlay=false, format=format.price, precision=2)
+
+// Inputs
+kSmooth  = input.int(3, "K Smoothing", minval=1)
+dSmooth  = input.int(3, "D Smoothing", minval=1)
+rsiLen   = input.int(14, "RSI Length", minval=1)
+stochLen = input.int(14, "Stochastic Length", minval=1)
+src      = input.source(close, "Source")
+obLevel  = input.int(80, "Overbought Level", minval=50, maxval=100)
+osLevel  = input.int(20, "Oversold Level", minval=0, maxval=50)
+showSig  = input.bool(true, "Show Buy/Sell Markers")
+
+// Calculation
+rsi = ta.rsi(src, rsiLen)
+k   = ta.sma(ta.stoch(rsi, rsi, rsi, stochLen), kSmooth)
+d   = ta.sma(k, dSmooth)
+
+// Levels and zone fill
+hline(100, "Upper Band", color=color.new(#787B86, 60))
+hline(0, "Lower Band", color=color.new(#787B86, 60))
+hOb = hline(obLevel, "Overbought", color=#787B86, linestyle=hline.style_dashed)
+hOs = hline(osLevel, "Oversold", color=#787B86, linestyle=hline.style_dashed)
+hline(50, "Middle Band", color=color.new(#787B86, 40), linestyle=hline.style_dashed)
+fill(hOb, hOs, color=color.new(#2962FF, 90), title="OB/OS Zone")
+
+// Plots
+plot(k, title="K", color=#2962FF, linewidth=2)
+plot(d, title="D", color=#FF6D00, linewidth=2)
+
+// Buy/Sell markers: K leaves oversold (BUY) or overbought (SELL)
+plotshape(showSig and ta.crossover(k, osLevel), title="BUY", style=shape.triangleup, location=location.bottom, color=color.green, size=size.small, text="BUY")
+plotshape(showSig and ta.crossunder(k, obLevel), title="SELL", style=shape.triangledown, location=location.top, color=color.red, size=size.small, text="SELL")
+
+// Alerts
+alertcondition(ta.crossover(k, d), title="K crosses above D", message="Stoch RSI: K crossed above D")
+alertcondition(ta.crossunder(k, d), title="K crosses below D", message="Stoch RSI: K crossed below D")
+alertcondition(ta.crossover(k, obLevel), title="K enters Overbought", message="Stoch RSI: K entered Overbought")
+alertcondition(ta.crossunder(k, osLevel), title="K enters Oversold", message="Stoch RSI: K entered Oversold")

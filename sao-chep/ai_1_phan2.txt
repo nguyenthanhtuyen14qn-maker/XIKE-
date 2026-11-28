@@ -410,7 +410,15 @@ function saveInds() {
 function loadInds() {
   try {
     const v = JSON.parse(localStorage.getItem(IND_KEY) || &#x27;null&#x27;);
-    if (Array.isArray(v)) { S.inds = sanitizeInds(v); return; }
+    if (Array.isArray(v)) {
+      // Thêm Stoch RSI PRO một lần cho danh sách chỉ báo đã lưu từ bản trước
+      let added = false;
+      try { added = localStorage.getItem(&#x27;xau-chart-srsi-added&#x27;) === &#x27;1&#x27;; } catch (err) { added = true; }
+      if (!added &amp;&amp; !v.some(x =&gt; x &amp;&amp; x.id === &#x27;stoch_rsi&#x27;)) v.splice(Math.max(0, v.length - 1), 0, { id: &#x27;stoch_rsi&#x27; });
+      try { localStorage.setItem(&#x27;xau-chart-srsi-added&#x27;, &#x27;1&#x27;); } catch (err) { /* bỏ qua */ }
+      S.inds = sanitizeInds(v);
+      return;
+    }
   } catch (err) { /* bỏ qua dữ liệu hỏng */ }
   S.inds = defaultInds();
 }
@@ -1837,17 +1845,19 @@ function aiSnapshot() {
   if (N &lt; 100) return { error: &#x27;Cần ít nhất 100 nến &#x27; + S.tf + &#x27; (đang có &#x27; + N + &#x27;). Chọn khung nhỏ hơn hoặc tải thêm nến.&#x27; };
   const c = closesOf(bars), h = highsOf(bars), l = lowsOf(bars);
   const e34 = ema(c, 34), e80 = ema(c, 80), mac = macdLineArr(c, 12, 26), sig = ema(mac, 9), tr = trixCalc(c, 25, 15);
+  const sr = stochRsiCalc(c, 14, 14, 3, 3);
   const f = (v, d) =&gt; Number.isFinite(v) ? v.toFixed(d) : &#x27;-&#x27;;
   const rows = [];
   for (let i = Math.max(0, N - 40); i &lt; N; i++) {
     rows.push([fmtTs(bars[i].t, &#x27;dhm&#x27;), f(bars[i].o, 2), f(bars[i].h, 2), f(bars[i].l, 2), f(bars[i].c, 2),
-      f(e34[i], 2), f(e80[i], 2), f(mac[i], 3), f(sig[i], 3), f(mac[i] - sig[i], 3), f(tr.t[i], 3), f(tr.s[i], 3)].join(&#x27; | &#x27;));
+      f(e34[i], 2), f(e80[i], 2), f(mac[i], 3), f(sig[i], 3), f(mac[i] - sig[i], 3), f(tr.t[i], 3), f(tr.s[i], 3), f(sr.k[i], 1), f(sr.d[i], 1)].join(&#x27; | &#x27;));
   }
   // Tín hiệu gần đây theo vùng EMA (BUY/SELL, BUY P/SELL P) và TRIX (Buy/Sell)
   const marks = [];
   try {
     for (const m of zoneMarks(h, l, c, e34, e80, mac, 3, 0.5, 1)) if (m.i &gt;= N - 60) marks.push({ i: m.i, t: m.text });
     for (const m of trixMarks(tr.t, tr.s)) if (m.i &gt;= N - 60) marks.push({ i: m.i, t: &#x27;TRIX &#x27; + m.text });
+    for (const m of stochRsiMarks(sr.k, 80, 20)) if (m.i &gt;= N - 60) marks.push({ i: m.i, t: &#x27;Stoch RSI &#x27; + m.text });
   } catch (err) { /* thiếu hàm đánh dấu: bỏ qua phần tín hiệu */ }
   marks.sort((a, b) =&gt; a.i - b.i);
   let hi = -Infinity, lo = Infinity;
@@ -1859,7 +1869,7 @@ function aiSnapshot() {
     &#x27;Đỉnh/đáy 100 nến gần nhất: &#x27; + f(hi, 2) + &#x27; / &#x27; + f(lo, 2),
     &#x27;Tín hiệu trong 60 nến gần nhất: &#x27; + (marks.length ? marks.map(m =&gt; m.t + &#x27; lúc &#x27; + fmtTs(bars[m.i].t, &#x27;dhm&#x27;)).join(&#x27;; &#x27;) : &#x27;không có&#x27;),
     &#x27;40 nến gần nhất (cũ → mới):&#x27;,
-    &#x27;Giờ | Mở | Cao | Thấp | Đóng | EMA34 | EMA80 | MACD | Signal | Hist | TRIX | TRIX signal&#x27;,
+    &#x27;Giờ | Mở | Cao | Thấp | Đóng | EMA34 | EMA80 | MACD | Signal | Hist | TRIX | TRIX signal | StochRSI K | StochRSI D&#x27;,
     rows.join(&#x27;\n&#x27;)
   ].join(&#x27;\n&#x27;);
 
@@ -1934,10 +1944,14 @@ function xikeReadout() {
     { k: &#x27;MACD&#x27;, v: f(mac[i], 3) + &#x27; · tín hiệu &#x27; + f(sig[i], 3) + &#x27; · hist &#x27; + f(mac[i] - sig[i], 3), tone: mac[i] - sig[i] &gt;= 0 ? &#x27;up&#x27; : &#x27;down&#x27; },
     { k: &#x27;TRIX 25/15&#x27;, v: f(tr.t[i], 3) + &#x27; / &#x27; + f(tr.s[i], 3), tone: tr.t[i] &gt;= tr.s[i] ? &#x27;up&#x27; : &#x27;down&#x27; }
   ];
+  const sr = stochRsiCalc(c, 14, 14, 3, 3);
+  rows.push({ k: &#x27;Stoch RSI K / D&#x27;, v: f(sr.k[i], 2) + &#x27; / &#x27; + f(sr.d[i], 2), tone: sr.k[i] &gt;= sr.d[i] ? &#x27;up&#x27; : &#x27;down&#x27;,
+    note: sr.k[i] &gt;= 80 ? &#x27;quá mua&#x27; : sr.k[i] &lt;= 20 ? &#x27;quá bán&#x27; : &#x27;&#x27; });
   const marks = [];
   try {
     for (const m of zoneMarks(h, l, c, e34, e80, mac, 3, 0.5, 1)) if (m.i &gt;= N - 80) marks.push({ i: m.i, t: m.text, up: /BUY/.test(m.text) });
     for (const m of trixMarks(tr.t, tr.s)) if (m.i &gt;= N - 80) marks.push({ i: m.i, t: &#x27;TRIX &#x27; + m.text, up: m.text === &#x27;Buy&#x27; });
+    for (const m of stochRsiMarks(sr.k, 80, 20)) if (m.i &gt;= N - 80) marks.push({ i: m.i, t: &#x27;Stoch RSI &#x27; + m.text, up: m.up });
   } catch (err) { /* bỏ qua phần tín hiệu */ }
   marks.sort((a, b) =&gt; b.i - a.i);
   let gann = null;

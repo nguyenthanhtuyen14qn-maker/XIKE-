@@ -654,7 +654,7 @@ const ANALYZE_PROMPT = [
 const LIVE_PROMPT = [
   "Phân tích XAUUSD từ dữ liệu nến và chỉ báo dưới đây (số đã tính sẵn từ giá thật), theo đúng các quy tắc tôi đã dạy. Trả lời theo thứ tự:",
   "1. Khung thời gian và giá hiện tại.",
-  "2. Xu hướng: EMA 34/80, MACD, TRIX (ghi giá trị trong dữ liệu).",
+  "2. Xu hướng: EMA 34/80, MACD, TRIX, Stoch RSI (ghi giá trị trong dữ liệu; Stoch RSI trên 80 là quá mua, dưới 20 là quá bán).",
   "3. Tín hiệu theo quy tắc: đã có hay chưa, thuộc quy tắc nào, còn thiếu điều kiện gì.",
   "4. Kế hoạch: BUY, SELL hoặc ĐỨNG NGOÀI. Nếu vào lệnh thì ghi vùng entry, SL, TP1, TP2, TP3, mỗi mức ghi khoảng cách bằng giá và pip (10 giá = 100 pip).",
   "5. Điều kiện huỷ kế hoạch.",
@@ -889,13 +889,15 @@ function tvConfig() {
     details: false,
     calendar: false,
     save_image: true,
-    // 4 chỉ báo. Phải viết tất cả cùng một dạng { id, inputs }: trộn với dạng chuỗi
+    // 5 chỉ báo. Phải viết tất cả cùng một dạng { id, inputs }: trộn với dạng chuỗi
     // ("MACD@tv-basicstudies") thì TradingView bỏ các chỉ báo phía sau (đã thử).
     studies: [
       { id: "MAExp@tv-basicstudies", inputs: { length: 34 } },
       { id: "MAExp@tv-basicstudies", inputs: { length: 80 } },
       { id: "MACD@tv-basicstudies", inputs: { fastLength: 12, slowLength: 26, signalLength: 9 } },
-      { id: "Trix@tv-basicstudies", inputs: { length: 25 } }
+      { id: "Trix@tv-basicstudies", inputs: { length: 25 } },
+      // Stoch RSI (cùng thông số Stoch RSI PRO: K 3, D 3, RSI 14, Stoch 14). Dấu BUY/SELL của bản Pine có ở chỉ báo XIKE.
+      { id: "StochasticRSI@tv-basicstudies", inputs: { lengthRSI: 14, lengthStoch: 14, smoothK: 3, smoothD: 3 } }
     ],
     support_host: "https://www.tradingview.com"
   };
@@ -1019,7 +1021,7 @@ function renderSignals() {
   };
   const sub = (t) => { const h = document.createElement("div"); h.className = "sig-sub"; h.textContent = t; body.appendChild(h); };
   for (const x of r.rows) row(x.k, x.v, x.tone, x.note);
-  sub("Tín hiệu gần đây (BUY P / SELL P, TRIX)");
+  sub("Tín hiệu gần đây (BUY P / SELL P, TRIX, Stoch RSI)");
   if (!r.marks.length) row("—", "Chưa có tín hiệu trong 80 nến gần nhất");
   for (const m of r.marks) {
     const c = document.createElement("span");

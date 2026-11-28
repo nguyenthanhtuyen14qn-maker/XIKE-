@@ -789,6 +789,31 @@ function rsiArr(c, n) {
   return out;
 }
 
+// Stoch RSI PRO (theo script Pine của người dùng): K = SMA(Stoch(RSI, RSI, RSI, stochLen), kSmooth), D = SMA(K, dSmooth)
+function stochRsiCalc(c, rl, sl, ks, ds) {
+  const N = c.length, r = rsiArr(c, rl), hh = rollMax(r, sl), ll = rollMin(r, sl), raw = NAN_ARR(N);
+  for (let i = sl - 1; i &lt; N; i++) {
+    let ok = true;
+    for (let j = i - sl + 1; j &lt;= i; j++) if (!Number.isFinite(r[j])) { ok = false; break; }
+    if (!ok) continue;
+    const d = hh[i] - ll[i];
+    if (d &gt; 0) raw[i] = 100 * (r[i] - ll[i]) / d;
+  }
+  const k = smaArr(raw, ks);
+  return { k, d: smaArr(k, ds) };
+}
+// BUY: K vượt lên trên mức quá bán; SELL: K cắt xuống dưới mức quá mua (ta.crossover / ta.crossunder)
+function stochRsiMarks(k, ob, os) {
+  const out = [];
+  for (let i = 1; i &lt; k.length; i++) {
+    const a = k[i], b = k[i - 1];
+    if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
+    if (a &gt; os &amp;&amp; b &lt;= os) out.push({ i, text: &#x27;BUY&#x27;, up: true });
+    if (a &lt; ob &amp;&amp; b &gt;= ob) out.push({ i, text: &#x27;SELL&#x27;, up: false });
+  }
+  return out;
+}
+
 /* ----- Sq9, thang bậc, tìm nến, đọc file ----- */
 function sq9Levels(price, degrees) {
   const s = Math.sqrt(price), out = [];
@@ -1200,6 +1225,29 @@ const IND_ALL = [
     }
   },
   {
+    id: &#x27;stoch_rsi&#x27;, name: &#x27;Stoch RSI PRO&#x27;, code: &#x27;SRSI&#x27;, group: &#x27;osc&#x27;, pane: true, color: PAL.blue, dec: 2,
+    desc: &#x27;Stochastic của RSI (bản Stoch RSI PRO). K là SMA của Stoch(RSI), D là SMA của K. Nhãn BUY khi K vượt lên trên mức quá bán, SELL khi K cắt xuống dưới mức quá mua.&#x27;,
+    keys: &#x27;stoch rsi stochastic rsi stochrsi pro qua mua qua ban buy sell&#x27;,
+    params: [
+      { k: &#x27;ks&#x27;, label: &#x27;K Smoothing&#x27;, def: 3, min: 1, max: 50 },
+      { k: &#x27;ds&#x27;, label: &#x27;D Smoothing&#x27;, def: 3, min: 1, max: 50 },
+      { k: &#x27;rl&#x27;, label: &#x27;RSI Length&#x27;, def: 14, min: 1, max: 500 },
+      { k: &#x27;sl&#x27;, label: &#x27;Stochastic Length&#x27;, def: 14, min: 1, max: 500 },
+      { k: &#x27;ob&#x27;, label: &#x27;Mức quá mua (Overbought)&#x27;, def: 80, min: 50, max: 100 },
+      { k: &#x27;os&#x27;, label: &#x27;Mức quá bán (Oversold)&#x27;, def: 20, min: 0, max: 50 },
+      { k: &#x27;sig&#x27;, label: &#x27;Nhãn BUY/SELL (1 = hiện, 0 = ẩn)&#x27;, def: 1, min: 0, max: 1 }
+    ],
+    label: p =&gt; &#x27;Stoch RSI &#x27; + p.ks + &#x27;,&#x27; + p.ds + &#x27;,&#x27; + p.rl + &#x27;,&#x27; + p.sl,
+    range: [0, 100], zero: false, levels: [{ v: 20 }, { v: 50 }, { v: 80 }],
+    calc: (bars, p) =&gt; {
+      const r = stochRsiCalc(closesOf(bars), p.rl, p.sl, p.ks, p.ds);
+      return {
+        lines: [{ name: &#x27;K&#x27;, v: r.k, color: PAL.blue }, { name: &#x27;D&#x27;, v: r.d, color: PAL.orange }],
+        marks: p.sig ? stochRsiMarks(r.k, p.ob, p.os) : []
+      };
+    }
+  },
+  {
     id: &#x27;stoch&#x27;, name: &#x27;Stochastic&#x27;, code: &#x27;STOCH&#x27;, group: &#x27;osc&#x27;, pane: true, color: PAL.blue, dec: 2,
     desc: &#x27;So giá đóng cửa với vùng giá của n nến. Trên 80 là quá mua, dưới 20 là quá bán.&#x27;,
     keys: &#x27;stochastic stoch so sanh dao dong&#x27;,
@@ -1307,7 +1355,7 @@ const IND_ALL = [
 
 // Thư viện chỉ hiện các chỉ báo trong IND_ON, theo đúng thứ tự này. Mã của mọi chỉ báo vẫn nằm trong IND_ALL.
 // Muốn hiện lại một chỉ báo, thêm id của nó vào IND_ON.
-const IND_ON = [&#x27;ema_zone&#x27;, &#x27;trix&#x27;, &#x27;macd&#x27;, &#x27;gann_fan&#x27;];
+const IND_ON = [&#x27;ema_zone&#x27;, &#x27;trix&#x27;, &#x27;macd&#x27;, &#x27;stoch_rsi&#x27;, &#x27;gann_fan&#x27;];
 const IND_BY_ID = {};
 for (const d of IND_ALL) IND_BY_ID[d.id] = d;
 const IND_LIST = IND_ON.map(id =&gt; IND_BY_ID[id]).filter(Boolean);
